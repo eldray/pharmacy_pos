@@ -6,44 +6,66 @@ const fs = require('fs');
 let mainWindow = null;
 let serverProcess = null;
 
-function startBackendServer() {
-  const isDev = !app.isPackaged && process.env.NODE_ENV !== 'production';
-  
-  if (isDev) {
-    console.log('Development mode: Backend server should be started manually');
-    return;
+function getResourcePath(...paths) {
+  if (app.isPackaged) {
+    // Backend is unpacked from ASAR, so use process.resourcesPath
+    // Frontend is inside ASAR, so use app.getAppPath()
+    const pathStr = paths.join('/');
+    
+    if (pathStr.startsWith('backend')) {
+      // Backend is unpacked
+      return path.join(process.resourcesPath, 'app.asar.unpacked', ...paths);
+    } else {
+      // Frontend is in ASAR
+      return path.join(process.resourcesPath, 'app', ...paths);
+    }
   }
-  
-  const serverPath = path.join(process.resourcesPath, 'backend', 'server.js');
-  const serverDir = path.join(process.resourcesPath, 'backend');
-  
-  console.log('Starting backend server from:', serverPath);
-  
-  if (fs.existsSync(serverPath)) {
-    serverProcess = spawn('node', [serverPath], {
-      cwd: serverDir,
-      stdio: ['pipe', 'pipe', 'pipe'],
-      env: { ...process.env, NODE_ENV: 'production' },
-      shell: process.platform === 'win32'
-    });
+  // In development
+  return path.join(__dirname, ...paths);
+}
+
+function startBackendServer() {
+  try {
+    const serverPath = getResourcePath('backend', 'server.js');
+    const backendDir = path.dirname(serverPath);
     
-    serverProcess.stdout.on('data', (data) => {
-      console.log(`[Backend]: ${data.toString().trim()}`);
-    });
+    console.log('Starting backend server...');
+    console.log('Server path:', serverPath);
+    console.log('Backend directory:', backendDir);
     
-    serverProcess.stderr.on('data', (data) => {
-      console.error(`[Backend Error]: ${data.toString().trim()}`);
-    });
-    
-    serverProcess.on('error', (err) => {
-      console.error('Failed to start backend server:', err);
-    });
-    
-    serverProcess.on('close', (code) => {
-      console.log(`Backend server exited with code ${code}`);
-    });
-  } else {
-    console.error('Backend server not found at:', serverPath);
+    if (fs.existsSync(serverPath)) {
+      serverProcess = spawn('node', [serverPath], {
+        cwd: backendDir,
+        stdio: ['pipe', 'pipe', 'pipe'],
+        shell: true,
+        env: { 
+          ...process.env, 
+          NODE_ENV: 'production',
+          PORT: '5000'
+        }
+      });
+
+      serverProcess.stdout.on('data', (data) => {
+        console.log(`[Backend]: ${data.toString().trim()}`);
+      });
+
+      serverProcess.stderr.on('data', (data) => {
+        console.error(`[Backend Error]: ${data.toString().trim()}`);
+      });
+
+      serverProcess.on('error', (error) => {
+        console.error('Failed to start backend process:', error);
+      });
+
+      serverProcess.on('exit', (code, signal) => {
+        console.log(`Backend process exited with code ${code} and signal ${signal}`);
+      });
+    } else {
+      console.error('Backend server.js not found at:', serverPath);
+      console.log('Contents of resources:', fs.readdirSync(process.resourcesPath));
+    }
+  } catch (error) {
+    console.error('Failed to start backend:', error);
   }
 }
 
@@ -54,41 +76,95 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: path.join(__dirname, 'preload.js')
+      preload: path.join(__dirname, 'preload.js'),
+      webSecurity: true
     },
-    icon: path.join(__dirname, 'frontend', 'public', 'icon.ico')
+    icon: getResourcePath('frontend', 'public', 'icon.ico'),
+    show: false
   });
-  
-  // Load the frontend
+
+  console.log('=== Window Creation ===');
+  console.log('App path:', app.getAppPath());
+  console.log('Is packaged:', app.isPackaged);
+  console.log('Resources path:', process.resourcesPath);
+
   if (app.isPackaged) {
-    // In production: load from built files
-    const indexPath = path.join(__dirname, 'frontend', 'dist', 'index.html');
-    console.log('Loading from:', indexPath);
-    mainWindow.loadFile(indexPath);
+    const indexPath = getResourcePath('frontend', 'dist', 'index.html');
+    console.log('Loading index.html from:', indexPath);
+    console.log('File exists:', fs.existsSync(indexPath));
+
+    if (fs.existsSync(indexPath)) {
+      mainWindow.loadFile(indexPath)
+        .then(() => {
+          console.log('Successfully loaded index.html');
+          mainWindow.show();
+        })
+        .catch(err => {
+          console.error('Failed to load index.html:', err);
+          
+          // Try alternative path (in case ASAR structure is different)
+          const altPath = path.join(app.getAppPath(), 'frontend', 'dist', 'index.html');
+          console.log('Trying alternative path:', altPath);
+          
+          if (fs.existsSync(altPath)) {
+            mainWindow.loadFile(altPath).then(() => {
+              console.log('Loaded from alternative path');
+              mainWindow.show();
+            });
+          } else {
+            mainWindow.loadURL('data:text/html,<h1>Loading Error</h1><p>Check logs</p>');
+            mainWindow.show();
+            mainWindow.webContents.openDevTools();
+          }
+        });
+    } else {
+      console.error('index.html not found at:', indexPath);
+      
+      // Debug: list available paths
+      console.log('App path:', app.getAppPath());
+      console.log('Resources path:', process.resourcesPath);
+      
+      mainWindow.loadURL('data:text/html,<h1>File Not Found</h1><p>index.html missing</p>');
+      mainWindow.show();
+      mainWindow.webContents.openDevTools();
+    }
   } else {
-    // In development: load from dev server
+    // Development mode
     mainWindow.loadURL('http://localhost:3000');
     mainWindow.webContents.openDevTools();
+    mainWindow.show();
   }
+
+  mainWindow.on('closed', () => {
+    mainWindow = null;
+  });
 }
 
 app.whenReady().then(() => {
-  console.log('Pharmacy POS starting...');
-  
-  // Start backend server (in production mode only)
+  console.log('=== Pharmacy POS Starting ===');
+  console.log('Is packaged:', app.isPackaged);
+  console.log('Platform:', process.platform);
+  console.log('Node version:', process.version);
+  console.log('Electron version:', process.versions.electron);
+
+  // Start backend in production
   if (app.isPackaged) {
-    console.log('Production mode: Starting backend server...');
+    console.log('Starting in production mode...');
     startBackendServer();
-    // Give server time to start
-    setTimeout(createWindow, 2000);
+    
+    // Give backend a moment to start before opening window
+    setTimeout(() => {
+      createWindow();
+    }, 2000);
   } else {
-    console.log('Development mode: Skipping backend startup');
+    console.log('Starting in development mode...');
     createWindow();
   }
 });
 
 app.on('window-all-closed', () => {
   if (serverProcess) {
+    console.log('Killing backend server process...');
     serverProcess.kill();
   }
   
@@ -98,13 +174,14 @@ app.on('window-all-closed', () => {
 });
 
 app.on('activate', () => {
-  if (BrowserWindow.getAllWindows().length === 0) {
+  if (mainWindow === null) {
     createWindow();
   }
 });
 
-app.on('before-quit', () => {
-  if (serverProcess) {
-    serverProcess.kill();
-  }
+// Global error handlers
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
 });
+
+process.on('unhandledRejection', (reason

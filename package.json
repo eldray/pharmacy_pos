@@ -3,21 +3,23 @@
   "version": "1.0.0",
   "description": "Pharmacy Point of Sale System",
   "main": "main.cjs",
-  "author": "Your Name",
+  "author": "Emmanuel Appiah",
   "license": "ISC",
   "scripts": {
-    "install:all": "npm install && cd frontend && npm install && cd ../backend && npm install",
+    "install:all": "npm install && cd frontend && npm install && cd backend && npm install",
     "dev": "concurrently -k \"npm run dev:backend\" \"npm run dev:frontend\" \"npm run electron\"",
     "dev:frontend": "cd frontend && npm run dev",
     "dev:backend": "cd backend && npm run dev",
-    "electron": "wait-on http://localhost:3000 && electron .",
+    "electron": "wait-on http://localhost:3000 && electron . --no-sandbox",
     "start": "npm run dev",
-    "build:win": "npm run build:frontend && npm run build:backend && electron-builder --win",
     "build:frontend": "cd frontend && npm run build",
-    "build:backend": "cd backend && npm run build",
-    "clean": "rm -rf release dist build",
-    "pack": "electron-builder --dir",
-    "dist": "electron-builder"
+    "build": "npm run build:frontend && electron-builder",
+    "build:win": "npm run build:frontend && electron-builder --win --x64 -c.win.signAndEditExecutable=false",
+    "build:win-portable": "npm run build:frontend && electron-builder --win portable --x64 -c.win.signAndEditExecutable=false",
+    "build:win-dir": "npm run build:frontend && electron-builder --win --x64 --dir -c.win.signAndEditExecutable=false",
+    "build:mac": "npm run build:frontend && electron-builder --mac",
+    "build:linux": "npm run build:frontend && electron-builder --linux",
+    "clean": "rm -rf release dist build frontend/dist"
   },
   "dependencies": {
     "concurrently": "^9.2.1",
@@ -30,37 +32,68 @@
   },
   "build": {
     "appId": "com.pharmacypos.app",
-    "productName": "Pharmacy POS",
+    "productName": "PharmacyPOS",
+    "executableName": "PharmacyPOS",
+    "electronVersion": "38.7.2",
     "directories": {
-      "output": "release"
+      "output": "release",
+      "buildResources": "build"
     },
     "files": [
       "main.cjs",
       "preload.js",
-      "frontend/dist/**/*",
-      "backend/**/*",
-      "!backend/node_modules/**/*"
+      "package.json"
     ],
     "extraResources": [
       {
+        "from": "frontend/dist",
+        "to": "app/frontend/dist",
+        "filter": ["**/*"]
+      },
+      {
         "from": "backend",
-        "to": "backend",
+        "to": "app/backend",
         "filter": [
           "**/*",
-          "!node_modules/**/*"
+          "!node_modules/**/*",
+          "!*.log",
+          "!test*",
+          "!*.md"
         ]
+      },
+      {
+        "from": "backend/node_modules",
+        "to": "app/backend/node_modules",
+        "filter": ["**/*"]
       }
     ],
     "win": {
-      "target": "nsis",
-      "icon": "frontend/public/icon.ico"
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        },
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "frontend/public/icon.ico",
+      "publisherName": "Emmanuel Appiah",
+      "requestedExecutionLevel": "asInvoker",
+      "signAndEditExecutable": false
     },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "installerIcon": "frontend/public/icon.ico",
-      "uninstallerIcon": "frontend/public/icon.ico",
-      "installerHeaderIcon": "frontend/public/icon.ico"
-    }
+    "mac": {
+      "target": "dmg",
+      "icon": "frontend/public/icon.icns"
+    },
+    "linux": {
+      "target": "AppImage",
+      "category": "Office"
+    },
+    "asar": true,
+    "asarUnpack": [
+      "app/backend/**/*"
+    ]
   }
 }
