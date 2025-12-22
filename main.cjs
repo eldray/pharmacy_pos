@@ -195,8 +195,7 @@ function createWindow() {
     mainWindow.loadURL('http://localhost:3000');
     mainWindow.show();
   }
-
-  function loadErrorPage() {
+  function loadErrorPage(errorMessage = 'Unknown error') {
     const errorHTML = `
       <html>
         <head>
@@ -213,6 +212,13 @@ function createWindow() {
               box-shadow: 0 2px 10px rgba(0,0,0,0.1);
             }
             h1 { color: #d32f2f; }
+            .error { 
+              background: #ffebee; 
+              color: #c62828; 
+              padding: 15px; 
+              border-radius: 5px; 
+              margin: 15px 0;
+            }
             pre { 
               background: #f8f8f8; 
               padding: 15px; 
@@ -234,7 +240,9 @@ function createWindow() {
         <body>
           <div class="container">
             <h1>⚠️ Application Error</h1>
-            <p>Could not find index.html file.</p>
+            <div class="error">
+              <strong>Error:</strong> ${errorMessage}
+            </div>
             <h3>Debug Information:</h3>
             <pre>App Path: ${app.getAppPath()}
 Resources Path: ${process.resourcesPath}
@@ -291,18 +299,78 @@ app.whenReady().then(() => {
   console.log('Node version:', process.version);
 
   // Start backend in production
+
+
+    // Load URL or file - FIXED VERSION
   if (app.isPackaged) {
-    console.log('Starting in production mode...');
-    startBackendServer();
+    console.log('=== DEBUG: Looking for index.html ===');
+    console.log('Resources path:', process.resourcesPath);
     
-    // Give backend time to start, then create window
-    setTimeout(() => {
-      createWindow();
-    }, 1000);
+    // List ALL files in resources directory first
+    console.log('\n=== ALL FILES IN RESOURCES FOLDER ===');
+    try {
+      const resourcesFiles = fs.readdirSync(process.resourcesPath);
+      console.log('Top level:', resourcesFiles);
+      
+      // Check if app.asar.unpacked exists
+      const unpackedPath = path.join(process.resourcesPath, 'app.asar.unpacked');
+      if (fs.existsSync(unpackedPath)) {
+        console.log('\n=== FILES IN app.asar.unpacked ===');
+        const unpackedFiles = fs.readdirSync(unpackedPath);
+        console.log(unpackedFiles);
+        
+        // Check if frontend folder exists in unpacked
+        const frontendPath = path.join(unpackedPath, 'frontend');
+        if (fs.existsSync(frontendPath)) {
+          console.log('\n=== FILES IN frontend folder ===');
+          const frontendFiles = fs.readdirSync(frontendPath);
+          console.log(frontendFiles);
+          
+          // Check if dist folder exists
+          const distPath = path.join(frontendPath, 'dist');
+          if (fs.existsSync(distPath)) {
+            console.log('\n=== FILES IN dist folder ===');
+            const distFiles = fs.readdirSync(distPath);
+            console.log(distFiles);
+            
+            // Try to load index.html
+            const indexPath = path.join(distPath, 'index.html');
+            console.log('\n=== TRYING TO LOAD ===');
+            console.log('Final path:', indexPath);
+            console.log('File exists:', fs.existsSync(indexPath));
+            
+            if (fs.existsSync(indexPath)) {
+              console.log('✓ Loading index.html...');
+              mainWindow.loadFile(indexPath)
+                .then(() => {
+                  console.log('✓ Successfully loaded!');
+                  mainWindow.show();
+                })
+                .catch(err => {
+                  console.error('✗ Load failed:', err);
+                  loadErrorPage('Load Error: ' + err.message);
+                });
+            } else {
+              loadErrorPage('index.html not found in dist folder');
+            }
+          } else {
+            loadErrorPage('dist folder not found in frontend');
+          }
+        } else {
+          loadErrorPage('frontend folder not found in app.asar.unpacked');
+        }
+      } else {
+        loadErrorPage('app.asar.unpacked folder not found');
+      }
+    } catch (err) {
+      console.error('Error reading directory:', err);
+      loadErrorPage('Directory read error: ' + err.message);
+    }
   } else {
     console.log('Starting in development mode...');
     createWindow();
   }
+
 });
 
 app.on('window-all-closed', () => {

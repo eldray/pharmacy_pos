@@ -5,68 +5,81 @@
   "main": "main.cjs",
   "author": "Emmanuel Appiah",
   "license": "ISC",
- "scripts": {
-  "install:all": "npm install && cd frontend && npm install && cd backend && npm install",
-  "dev": "concurrently -k \"npm run dev:backend\" \"npm run dev:frontend\" \"npm run electron\"",
-  "dev:frontend": "cd frontend && npm run dev",
-  "dev:backend": "cd backend && npm run dev",
-  "electron": "wait-on http://localhost:3000 && electron . --no-sandbox",
-  "start": "npm run dev",
-  "build:frontend": "cd frontend && npm run build",
-  "build": "npm run build:frontend && electron-builder",
-  "build:win": "npm run build:frontend && electron-builder --win --x64 -c.win.signAndEditExecutable=false",
-  "build:win-portable": "npm run build:frontend && electron-builder --win portable --x64 -c.win.signAndEditExecutable=false",
-  "build:win-dir": "npm run build:frontend && electron-builder --win --x64 --dir -c.win.signAndEditExecutable=false",
-  "build:win-final": "npm run build:frontend && electron-builder --win --x64 --dir -c.win.signAndEditExecutable=false && npm run package:win",
-  "package:win": "cd release && rm -f PharmacyPOS-portable.zip && zip -r PharmacyPOS-portable.zip win-unpacked/",
-  
-  "build:mac": "npm run build:frontend && electron-builder --mac",
-  "build:linux": "npm run build:frontend && electron-builder --linux",
-  "clean": "rm -rf release dist build frontend/dist"
-},
+  "scripts": {
+    "install:all": "npm install && cd frontend && npm install && cd backend && npm install",
+    "dev": "concurrently -k \"npm run dev:backend\" \"npm run dev:frontend\" \"npm run electron\"",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:backend": "cd backend && npm run dev",
+    "electron": "wait-on http://localhost:3000 && electron . --no-sandbox",
+    "start": "npm run dev",
+    "build:frontend": "cd frontend && npm run build",
+    "build": "npm run build:frontend && electron-builder",
+    "build:win": "npm run build:frontend && electron-builder --win --x64 -c.win.signAndEditExecutable=false",
+    "build:win-portable": "npm run build:frontend && electron-builder --win portable --x64 -c.win.signAndEditExecutable=false",
+    "build:win-dir": "npm run build:frontend && electron-builder --win --x64 --dir -c.win.signAndEditExecutable=false",
+    "build:win-final": "npm run build:frontend && electron-builder --win --x64 --dir -c.win.signAndEditExecutable=false && npm run package:win",
+    "package:win": "cd release && rm -f PharmacyPOS-portable.zip && zip -r PharmacyPOS-portable.zip win-unpacked/",
+    "build:mac": "npm run build:frontend && electron-builder --mac",
+    "build:linux": "npm run build:frontend && electron-builder --linux",
+    "clean": "rm -rf release dist build frontend/dist",
+    
+    // NEW WEB DEPLOYMENT SCRIPTS
+    "install:web": "npm install express cors",
+    "build:web": "npm run build:frontend",
+    "start:web": "node web-server.js",
+    "render:deploy": "npm run build:frontend && node web-server.js",
+    
+    // SEPARATE BUILD SCRIPTS FOR RENDER
+    "render:build": "cd frontend && npm install && npm run build",
+    "render:backend-build": "cd backend && npm install"
+  },
   "dependencies": {
     "concurrently": "^9.2.1",
-    "wait-on": "^9.0.3"
+    "wait-on": "^9.0.3",
+    // NEW: Required for web-server.js
+    "express": "^4.18.2",
+    "cors": "^2.8.5"
   },
   "devDependencies": {
     "electron": "^38.7.2",
     "electron-builder": "^24.13.3",
     "electron-updater": "^6.6.2"
   },
-"build": {
-  "appId": "com.pharmacypos.app",
-  "productName": "PharmacyPOS",
-  "executableName": "PharmacyPOS",
-  "electronVersion": "38.7.2",
-  "directories": {
-    "output": "release",
-    "buildResources": "build"
-  },
-  "files": [
-    "main.cjs",
-    "preload.js",
-    "package.json",
-    "frontend/dist/**/*"
-  ],
-  "extraResources": [
-    {
-      "from": "frontend/dist",
-      "to": "frontend/dist",
-      "filter": ["**/*"]
+  "build": {
+    "appId": "com.pharmacypos.app",
+    "productName": "PharmacyPOS",
+    "executableName": "PharmacyPOS",
+    "electronVersion": "38.7.2",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
     },
-    {
-      "from": "backend",
-      "to": "backend",
-      "filter": ["**/*", "!node_modules/**/*", "!*.log", "!test*", "!*.md"]
-    }
-  ],
-  "win": {
-    "target": "dir",
-    "icon": "frontend/public/icon.ico"
-  },
-  "asar": false,
-  "asarUnpack": [
-    "**/*"
-  ]
-}
+    "files": [
+      "main.cjs",
+      "preload.js",
+      "package.json",
+      "frontend/dist/**/*",
+      "web-server.js"  // ADD THIS LINE
+    ],
+    "extraResources": [
+      {
+        "from": "frontend/dist",
+        "to": "frontend/dist",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "backend",
+        "to": "backend",
+        "filter": ["**/*", "!node_modules/**/*", "!*.log", "!test*", "!*.md"]
+      }
+    ],
+    "win": {
+      "target": "dir",
+      "icon": "frontend/public/icon.ico"
+    },
+    "asar": false,
+    "asarUnpack": [
+      "**/*"
+    ]
+  }
 }
