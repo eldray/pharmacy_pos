@@ -1,28 +1,32 @@
-# render.yaml
+# .render.yaml (in project root)
 services:
-  # Frontend Service
-  - type: web
-    name: pharmacy-pos-frontend
-    env: node
-    buildCommand: npm run render-build
-    startCommand: node web-server.js
-    envVars:
-      - key: NODE_ENV
-        value: production
-      - key: BACKEND_URL
-        sync: false  # You'll set this in Render dashboard
-    
-  # Backend Service (optional - if you want to deploy backend too)
+  # Backend Service
   - type: web
     name: pharmacy-pos-backend
     env: node
     rootDir: backend
     buildCommand: npm install
-    startCommand: npm start
+    startCommand: node server.js
     envVars:
       - key: NODE_ENV
         value: production
       - key: PORT
         value: 10000
-      - key: DATABASE_URL
-        sync: false
+      - key: MONGODB_URI
+        generateValue: true
+    
+  # Frontend Service
+  - type: web
+    name: pharmacy-pos-frontend
+    env: node
+    buildCommand: |
+      npm install
+      cd frontend && npm install && npm run build
+    startCommand: node web-server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: BACKEND_URL
+        value: https://pharmacy-pos-backend.onrender.com
