@@ -179,9 +179,11 @@ app.on('activate', () => {
   }
 });
 
-// Global error handlers
+// Global error handlers - THIS WAS MISSING THE CLOSING PARENTHESES
 process.on('uncaughtException', (error) => {
   console.error('Uncaught Exception:', error);
 });
 
-process.on('unhandledRejection', (reason
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
