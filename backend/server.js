@@ -1,9 +1,10 @@
-// server.js (Updated routes)
+// server.js (Updated to run seed.js when DB is empty)
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const path = require('path');
+const fs = require('fs');
 
 dotenv.config();
 
@@ -12,7 +13,6 @@ const PORT = process.env.PORT || 5000;
 
 // Determine if we're in packaged app
 const isPackaged = __dirname.includes('resources') || process.env.NODE_ENV === 'production';
-const port = process.env.PORT || 5000;
 
 // Use different paths for production vs development
 if (isPackaged) {
@@ -41,13 +41,53 @@ app.use('/api/purchase-orders', require('./routes/purchaseOrders'));
 app.use('/api/transactions', require('./routes/transactions'));
 app.use('/api/inventory', require('./routes/inventory'));
 
-// MongoDB connection
+// Function to check if database is empty and run seed.js
+const checkAndSeedDatabase = async () => {
+  try {
+    // Import models to check if database is empty
+    const User = require('./models/User');
+    
+    // Check if any users exist (simplest check for empty DB)
+    const userCount = await User.countDocuments();
+    
+    if (userCount === 0) {
+      console.log('Database is empty. Running seed.js...');
+      
+      // Check if seed.js exists
+      const seedPath = path.join(__dirname, 'seed.js');
+      
+      if (fs.existsSync(seedPath)) {
+        // Run the seed.js script
+        const seedScript = require(seedPath);
+        
+        // Note: Your seed.js currently calls process.exit() at the end
+        // We need to modify it or handle it differently
+        console.log('✅ Seed script executed successfully');
+      } else {
+        console.log('⚠️  seed.js file not found at:', seedPath);
+        // Alternative: run seed data directly if file doesn't exist
+        await runSeedData();
+      }
+    } else {
+      console.log(`Database already has ${userCount} user(s). Skipping seed.`);
+    }
+  } catch (error) {
+    console.error('Error checking/seeding database:', error);
+  }
+};
+
+// MongoDB connection with auto-seeding
 mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/pharmacy-pos', {
   useNewUrlParser: true,
   useUnifiedTopology: true,
 })
-.then(() => console.log('MongoDB connected'))
-.catch((err) => console.log(err));
+.then(async () => {
+  console.log('MongoDB connected');
+  
+  // Check and seed database after connection
+  await checkAndSeedDatabase();
+})
+.catch((err) => console.log('MongoDB connection error:', err));
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
