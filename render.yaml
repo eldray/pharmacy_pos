@@ -1,0 +1,28 @@
+# render.yaml
+services:
+  # Frontend Service
+  - type: web
+    name: pharmacy-pos-frontend
+    env: node
+    buildCommand: npm run render-build
+    startCommand: node web-server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: BACKEND_URL
+        sync: false  # You'll set this in Render dashboard
+    
+  # Backend Service (optional - if you want to deploy backend too)
+  - type: web
+    name: pharmacy-pos-backend
+    env: node
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: DATABASE_URL
+        sync: false
