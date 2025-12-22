@@ -1,7 +1,7 @@
 {
-  "name": "savoury-pos",
+  "name": "pharmacy-pos",
   "version": "1.0.0",
-  "description": "Pharmacy POS System",
+  "description": "Pharmacy Point of Sale System",
   "main": "main.cjs",
   "author": "Your Name",
   "license": "ISC",
@@ -12,8 +12,10 @@
     "dev:backend": "cd backend && npm run dev",
     "electron": "wait-on http://localhost:3000 && electron .",
     "start": "npm run dev",
-    "build:win": "npm run build:frontend && electron-builder --win",
+    "build:win": "npm run build:frontend && npm run build:backend && electron-builder --win",
     "build:frontend": "cd frontend && npm run build",
+    "build:backend": "cd backend && npm run build",
+    "clean": "rm -rf release dist build",
     "pack": "electron-builder --dir",
     "dist": "electron-builder"
   },
@@ -27,13 +29,13 @@
     "electron-updater": "^6.6.2"
   },
   "build": {
-    "appId": "com.savourypos.app",
-    "productName": "SavouryPOS",
+    "appId": "com.pharmacypos.app",
+    "productName": "Pharmacy POS",
     "directories": {
       "output": "release"
     },
     "files": [
-      "main.js",
+      "main.cjs",
       "preload.js",
       "frontend/dist/**/*",
       "backend/**/*",
@@ -44,7 +46,8 @@
         "from": "backend",
         "to": "backend",
         "filter": [
-          "**/*"
+          "**/*",
+          "!node_modules/**/*"
         ]
       }
     ],
@@ -54,7 +57,10 @@
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "frontend/public/icon.ico",
+      "uninstallerIcon": "frontend/public/icon.ico",
+      "installerHeaderIcon": "frontend/public/icon.ico"
     }
   }
 }

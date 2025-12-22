@@ -6,42 +6,47 @@ const fs = require('fs');
 let mainWindow = null;
 let serverProcess = null;
 
-// Function to start the backend server
 function startBackendServer() {
-  const serverPath = app.isPackaged 
-    ? path.join(process.resourcesPath, 'backend', 'server.js')
-    : path.join(__dirname, 'backend', 'server.js');
+  const isDev = !app.isPackaged && process.env.NODE_ENV !== 'production';
   
-  const serverDir = app.isPackaged
-    ? path.join(process.resourcesPath, 'backend')
-    : path.join(__dirname, 'backend');
+  if (isDev) {
+    console.log('Development mode: Backend server should be started manually');
+    return;
+  }
   
-  console.log('Starting server from:', serverDir);
+  const serverPath = path.join(process.resourcesPath, 'backend', 'server.js');
+  const serverDir = path.join(process.resourcesPath, 'backend');
+  
+  console.log('Starting backend server from:', serverPath);
   
   if (fs.existsSync(serverPath)) {
     serverProcess = spawn('node', [serverPath], {
       cwd: serverDir,
-      stdio: 'pipe',
-      shell: true
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env: { ...process.env, NODE_ENV: 'production' },
+      shell: process.platform === 'win32'
     });
     
     serverProcess.stdout.on('data', (data) => {
-      console.log(`[Backend Server]: ${data}`);
+      console.log(`[Backend]: ${data.toString().trim()}`);
     });
     
     serverProcess.stderr.on('data', (data) => {
-      console.error(`[Backend Server Error]: ${data}`);
+      console.error(`[Backend Error]: ${data.toString().trim()}`);
+    });
+    
+    serverProcess.on('error', (err) => {
+      console.error('Failed to start backend server:', err);
     });
     
     serverProcess.on('close', (code) => {
-      console.log(`Backend server process exited with code ${code}`);
+      console.log(`Backend server exited with code ${code}`);
     });
   } else {
-    console.log('Backend server not found at:', serverPath);
+    console.error('Backend server not found at:', serverPath);
   }
 }
 
-// Function to create the Electron window
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
@@ -57,7 +62,9 @@ function createWindow() {
   // Load the frontend
   if (app.isPackaged) {
     // In production: load from built files
-    mainWindow.loadFile(path.join(__dirname, 'frontend', 'dist', 'index.html'));
+    const indexPath = path.join(__dirname, 'frontend', 'dist', 'index.html');
+    console.log('Loading from:', indexPath);
+    mainWindow.loadFile(indexPath);
   } else {
     // In development: load from dev server
     mainWindow.loadURL('http://localhost:3000');
@@ -65,26 +72,22 @@ function createWindow() {
   }
 }
 
-// When Electron is ready
 app.whenReady().then(() => {
-  console.log('Electron app starting...');
+  console.log('Pharmacy POS starting...');
   
   // Start backend server (in production mode only)
-  if (app.isPackaged || process.env.NODE_ENV === 'production') {
-    console.log('Starting backend server...');
+  if (app.isPackaged) {
+    console.log('Production mode: Starting backend server...');
     startBackendServer();
-    // Wait for server to start
-    setTimeout(createWindow, 3000);
+    // Give server time to start
+    setTimeout(createWindow, 2000);
   } else {
-    // In development, server is started by npm run dev:backend
-    console.log('Development mode: Backend should already be running');
+    console.log('Development mode: Skipping backend startup');
     createWindow();
   }
 });
 
-// Quit when all windows are closed
 app.on('window-all-closed', () => {
-  // Kill backend server when app closes
   if (serverProcess) {
     serverProcess.kill();
   }
@@ -94,9 +97,14 @@ app.on('window-all-closed', () => {
   }
 });
 
-// macOS specific: re-create window on activate
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) {
     createWindow();
+  }
+});
+
+app.on('before-quit', () => {
+  if (serverProcess) {
+    serverProcess.kill();
   }
 });

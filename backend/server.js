@@ -3,11 +3,23 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const dotenv = require('dotenv');
+const path = require('path');
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+
+// Determine if we're in packaged app
+const isPackaged = __dirname.includes('resources') || process.env.NODE_ENV === 'production';
+const port = process.env.PORT || 5000;
+
+// Use different paths for production vs development
+if (isPackaged) {
+  // In production, serve from the packaged location
+  const frontendDistPath = path.join(__dirname, '..', 'frontend', 'dist');
+  // Make sure to serve static files if needed
+}
 
 // Middleware
 app.use(cors({
