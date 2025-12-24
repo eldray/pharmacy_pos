@@ -14,46 +14,50 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 1. FORCEFULLY install and use Node.js 20
-      - name: Force Setup Node.js 20
-        shell: bash
+      - name: Setup Environment and Build
+        shell: bash  # Use bash for consistent scripting
         run: |
-          # Install nvm for Windows
-          curl -o nvm-setup.exe -L https://github.com/coreybutler/nvm-windows/releases/latest/download/nvm-setup.exe
-          ./nvm-setup.exe /NoRun
+          # 1. Clean any existing Node interference
+          echo "==> Removing existing Node from PATH"
+          export PATH=$(echo $PATH | tr ':' '\n' | grep -v "node" | tr '\n' ':')
           
-          # Reload PATH and install Node 20
-          export NVM_HOME="$USERPROFILE/AppData/Roaming/nvm"
-          export NVM_SYMLINK="$PROGRAMFILES/nodejs"
-          export PATH="$NVM_HOME:$NVM_SYMLINK:$PATH"
+          # 2. Install Node.js 20 using the official installer
+          echo "==> Installing Node.js 20"
+          curl -fsSL https://nodejs.org/dist/v20.18.0/node-v20.18.0-win-x64.zip -o node.zip
+          unzip -q node.zip -d /c/
+          export PATH="/c/node-v20.18.0-win-x64:$PATH"
           
-          nvm install 20
-          nvm use 20
-          node --version  # Verify version
-
-      # 2. Install all dependencies
-      - name: Install All Dependencies
-        run: |
+          # Verify installation
+          echo "Node version: $(node --version)"
+          echo "NPM version: $(npm --version)"
+          
+          # 3. Install ALL dependencies from the project root
+          echo "==> Installing root dependencies"
           npm ci
+          
+          # 4. Clean and install FRONTEND dependencies
+          echo "==> Installing frontend dependencies"
           cd frontend
-          # Clean install to fix npm bug #4828
+          # Critical fix for npm bug #4828
           rm -f package-lock.json
           rm -rf node_modules
           npm ci
+          
+          # 5. Install BACKEND dependencies
+          echo "==> Installing backend dependencies"
           cd ../backend
           npm ci
-
-      # 3. Build Frontend
-      - name: Build Frontend
-        run: |
-          cd frontend
+          
+          # 6. Build the frontend (NOW in the SAME shell)
+          echo "==> Building frontend with Vite"
+          cd ../frontend
           npm run build
+          
+          # 7. Build Electron app
+          echo "==> Building Electron application"
+          cd ..
+          npx electron-builder --win portable --x64
 
-      # 4. Build Electron
-      - name: Build Electron for Windows
-        run: npx electron-builder --win portable --x64
-
-      # 5. Upload artifact
       - name: Upload Windows Artifact
         uses: actions/upload-artifact@v4
         with:
