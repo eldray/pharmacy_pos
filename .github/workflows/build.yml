@@ -11,45 +11,44 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      # 1. Checkout code
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 2. Setup a compatible Node.js version
-      - name: Setup Node.js (v20 LTS)
+      # Set Node 20 globally for the job first
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20.x'  # Uses the latest stable v20, which Vite supports.
+          node-version: '20.x'
           cache: 'npm'
 
-      # 3. Install root dependencies
       - name: Install root dependencies
         run: npm ci
 
-      # 4. Clean and install FRONTEND dependencies (CRITICAL FIX)
+      # FIX for npm bug: Clean install for frontend
       - name: Clean and install frontend dependencies
         run: |
           cd frontend
-          # Delete lockfile and node_modules to fix the npm optional dependency bug
           rm -f package-lock.json
           rmdir /s /q node_modules 2>nul || true
-          npm ci  # Re-install with clean slate
+          npm ci
 
-      # 5. Install backend dependencies
       - name: Install backend dependencies
         run: |
           cd backend
           npm ci
 
-      # 6. Build the React frontend
+      # CRITICAL FIX: Run the build command with the set Node version
       - name: Build Frontend
-        run: cd frontend && npm run build
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+        run: |
+          cd frontend
+          npm run build
 
-      # 7. Build the Electron app
       - name: Build Electron for Windows
         run: npx electron-builder --win portable --x64
 
-      # 8. Upload artifact
       - name: Upload Windows Artifact
         uses: actions/upload-artifact@v4
         with:
