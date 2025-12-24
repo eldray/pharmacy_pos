@@ -1,56 +1,39 @@
-name: Build PharmacyPOS
+name: Build and Release PharmacyPOS
 
 on:
   push:
-    branches: [ main ]
+    tags:
+      - 'v*'
   workflow_dispatch:
 
 jobs:
-  build:
-    runs-on: windows-latest
-    
-    steps:
-    # 1. Get your code
-    - uses: actions/checkout@v4
-    
-    # 2. THE FIX: Install and use Node 20 in ONE step
-    - name: Build with Node 20
-      run: |
-        # Download and extract Node.js 20
-        curl -fsSL https://nodejs.org/dist/v20.18.0/node-v20.18.0-win-x64.zip -o node.zip
-        7z x node.zip -o"C:\"
-        
-        # Use this Node for EVERYTHING that follows
-        $env:Path = "C:\node-v20.18.0-win-x64;" + $env:Path
-        
-        # Verify Node version
-        node --version
-        npm --version
-        
-        # Install root dependencies
-        npm ci
-        
-        # Fix frontend dependencies (critical for npm bug)
-        cd frontend
-        Remove-Item -Force package-lock.json -ErrorAction SilentlyContinue
-        Remove-Item -Recurse -Force node_modules -ErrorAction SilentlyContinue
-        npm ci
-        
-        # Install backend dependencies
-        cd ../backend
-        npm ci
-        
-        # Build frontend (THIS NOW USES NODE 20!)
-        cd ../frontend
-        npm run build
-        
-        # Build Electron app
-        cd ..
-        npx electron-builder --win portable --x64
-      shell: pwsh
+  build-windows:
+    # Run the job inside the recommended Docker container
+    runs-on: ubuntu-latest # We use Linux to run the Windows-compatible Docker container
 
-    # 3. Save the built .exe file
-    - uses: actions/upload-artifact@v4
-      with:
-        name: PharmacyPOS-Windows
-        path: release/*.exe
+    container:
+      image: electronuserland/builder:wine
+      options: --user 1001
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Dependencies and Build
+        run: |
+          # Install project dependencies (Node 20 is pre-installed in this image)
+          npm ci
+          cd frontend && npm ci && cd ..
+          cd backend && npm ci && cd ..
+
+          # Build the frontend
+          cd frontend && npm run build && cd ..
+
+          # Build the Windows portable Electron app
+          npx electron-builder --win portable --x64
+
+      - name: Upload Windows Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PharmacyPOS-Windows-Portable
+          path: release/*.exe
