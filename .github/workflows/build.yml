@@ -3,41 +3,53 @@ name: Build and Release PharmacyPOS
 on:
   push:
     tags:
-      - 'v*'  # Runs when you push a version tag like v1.0.0, v1.0.1
-  workflow_dispatch:  # Allows manual triggering from GitHub UI
+      - 'v*'
+  workflow_dispatch:
 
 jobs:
   build-windows:
-    runs-on: windows-latest  # This is key! Uses a Windows machine to build.
+    runs-on: windows-latest
 
     steps:
-      # 1. Checkout your code
+      # 1. Checkout code
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 2. Setup Node.js
-      - name: Setup Node.js
+      # 2. Setup a compatible Node.js version
+      - name: Setup Node.js (v20 LTS)
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
-          cache: 'npm' # Speeds up installs by caching node_modules
+          node-version: '20.x'  # Uses the latest stable v20, which Vite supports.
+          cache: 'npm'
 
-      # 3. Install ALL dependencies (Root, Frontend, Backend)
-      - name: Install dependencies
+      # 3. Install root dependencies
+      - name: Install root dependencies
+        run: npm ci
+
+      # 4. Clean and install FRONTEND dependencies (CRITICAL FIX)
+      - name: Clean and install frontend dependencies
         run: |
-          npm ci
-          cd frontend && npm ci
-          cd ../backend && npm ci
+          cd frontend
+          # Delete lockfile and node_modules to fix the npm optional dependency bug
+          rm -f package-lock.json
+          rmdir /s /q node_modules 2>nul || true
+          npm ci  # Re-install with clean slate
 
-      # 4. Build the React frontend
+      # 5. Install backend dependencies
+      - name: Install backend dependencies
+        run: |
+          cd backend
+          npm ci
+
+      # 6. Build the React frontend
       - name: Build Frontend
         run: cd frontend && npm run build
 
-      # 5. Build the Electron app into a portable .exe
+      # 7. Build the Electron app
       - name: Build Electron for Windows
         run: npx electron-builder --win portable --x64
 
-      # 6. Upload the built .exe as a workflow artifact
+      # 8. Upload artifact
       - name: Upload Windows Artifact
         uses: actions/upload-artifact@v4
         with:
