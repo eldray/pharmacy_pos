@@ -8,7 +8,7 @@
   "license": "ISC",
   "scripts": {
     "install:all": "npm install && cd frontend && npm install && cd backend && npm install",
-    "dev": "concurrently -k \"npm run dev:backend\" \"npm run dev:frontend\" \"npm run electron\"",
+    "dev": "concurrently -k \"npm run dev:backend\" \"npm run dev:frontend\"",
     "dev:frontend": "cd frontend && npm run dev",
     "dev:backend": "cd backend && npm run dev",
     "electron": "wait-on http://localhost:3000 && electron . --no-sandbox",
