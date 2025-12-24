@@ -14,41 +14,46 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Set Node 20 globally for the job first
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20.x'
-          cache: 'npm'
-
-      - name: Install root dependencies
-        run: npm ci
-
-      # FIX for npm bug: Clean install for frontend
-      - name: Clean and install frontend dependencies
+      # 1. FORCEFULLY install and use Node.js 20
+      - name: Force Setup Node.js 20
+        shell: bash
         run: |
+          # Install nvm for Windows
+          curl -o nvm-setup.exe -L https://github.com/coreybutler/nvm-windows/releases/latest/download/nvm-setup.exe
+          ./nvm-setup.exe /NoRun
+          
+          # Reload PATH and install Node 20
+          export NVM_HOME="$USERPROFILE/AppData/Roaming/nvm"
+          export NVM_SYMLINK="$PROGRAMFILES/nodejs"
+          export PATH="$NVM_HOME:$NVM_SYMLINK:$PATH"
+          
+          nvm install 20
+          nvm use 20
+          node --version  # Verify version
+
+      # 2. Install all dependencies
+      - name: Install All Dependencies
+        run: |
+          npm ci
           cd frontend
+          # Clean install to fix npm bug #4828
           rm -f package-lock.json
-          rmdir /s /q node_modules 2>nul || true
+          rm -rf node_modules
+          npm ci
+          cd ../backend
           npm ci
 
-      - name: Install backend dependencies
-        run: |
-          cd backend
-          npm ci
-
-      # CRITICAL FIX: Run the build command with the set Node version
+      # 3. Build Frontend
       - name: Build Frontend
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20.x'
         run: |
           cd frontend
           npm run build
 
+      # 4. Build Electron
       - name: Build Electron for Windows
         run: npx electron-builder --win portable --x64
 
+      # 5. Upload artifact
       - name: Upload Windows Artifact
         uses: actions/upload-artifact@v4
         with:
