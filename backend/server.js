@@ -1,4 +1,4 @@
-// server.js (Updated with correct route order)
+// server.js (FIXED VERSION)
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -28,7 +28,6 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 
 // ==================== API ROUTES ====================
-// IMPORTANT: API routes must come BEFORE static file serving
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/company', require('./routes/company'));
 app.use('/api/users', require('./routes/users'));
@@ -39,30 +38,28 @@ app.use('/api/transactions', require('./routes/transactions'));
 app.use('/api/inventory', require('./routes/inventory'));
 
 // ==================== STATIC FILE SERVING ====================
-// Serve frontend if built - AFTER API routes
 const frontendPath = path.join(__dirname, '../frontend/dist');
 
 if (fs.existsSync(frontendPath)) {
   console.log('✅ Frontend build found at:', frontendPath);
   app.use(express.static(frontendPath));
   
-  // SPA routing - handle all non-API routes
-  app.get('*', (req, res) => {
-    // Skip API routes (they should have been handled above)
+  // FIX: Use regex literal, not string with regex
+  app.get(/.*/, (req, res) => {
+    // Skip API routes
     if (req.path.startsWith('/api/')) {
       return res.status(404).json({ 
         error: 'API endpoint not found',
         path: req.path 
       });
     }
-    // Serve frontend for all other routes
+    // Serve frontend
     res.sendFile(path.join(frontendPath, 'index.html'));
   });
 } else {
   console.log('⚠️  Frontend build not found at:', frontendPath);
   
-  // If no frontend, show API info
-  app.get('/', (req, res) => {
+  app.get(/.*/, (req, res) => {
     res.json({
       message: 'Pharmacy POS Backend API',
       status: 'running',
@@ -90,14 +87,11 @@ const checkAndSeedDatabase = async () => {
     
     if (userCount === 0) {
       console.log('Database is empty. Running seed.js...');
-      
       const seedPath = path.join(__dirname, 'seed.js');
       if (fs.existsSync(seedPath)) {
         const seedDatabase = require(seedPath);
         await seedDatabase();
         console.log('✅ Database seeded successfully');
-      } else {
-        console.log('⚠️  seed.js file not found');
       }
     } else {
       console.log(`✅ Database already has ${userCount} user(s)`);
@@ -111,48 +105,18 @@ const checkAndSeedDatabase = async () => {
 const MONGODB_URI = process.env.MONGODB_URI || 
   'mongodb+srv://admin:Pem086p%40r@cluster0.d3yngri.mongodb.net/pharmacy_inventory?appName=Cluster0';
 
-console.log('🔗 Connecting to MongoDB Atlas...');
-console.log('📁 Database:', 'pharmacy_inventory');
-console.log('⚡ Cluster:', 'Cluster0');
+console.log('Connecting to MongoDB Atlas...');
 
 mongoose.connect(MONGODB_URI)
 .then(async () => {
   console.log('✅ MongoDB Atlas connected successfully!');
-  console.log('📊 Database:', mongoose.connection.name);
-  
-  // Check and seed database after connection
   await checkAndSeedDatabase();
 })
 .catch((err) => {
   console.error('❌ MongoDB connection failed:', err.message);
-  
-  // Try without database name first (connect to admin)
-  console.log('\nTrying to connect without specific database...');
-  const baseURI = 'mongodb+srv://admin:Pem086p%40r@cluster0.d3yngri.mongodb.net/?appName=Cluster0';
-  
-  mongoose.connect(baseURI)
-    .then(async () => {
-      console.log('✅ Connected to cluster!');
-      
-      // List available databases
-      const adminDb = mongoose.connection.db.admin();
-      const dbInfo = await adminDb.listDatabases();
-      console.log('📚 Available databases:');
-      dbInfo.databases.forEach(db => {
-        console.log(`  - ${db.name} (${db.sizeOnDisk} bytes)`);
-      });
-      
-      mongoose.disconnect();
-    })
-    .catch(err2 => {
-      console.error('❌ Base connection failed:', err2.message);
-    });
 });
 
 // ==================== START SERVER ====================
 app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`🌐 Frontend: ${fs.existsSync(frontendPath) ? 'Serving from /frontend/dist' : 'Not found (API mode only)'}`);
-  console.log(`🔗 API Base URL: http://localhost:${PORT}/api`);
-  console.log(`🔗 Login endpoint: http://localhost:${PORT}/api/auth/login`);
+  console.log(`Server running on port ${PORT}`);
 });
