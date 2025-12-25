@@ -21,9 +21,14 @@ if (isPackaged) {
   // Make sure to serve static files if needed
 }
 
-// Middleware
+// Middleware - UPDATE THIS
 app.use(cors({
-  origin: ["http://localhost:3000", "http://127.0.0.1:3000"],
+  origin: [
+    "http://localhost:3000", 
+    "http://127.0.0.1:3000",
+    "https://pharmacy-pos-sg91.onrender.com",  // ADD YOUR RENDER URL
+    "http://localhost:5000"  // For local development
+  ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
