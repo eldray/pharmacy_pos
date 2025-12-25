@@ -128,6 +128,15 @@ mongoose.connect(MONGODB_URI)
     });
 });
 
+// Serve frontend if built
+const frontendPath = path.join(__dirname, '../frontend/dist');
+if (fs.existsSync(frontendPath)) {
+  app.use(express.static(frontendPath));
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(frontendPath, 'index.html'));
+  });
+}
+
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
