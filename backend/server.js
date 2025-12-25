@@ -77,19 +77,56 @@ const checkAndSeedDatabase = async () => {
 };
 
 // MongoDB connection with auto-seeding
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://admin:Pem086p@r@cluster0.d3yngri.mongodb.net/pharmacy-pos';
+const MONGODB_URI = process.env.MONGODB_URI || 
+  'mongodb+srv://admin:Pem086p%40r@cluster0.d3yngri.mongodb.net/pharmacy_inventory?appName=Cluster0';
 
-mongoose.connect(MONGODB_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
+console.log('Connecting to MongoDB Atlas...');
+console.log('Database: pharmacy_inventory');
+console.log('Cluster: Cluster0');
+
+mongoose.connect(MONGODB_URI)
 .then(async () => {
-  console.log('MongoDB connected');
+  console.log('✅ MongoDB Atlas connected successfully!');
+  console.log('Database:', mongoose.connection.name);
   
   // Check and seed database after connection
   await checkAndSeedDatabase();
 })
-.catch((err) => console.log('MongoDB connection error:', err));
+.catch((err) => {
+  console.error('❌ MongoDB connection failed:', err.message);
+  
+  // Try without database name first (connect to admin)
+  console.log('\nTrying to connect without specific database...');
+  const baseURI = 'mongodb+srv://admin:Pem086p%40r@cluster0.d3yngri.mongodb.net/?appName=Cluster0';
+  
+  mongoose.connect(baseURI)
+    .then(async () => {
+      console.log('✅ Connected to cluster!');
+      
+      // List available databases
+      const adminDb = mongoose.connection.db.admin();
+      const dbInfo = await adminDb.listDatabases();
+      console.log('Available databases:');
+      dbInfo.databases.forEach(db => {
+        console.log(`  - ${db.name} (${db.sizeOnDisk} bytes)`);
+      });
+      
+      // Check if pharmacy_inventory exists
+      const dbNames = dbInfo.databases.map(d => d.name);
+      if (dbNames.includes('pharmacy_inventory')) {
+        console.log('✅ pharmacy_inventory database exists!');
+      } else {
+        console.log('⚠️  pharmacy_inventory database not found.');
+        console.log('Creating it now...');
+        // It will be created automatically when you use it
+      }
+      
+      mongoose.disconnect();
+    })
+    .catch(err2 => {
+      console.error('❌ Base connection failed:', err2.message);
+    });
+});
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
