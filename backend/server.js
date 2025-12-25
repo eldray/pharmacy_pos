@@ -77,7 +77,9 @@ const checkAndSeedDatabase = async () => {
 };
 
 // MongoDB connection with auto-seeding
-mongoose.connect(process.env.MONGODB_URI , {
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://admin:Pem086p@r@cluster0.d3yngri.mongodb.net/pharmacy-pos';
+
+mongoose.connect(MONGODB_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
 })
