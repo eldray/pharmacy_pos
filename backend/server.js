@@ -44,35 +44,25 @@ app.use('/api/inventory', require('./routes/inventory'));
 // Function to check if database is empty and run seed.js
 const checkAndSeedDatabase = async () => {
   try {
-    // Import models to check if database is empty
     const User = require('./models/User');
-    
-    // Check if any users exist (simplest check for empty DB)
     const userCount = await User.countDocuments();
     
     if (userCount === 0) {
       console.log('Database is empty. Running seed.js...');
       
-      // Check if seed.js exists
       const seedPath = path.join(__dirname, 'seed.js');
-      
       if (fs.existsSync(seedPath)) {
-        // Run the seed.js script
-        const seedScript = require(seedPath);
-        
-        // Note: Your seed.js currently calls process.exit() at the end
-        // We need to modify it or handle it differently
-        console.log('✅ Seed script executed successfully');
+        const seedDatabase = require(seedPath);
+        await seedDatabase();  // <-- This executes the seed
+        console.log('\u2705 Database seeded successfully');
       } else {
-        console.log('⚠️  seed.js file not found at:', seedPath);
-        // Alternative: run seed data directly if file doesn't exist
-        await runSeedData();
+        console.log('\u26a0\ufe0f  seed.js file not found');
       }
     } else {
-      console.log(`Database already has ${userCount} user(s). Skipping seed.`);
+      console.log(`Database already has ${userCount} user(s).`);
     }
   } catch (error) {
-    console.error('Error checking/seeding database:', error);
+    console.error('Seeding failed:', error);
   }
 };
 
@@ -132,10 +122,12 @@ mongoose.connect(MONGODB_URI)
 const frontendPath = path.join(__dirname, '../frontend/dist');
 if (fs.existsSync(frontendPath)) {
   app.use(express.static(frontendPath));
-  app.get('*', (req, res) => {
-    res.sendFile(path.join(frontendPath, 'index.html'));
-  });
+
+  app.get(/.*/, (req, res) => {
+  res.sendFile(path.join(frontendPath, 'index.html'));
+});
 }
+
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
