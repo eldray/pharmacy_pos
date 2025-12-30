@@ -1,5 +1,4 @@
-// seed.js - Complete seed script
-const mongoose = require('mongoose');
+const { sequelize } = require('./database');
 const User = require('./models/User');
 const Product = require('./models/Product');
 const Supplier = require('./models/Supplier');
@@ -9,46 +8,27 @@ async function seedDatabase() {
   try {
     console.log('Starting database seeding...');
 
-    // Clear existing data
-    await User.deleteMany({});
-    console.log('Cleared users');
-    
-    await Product.deleteMany({});
-    console.log('Cleared products');
-    
-    await Supplier.deleteMany({});
-    console.log('Cleared suppliers');
-    
-    await Company.deleteMany({});
-    console.log('Cleared company settings');
+    // Sync all models
+    await sequelize.sync({ force: true });
+    console.log('Database tables created');
 
     // Create users
-    const users = [
+    const users = await User.bulkCreate([
       { name: 'Admin User', email: 'admin@pharmacy.com', password: 'admin123', role: 'admin' },
       { name: 'John Cashier', email: 'cashier@pharmacy.com', password: 'cashier123', role: 'cashier' },
       { name: 'Jane Officer', email: 'officer@pharmacy.com', password: 'officer123', role: 'officer' }
-    ];
-
-    for (const userData of users) {
-      const user = new User(userData);
-      await user.save();
-      console.log(`Created user: ${user.email}`);
-    }
+    ]);
+    console.log(`Created ${users.length} users`);
 
     // Create suppliers
-    const suppliers = [
+    const suppliers = await Supplier.bulkCreate([
       { name: 'Pharma Inc', email: 'sales@pharmainc.com', phone: '+233555123456', address: '123 Pharmacy Street', city: 'Accra', country: 'Ghana' },
       { name: 'Health Plus', email: 'info@healthplus.com', phone: '+233555654321', address: '456 Health Avenue', city: 'Kumasi', country: 'Ghana' }
-    ];
-
-    for (const supplierData of suppliers) {
-      const supplier = new Supplier(supplierData);
-      await supplier.save();
-      console.log(`Created supplier: ${supplier.name}`);
-    }
+    ]);
+    console.log(`Created ${suppliers.length} suppliers`);
 
     // Create products
-    const products = [
+    const products = await Product.bulkCreate([
       {
         name: 'Paracetamol 500mg',
         description: 'Pain and fever relief',
@@ -85,25 +65,20 @@ async function seedDatabase() {
         expiryDate: '2027-05-15',
         supplier: 'Health Plus',
       }
-    ];
-
-    for (const productData of products) {
-      const product = new Product(productData);
-      await product.save();
-      console.log(`Created product: ${product.name}`);
-    }
+    ]);
+    console.log(`Created ${products.length} products`);
 
     // Create company settings
-    const company = new Company({
+    await Company.create({
       name: 'Pharmacy POS System',
-      address: '123 Pharmacy Street, Accra',
-      phone: '+233555123456',
-      email: 'info@pharmacy.com',
+      addressStreet: '123 Pharmacy Street',
+      addressCity: 'Accra',
+      addressCountry: 'Ghana',
+      contactPhone: '+233555123456',
+      contactEmail: 'info@pharmacy.com',
       taxRate: 15.0,
-      currency: 'GHS',
       receiptFooter: 'Thank you for your purchase!'
     });
-    await company.save();
     console.log('Created company settings');
 
     console.log('✅ Database seeded successfully!');
@@ -119,28 +94,4 @@ async function seedDatabase() {
   }
 }
 
-// If run directly: node seed.js
-if (require.main === module) {
-  require('dotenv').config();
-  const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/pharmacy-pos';
-  
-  mongoose.connect(MONGODB_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  })
-  .then(() => {
-    console.log('Connected to MongoDB');
-    return seedDatabase();
-  })
-  .then(() => {
-    console.log('Seed complete. Exiting...');
-    process.exit(0);
-  })
-  .catch(err => {
-    console.error('Seed failed:', err);
-    process.exit(1);
-  });
-}
-
-// Export for use in server.js
 module.exports = seedDatabase;

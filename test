@@ -1,0 +1,31 @@
+cd release/linux-unpacked
+
+# Method 1: Direct execution
+./pharmacy-pos
+
+# Method 2: With logging
+./pharmacy-pos --enable-logging
+
+# Method 3: With debug flags
+./pharmacy-pos --no-sandbox --disable-gpu-sandbox
+
+
+chmod +x pharmacy-pos
+chmod +x chrome-sandbox
+sudo chown root:root chrome-sandbox
+sudo chmod 4755 chrome-sandbox
+
+chmod +x build-linux.sh
+
+# 1. Clean build cache
+npm run clean:full
+
+# 3. If that works, try full build with more memory
+node --max-old-space-size=4096 $(which electron-builder) --linux --x64
+
+# 4. Build step by step manually
+./build-linux.sh
+
+# Rebuild for Electron
+cd backend
+npx electron-rebuild --version 38.7.2 --arch x64

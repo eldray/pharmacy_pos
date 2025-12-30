@@ -1,6 +1,4 @@
-// routes/purchaseOrders.js (Fixed with better logging)
 const express = require('express');
-const mongoose = require('mongoose');
 const Supplier = require('../models/Supplier');
 const PurchaseOrder = require('../models/PurchaseOrder');
 const Product = require('../models/Product');
@@ -13,9 +11,50 @@ const router = express.Router();
 // Get all purchase orders
 router.get('/', auth, async (req, res) => {
   try {
-    const pos = await PurchaseOrder.find().populate('supplierId', 'name email').sort({ createdAt: -1 });
+    const { status } = req.query;
+    let where = {};
+    
+    if (status) {
+      where.status = status;
+    }
+    
+    const pos = await PurchaseOrder.findAll({
+      where,
+      include: [
+        {
+          model: Supplier,
+          attributes: ['id', 'name', 'email', 'phone']
+        }
+      ],
+      order: [['createdAt', 'DESC']]
+    });
+    
     res.json(pos);
   } catch (err) {
+    console.error('Get purchase orders error:', err);
+    res.status(500).json({ msg: 'Server error' });
+  }
+});
+
+// Get single purchase order
+router.get('/:id', auth, async (req, res) => {
+  try {
+    const po = await PurchaseOrder.findByPk(req.params.id, {
+      include: [
+        {
+          model: Supplier,
+          attributes: ['id', 'name', 'email', 'phone', 'address', 'city']
+        }
+      ]
+    });
+    
+    if (!po) {
+      return res.status(404).json({ msg: 'Purchase order not found' });
+    }
+    
+    res.json(po);
+  } catch (err) {
+    console.error('Get PO error:', err);
     res.status(500).json({ msg: 'Server error' });
   }
 });
@@ -23,7 +62,7 @@ router.get('/', auth, async (req, res) => {
 // Create purchase order
 router.post('/', auth, adminAuth, async (req, res) => {
   try {
-    console.log('Received PO data:', JSON.stringify(req.body, null, 2));
+    console.log('Creating purchase order:', req.body);
 
     const {
       orderNumber,
@@ -31,6 +70,7 @@ router.post('/', auth, adminAuth, async (req, res) => {
       items,
       totalAmount,
       expectedDeliveryDate,
+      notes
     } = req.body;
 
     // Validate required fields
@@ -48,14 +88,7 @@ router.post('/', auth, adminAuth, async (req, res) => {
     }
 
     // Validate supplier exists
-    let supplier;
-    if (mongoose.Types.ObjectId.isValid(supplierId)) {
-      supplier = await Supplier.findById(supplierId);
-    } else {
-      // Try to find by name if not a valid ObjectId
-      supplier = await Supplier.findOne({ name: supplierId });
-    }
-
+    const supplier = await Supplier.findByPk(supplierId);
     if (!supplier) {
       return res.status(400).json({ msg: 'Supplier not found' });
     }
@@ -67,24 +100,22 @@ router.post('/', auth, adminAuth, async (req, res) => {
       }
     }
 
-    const po = new PurchaseOrder({
+    // Create purchase order
+    const po = await PurchaseOrder.create({
       orderNumber,
-      supplierId: supplier._id, // Use the actual supplier ID
+      supplierId,
       items,
       totalAmount,
       status: 'pending',
-      expectedDeliveryDate,
-      orderDate: new Date(),
+      expectedDeliveryDate: new Date(expectedDeliveryDate),
+      notes
     });
-
-    await po.save();
     
-    // Populate and return
-    const populated = await PurchaseOrder.findById(po._id).populate('supplierId', 'name');
-    console.log('Created PO successfully:', populated.orderNumber);
-    res.status(201).json(populated);
+    console.log('✅ Purchase order created:', po.orderNumber);
+    
+    res.status(201).json(po);
   } catch (err) {
-    console.error('PO Creation Error:', err);
+    console.error('Create PO error:', err);
     res.status(400).json({ 
       msg: 'Failed to create purchase order',
       error: err.message 
@@ -92,40 +123,42 @@ router.post('/', auth, adminAuth, async (req, res) => {
   }
 });
 
-// Update purchase order (e.g., mark as received)
-// In routes/purchaseOrders.js, update the PUT route:
+// Update purchase order (mark as received)
 router.put('/:id', auth, adminAuth, async (req, res) => {
   try {
-    console.log('Updating PO:', {
-      id: req.params.id,
-      updates: req.body
+    const { status } = req.body;
+    const po = await PurchaseOrder.findByPk(req.params.id, {
+      include: [Supplier]
     });
-
-    const po = await PurchaseOrder.findById(req.params.id);
+    
     if (!po) {
-      console.log('PO not found with ID:', req.params.id);
-      return res.status(404).json({ msg: 'PO not found' });
+      return res.status(404).json({ msg: 'Purchase order not found' });
     }
 
-    if (req.body.status === 'received') {
+    // If marking as received, update inventory
+    if (status === 'received' && po.status !== 'received') {
       console.log('Marking PO as received, updating inventory...');
       
       // Update inventory for each item
       for (let item of po.items) {
-        const product = await Product.findById(item.productId);
+        const product = await Product.findByPk(item.productId);
         if (product) {
           console.log(`Updating product ${product.name}: ${product.quantity} + ${item.quantity}`);
           
-          product.quantity += item.quantity;
-          if (item.batchNumber) product.batchNumber = item.batchNumber;
-          if (item.expiryDate) product.expiryDate = item.expiryDate;
+          // Update product quantity
+          await product.update({
+            quantity: product.quantity + item.quantity,
+            ...(item.batchNumber && { batchNumber: item.batchNumber }),
+            ...(item.expiryDate && { expiryDate: item.expiryDate })
+          });
           
-          await product.save();
-          console.log(`Product ${product.name} updated to quantity: ${product.quantity}`);
+          console.log(`✅ Product ${product.name} updated to quantity: ${product.quantity}`);
 
-          // Log inflow
-          const user = await User.findById(req.user.userId);
-          await new InventoryLog({
+          // Get user info
+          const user = await User.findByPk(req.user.userId);
+          
+          // Log inventory inflow
+          await InventoryLog.create({
             productId: item.productId,
             productName: item.productName,
             type: 'inflow',
@@ -133,35 +166,48 @@ router.put('/:id', auth, adminAuth, async (req, res) => {
             reference: po.orderNumber,
             userId: req.user.userId,
             userName: user.name,
-            notes: `Received from ${po.supplierId.name}`,
-          }).save();
+            notes: `Received from ${po.Supplier.name} - PO: ${po.orderNumber}`
+          });
         } else {
-          console.log(`Product not found for ID: ${item.productId}`);
+          console.log(`⚠️ Product not found for ID: ${item.productId}`);
         }
       }
+      
+      // Update delivery date
+      req.body.deliveryDate = new Date();
     }
 
-    const updatedPO = await PurchaseOrder.findByIdAndUpdate(
-      req.params.id, 
-      req.body, 
-      { new: true }
-    ).populate('supplierId');
+    // Update purchase order
+    await po.update(req.body);
     
-    console.log('PO updated successfully:', updatedPO.orderNumber);
-    res.json(updatedPO);
+    console.log('✅ Purchase order updated:', po.orderNumber);
+    
+    res.json(po);
   } catch (err) {
-    console.error('PO Update Error:', err);
-    res.status(400).json({ msg: 'Invalid data' });
+    console.error('Update PO error:', err);
+    res.status(400).json({ msg: 'Invalid data', error: err.message });
   }
 });
 
-// Delete PO
+// Delete purchase order
 router.delete('/:id', auth, adminAuth, async (req, res) => {
   try {
-    const po = await PurchaseOrder.findByIdAndDelete(req.params.id);
-    if (!po) return res.status(404).json({ msg: 'PO not found' });
-    res.json({ msg: 'PO deleted' });
+    const po = await PurchaseOrder.findByPk(req.params.id);
+    if (!po) {
+      return res.status(404).json({ msg: 'Purchase order not found' });
+    }
+    
+    // Only allow deletion of pending orders
+    if (po.status !== 'pending') {
+      return res.status(400).json({ 
+        msg: 'Cannot delete received or cancelled orders' 
+      });
+    }
+    
+    await po.destroy();
+    res.json({ msg: 'Purchase order deleted successfully' });
   } catch (err) {
+    console.error('Delete PO error:', err);
     res.status(500).json({ msg: 'Server error' });
   }
 });

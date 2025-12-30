@@ -1,33 +1,67 @@
 // models/Transaction.js
-const mongoose = require('mongoose');
 
-const cartItemSchema = new mongoose.Schema({
-  productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product' },
-  product: {
-    name: String,
-    sku: String,
-    category: String,
+const { sequelize, DataTypes } = require('../database');
+const User = require('./User');
+
+const Transaction = sequelize.define('Transaction', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true
   },
-  quantity: { type: Number, required: true },
-  unitPrice: { type: Number, required: true },
-  total: Number,
-  discount: Number,
+  transactionNumber: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    unique: true
+  },
+  cashierId: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: User,
+      key: 'id'
+    }
+  },
+  cashierName: DataTypes.STRING,
+  items: {
+    type: DataTypes.TEXT,
+    allowNull: false,
+    get() {
+      const value = this.getDataValue('items');
+      return value ? JSON.parse(value) : [];
+    },
+    set(value) {
+      this.setDataValue('items', JSON.stringify(value));
+    }
+  },
+  subtotal: {
+    type: DataTypes.DECIMAL(10, 2),
+    allowNull: false
+  },
+  tax: {
+    type: DataTypes.DECIMAL(10, 2),
+    allowNull: false
+  },
+  total: {
+    type: DataTypes.DECIMAL(10, 2),
+    allowNull: false
+  },
+  paymentMethod: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  paymentReference: DataTypes.STRING,
+  discount: {
+    type: DataTypes.DECIMAL(10, 2),
+    defaultValue: 0
+  },
+  customerName: DataTypes.STRING,
+  customerPhone: DataTypes.STRING,
+  notes: DataTypes.TEXT
+}, {
+  tableName: 'transactions'
 });
 
-const transactionSchema = new mongoose.Schema({
-  transactionNumber: { type: String, required: true, unique: true },
-  cashierId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  cashierName: String,
-  items: [cartItemSchema],
-  subtotal: { type: Number, required: true },
-  tax: { type: Number, required: true },
-  total: { type: Number, required: true },
-  paymentMethod: { type: String, required: true },
-  paymentReference: String,
-  discount: Number,
-  customerName: String,
-  customerPhone: String,
-  notes: String,
-}, { timestamps: true });
+Transaction.belongsTo(User, { foreignKey: 'cashierId', as: 'cashier' });
 
-module.exports = mongoose.model('Transaction', transactionSchema);
+module.exports = Transaction;

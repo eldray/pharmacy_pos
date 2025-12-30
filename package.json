@@ -3,27 +3,37 @@
   "version": "1.0.0",
   "description": "Pharmacy Point of Sale System",
   "main": "main.cjs",
-  "author": "Emmanuel Appiah",
-  "email": "emk.appiah@gmail.com",
+  "author": {
+    "name": "Emmanuel Appiah",
+    "email": "emk.appiah@gmail.com"
+  },
   "license": "ISC",
   "scripts": {
     "install:all": "npm install && cd frontend && npm install && cd ../backend && npm install",
+    "install:safe": "npm run install:core && npm run install:electron-manual",
+    "install:core": "npm install concurrently wait-on --no-optional",
+    "install:electron-manual": "bash scripts/install-electron.sh",
+    "install:electron-npm": "npm install electron@^38.7.2 electron-builder@^24.13.3 electron-updater@^6.6.2 --no-optional --ignore-scripts",
     "devs": "concurrently -k \"npm run dev:backend\" \"npm run dev:frontend\"",
     "dev": "concurrently -k \"npm run dev:backend\" \"npm run dev:frontend\" \"npm run electron\"",
     "dev:frontend": "cd frontend && npm run dev",
-    "dev:backend": "cd backend && npm start", 
+    "dev:backend": "cd backend && npm start",
     "electron": "wait-on http://localhost:3000 && electron . --no-sandbox",
     "start": "npm run dev",
     "build:frontend": "cd frontend && npm run build",
-    "build:win": "npm run build:frontend && electron-builder --win portable --x64",
-    "build:win-portable": "npm run build:frontend && electron-builder --win portable --x64",
-    "build:win-dir": "npm run build:frontend && electron-builder --win --x64 --dir",
-    "build:linux": "npm run build:frontend && electron-builder --linux",
-    "build:linux-appimage": "npm run build:frontend && electron-builder --linux AppImage",
-    "build:linux-deb": "npm run build:frontend && electron-builder --linux deb",
-    "build:mac": "npm run build:frontend && electron-builder --mac",
+    "build:win": "npm run build:frontend && npm run build:backend && electron-builder --win portable --x64",
+    "build:win-portable": "npm run build:frontend && npm run build:backend && electron-builder --win portable --x64",
+    "build:win-dir": "npm run build:frontend && npm run build:backend && electron-builder --win --x64 --dir",
+    "build:linux": "npm run build:frontend && npm run build:backend && electron-builder --linux --x64 --dir",
+    "build:linux-appimage": "npm run build:frontend && npm run build:backend && electron-builder --linux AppImage --x64",
+    "build:linux-deb": "npm run build:frontend && npm run build:backend && electron-builder --linux deb --x64",
+    "build:mac": "npm run build:frontend && npm run build:backend && electron-builder --mac",
+    "build:backend": "cd backend && npm rebuild sqlite3 --runtime=electron --target=38.7.2 --arch=x64 --dist-url=https://electronjs.org/headers",
     "package:win": "cd release && rm -f PharmacyPOS-portable.zip 2>/dev/null || true && zip -r PharmacyPOS-portable.zip win-unpacked/",
-    "clean": "rm -rf release dist build frontend/dist"
+    "clean": "rm -rf release dist build frontend/dist node_modules backend/node_modules frontend/node_modules backend/pharmacy-pos.db backend/*.log",
+    "clean:electron": "rm -rf node_modules/electron ~/.cache/electron ~/.npm/_cacache",
+    "clean:db": "rm -f backend/pharmacy-pos.db* backend/*.db*",
+    "clean:all": "npm run clean && npm run clean:electron"
   },
   "dependencies": {
     "concurrently": "^9.2.1",
@@ -31,7 +41,6 @@
   },
   "devDependencies": {
     "@flydotio/dockerfile": "^0.7.10",
-    "electron": "^38.7.2",
     "electron-builder": "^24.13.3",
     "electron-updater": "^6.6.2"
   },
@@ -39,7 +48,8 @@
     "appId": "com.pharmacypos.app",
     "productName": "PharmacyPOS",
     "directories": {
-      "output": "release"
+      "output": "release",
+      "buildResources": "build"
     },
     "files": [
       "main.cjs",
@@ -49,34 +59,42 @@
     "extraResources": [
       {
         "from": "backend",
-        "to": "backend",
-        "filter": [
-          "**/*",
-          "!node_modules/**/*",
-          "!*.log",
-          "!test*",
-          "!*.md"
-        ]
+        "to": "backend"
       },
       {
         "from": "frontend/dist",
-        "to": "frontend/dist",
-        "filter": [
-          "**/*"
-        ]
+        "to": "frontend/dist"
       }
+    ],
+    "asar": true,
+    "asarUnpack": [
+      "backend/**/*",
+      "frontend/dist/**/*"
     ],
     "win": {
       "target": [
         "portable",
         "nsis"
       ],
-      "icon": "build/icon.ico",
-      "asar": true,
-      "asarUnpack": [
-        "backend/**/*",
-        "frontend/dist/**/*"
-      ]
+      "icon": "build/icon.ico"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb",
+        "snap"
+      ],
+      "category": "Utility",
+      "icon": "build/icons",
+      "maintainer": "Emmanuel Appiah <emk.appiah@gmail.com>"
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.business",
+      "icon": "build/icon.icns"
     },
     "nsis": {
       "oneClick": false,

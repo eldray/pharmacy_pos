@@ -8,9 +8,10 @@ const router = express.Router();
 // Get all products
 router.get('/', auth, async (req, res) => {
   try {
-    const products = await Product.find().sort({ createdAt: -1 });
+    const products = await Product.findAll({ order: [['createdAt', 'DESC']] });
     res.json(products);
   } catch (err) {
+    console.error('Error fetching products:', err);
     res.status(500).json({ msg: 'Server error' });
   }
 });
@@ -18,7 +19,7 @@ router.get('/', auth, async (req, res) => {
 // Get product by ID
 router.get('/:id', auth, async (req, res) => {
   try {
-    const product = await Product.findById(req.params.id);
+    const product = await Product.findByPk(req.params.id);
     if (!product) return res.status(404).json({ msg: 'Product not found' });
     res.json(product);
   } catch (err) {
@@ -26,13 +27,13 @@ router.get('/:id', auth, async (req, res) => {
   }
 });
 
-// Create product (admin/officer)
+// Create product
 router.post('/', auth, adminAuth, async (req, res) => {
   try {
-    const product = new Product(req.body);
-    await product.save();
+    const product = await Product.create(req.body);
     res.status(201).json(product);
   } catch (err) {
+    console.error('Create product error:', err);
     res.status(400).json({ msg: 'Invalid data' });
   }
 });
@@ -40,37 +41,48 @@ router.post('/', auth, adminAuth, async (req, res) => {
 // Update product
 router.put('/:id', auth, adminAuth, async (req, res) => {
   try {
-    const product = await Product.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const product = await Product.findByPk(req.params.id);
     if (!product) return res.status(404).json({ msg: 'Product not found' });
+    
+    await product.update(req.body);
     res.json(product);
   } catch (err) {
     res.status(400).json({ msg: 'Invalid data' });
   }
 });
 
-// Delete product (admin only)
+// Delete product
 router.delete('/:id', auth, adminAuth, async (req, res) => {
   try {
-    const product = await Product.findByIdAndDelete(req.params.id);
+    const product = await Product.findByPk(req.params.id);
     if (!product) return res.status(404).json({ msg: 'Product not found' });
+    
+    await product.destroy();
     res.json({ msg: 'Product deleted' });
   } catch (err) {
     res.status(500).json({ msg: 'Server error' });
   }
 });
 
-// Search by barcode or name
+// Search products
 router.get('/search/:query', auth, async (req, res) => {
   try {
+    const { Op } = require('sequelize');
     const { query } = req.params;
-    const products = await Product.find({
-      $or: [
-        { barcode: { $regex: query, $options: 'i' } },
-        { name: { $regex: query, $options: 'i' } },
-      ],
+    
+    const products = await Product.findAll({
+      where: {
+        [Op.or]: [
+          { barcode: { [Op.like]: `%${query}%` } },
+          { name: { [Op.like]: `%${query}%` } },
+          { sku: { [Op.like]: `%${query}%` } }
+        ]
+      }
     });
+    
     res.json(products);
   } catch (err) {
+    console.error('Search error:', err);
     res.status(500).json({ msg: 'Server error' });
   }
 });

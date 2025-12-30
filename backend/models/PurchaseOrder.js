@@ -1,25 +1,56 @@
 // models/PurchaseOrder.js
-const mongoose = require('mongoose');
+const { sequelize, DataTypes } = require('../database');
+const Supplier = require('./Supplier');
+const Product = require('./Product');
 
-const purchaseOrderItemSchema = new mongoose.Schema({
-  productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product' },
-  productName: String,
-  quantity: { type: Number, required: true },
-  unitPrice: { type: Number, required: true },
-  total: Number,
-  batchNumber: String,
-  expiryDate: String,
+const PurchaseOrder = sequelize.define('PurchaseOrder', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true
+  },
+  orderNumber: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    unique: true
+  },
+  supplierId: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: Supplier,
+      key: 'id'
+    }
+  },
+  items: {
+    type: DataTypes.TEXT,
+    allowNull: false,
+    get() {
+      const value = this.getDataValue('items');
+      return value ? JSON.parse(value) : [];
+    },
+    set(value) {
+      this.setDataValue('items', JSON.stringify(value));
+    }
+  },
+  totalAmount: {
+    type: DataTypes.DECIMAL(10, 2),
+    allowNull: false
+  },
+  status: {
+    type: DataTypes.ENUM('pending', 'received', 'cancelled'),
+    defaultValue: 'pending'
+  },
+  orderDate: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW
+  },
+  expectedDeliveryDate: DataTypes.DATE,
+  deliveryDate: DataTypes.DATE
+}, {
+  tableName: 'purchase_orders'
 });
 
-const purchaseOrderSchema = new mongoose.Schema({
-  orderNumber: { type: String, required: true, unique: true },
-  supplierId: { type: mongoose.Schema.Types.ObjectId, ref: 'Supplier', required: true },
-  items: [purchaseOrderItemSchema],
-  totalAmount: { type: Number, required: true },
-  status: { type: String, enum: ['pending', 'received', 'cancelled'], default: 'pending' },
-  orderDate: { type: Date, default: Date.now },
-  expectedDeliveryDate: { type: Date, required: true },
-  deliveryDate: Date,
-}, { timestamps: true });
+PurchaseOrder.belongsTo(Supplier, { foreignKey: 'supplierId' });
 
-module.exports = mongoose.model('PurchaseOrder', purchaseOrderSchema);
+module.exports = PurchaseOrder;

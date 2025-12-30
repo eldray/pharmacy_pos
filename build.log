@@ -1,0 +1,80 @@
+
+> pharmacy-pos@1.0.0 build:linux
+> npm run build:frontend && electron-builder --linux
+
+
+> pharmacy-pos@1.0.0 build:frontend
+> cd frontend && npm run build
+
+
+> market make@0.0.0 build
+> vite build
+
+vite v7.1.12 building for production...
+transforming...
+✓ 1663 modules transformed.
+[plugin vite:reporter] 
+(!) /home/el_dray/Desktop/GitHub/pharmacy/frontend/src/api/auth.ts is dynamically imported by /home/el_dray/Desktop/GitHub/pharmacy/frontend/src/App.tsx but also statically imported by /home/el_dray/Desktop/GitHub/pharmacy/frontend/src/components/Login.tsx, dynamic import will not move module into another chunk.
+
+rendering chunks...
+computing gzip size...
+dist/index.html                   0.49 kB │ gzip:   0.32 kB
+dist/assets/index.jprO49hx.css   71.66 kB │ gzip:  10.16 kB
+dist/assets/index.hopaiWCS.js   517.15 kB │ gzip: 135.87 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 15.00s
+  • electron-builder  version=24.13.3 os=6.17.0-8-generic
+  • loaded configuration  file=package.json ("build" field)
+  • packaging       platform=linux arch=x64 electron=38.7.2 appOutDir=release/linux-unpacked
+  • building        target=AppImage arch=x64 file=release/PharmacyPOS-1.0.0.AppImage
+  • building        target=snap arch=x64 file=release/pharmacy-pos_1.0.0_amd64.snap
+  • default Electron icon is used  reason=application icon is not set
+  ⨯ read /home/el_dray/Desktop/GitHub/pharmacy/release/linux-unpacked/pharmacy-pos: input/output error
+github.com/develar/app-builder/pkg/fs.WriteFileAndRestoreNormalPermissions
+	/Volumes/data/Documents/app-builder/pkg/fs/file.go:83
+github.com/develar/app-builder/pkg/fs.CopyFileAndRestoreNormalPermissions
+	/Volumes/data/Documents/app-builder/pkg/fs/copier.go:128
+github.com/develar/app-builder/pkg/fs.(*FileCopier).CopyFile
+	/Volumes/data/Documents/app-builder/pkg/fs/copier.go:117
+github.com/develar/app-builder/pkg/fs.(*FileCopier).copyDirOrFile
+	/Volumes/data/Documents/app-builder/pkg/fs/copier.go:102
+github.com/develar/app-builder/pkg/fs.(*FileCopier).copyDir
+	/Volumes/data/Documents/app-builder/pkg/fs/copier.go:34
+github.com/develar/app-builder/pkg/fs.(*FileCopier).copyDirOrFile
+	/Volumes/data/Documents/app-builder/pkg/fs/copier.go:89
+github.com/develar/app-builder/pkg/fs.(*FileCopier).CopyDirOrFile
+	/Volumes/data/Documents/app-builder/pkg/fs/copier.go:60
+github.com/develar/app-builder/pkg/fs.CopyUsingHardlink
+	/Volumes/data/Documents/app-builder/pkg/fs/copier.go:46
+github.com/develar/app-builder/pkg/package-format/appimage.AppImage
+	/Volumes/data/Documents/app-builder/pkg/package-format/appimage/appImage.go:103
+github.com/develar/app-builder/pkg/package-format/appimage.ConfigureCommand.func1
+	/Volumes/data/Documents/app-builder/pkg/package-format/appimage/appImage.go:59
+github.com/alecthomas/kingpin.(*actionMixin).applyActions
+	/Volumes/data/go/pkg/mod/github.com/alecthomas/kingpin@v2.2.6+incompatible/actions.go:28
+github.com/alecthomas/kingpin.(*Application).applyActions
+	/Volumes/data/go/pkg/mod/github.com/alecthomas/kingpin@v2.2.6+incompatible/app.go:557
+github.com/alecthomas/kingpin.(*Application).execute
+	/Volumes/data/go/pkg/mod/github.com/alecthomas/kingpin@v2.2.6+incompatible/app.go:390
+github.com/alecthomas/kingpin.(*Application).Parse
+	/Volumes/data/go/pkg/mod/github.com/alecthomas/kingpin@v2.2.6+incompatible/app.go:222
+main.main
+	/Volumes/data/Documents/app-builder/main.go:90
+runtime.main
+	/usr/local/Cellar/go/1.17/libexec/src/runtime/proc.go:255
+runtime.goexit
+	/usr/local/Cellar/go/1.17/libexec/src/runtime/asm_amd64.s:1581  
+  ⨯ /home/el_dray/Desktop/GitHub/pharmacy/node_modules/app-builder-bin/linux/x64/app-builder process failed ERR_ELECTRON_BUILDER_CANNOT_EXECUTE
+Exit code:
+1  failedTask=build stackTrace=Error: /home/el_dray/Desktop/GitHub/pharmacy/node_modules/app-builder-bin/linux/x64/app-builder process failed ERR_ELECTRON_BUILDER_CANNOT_EXECUTE
+Exit code:
+1
+    at ChildProcess.<anonymous> (/home/el_dray/Desktop/GitHub/pharmacy/node_modules/builder-util/src/util.ts:252:14)
+    at Object.onceWrapper (node:events:622:26)
+    at ChildProcess.emit (node:events:507:28)
+    at maybeClose (node:internal/child_process:1101:16)
+    at Process.ChildProcess._handle.onexit (node:internal/child_process:305:5)

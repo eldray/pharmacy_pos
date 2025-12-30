@@ -1,4 +1,3 @@
-// routes/company.js
 const express = require('express');
 const Company = require('../models/Company');
 const { auth, adminAuth } = require('../middleware/auth');
@@ -11,6 +10,7 @@ router.get('/', auth, async (req, res) => {
     const company = await Company.getCompany();
     res.json(company);
   } catch (err) {
+    console.error('Get company error:', err);
     res.status(500).json({ msg: 'Server error' });
   }
 });
@@ -20,13 +20,14 @@ router.put('/', auth, adminAuth, async (req, res) => {
   try {
     let company = await Company.findOne();
     if (!company) {
-      company = new Company(req.body);
+      company = await Company.create(req.body);
     } else {
-      company = await Company.findByIdAndUpdate(company._id, req.body, { new: true });
+      await company.update(req.body);
     }
-    await company.save();
+    
     res.json(company);
   } catch (err) {
+    console.error('Update company error:', err);
     res.status(400).json({ msg: 'Invalid data' });
   }
 });

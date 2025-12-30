@@ -1,61 +1,53 @@
 // models/Company.js
-const mongoose = require('mongoose');
 
-const companySchema = new mongoose.Schema({
+const { sequelize, DataTypes } = require('../database');
+
+const Company = sequelize.define('Company', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true
+  },
   name: {
-    type: String,
-    required: true,
-    trim: true,
-    default: 'Pharmacy POS'
+    type: DataTypes.STRING,
+    allowNull: false,
+    defaultValue: 'Pharmacy POS'
   },
-  logo: {
-    type: String,
-    default: null
+  logo: DataTypes.STRING,
+  addressStreet: DataTypes.STRING,
+  addressCity: DataTypes.STRING,
+  addressState: DataTypes.STRING,
+  addressZipCode: DataTypes.STRING,
+  addressCountry: {
+    type: DataTypes.STRING,
+    defaultValue: 'Ghana'
   },
-  address: {
-    street: { type: String, default: '' },
-    city: { type: String, default: '' },
-    state: { type: String, default: '' },
-    zipCode: { type: String, default: '' },
-    country: { type: String, default: 'Ghana' }
+  contactPhone: DataTypes.STRING,
+  contactEmail: DataTypes.STRING,
+  contactWebsite: DataTypes.STRING,
+  taxId: DataTypes.STRING,
+  receiptHeader: {
+    type: DataTypes.TEXT,
+    defaultValue: 'Thank you for your business!'
   },
-  contact: {
-    phone: { type: String, default: '' },
-    email: { type: String, default: '' },
-    website: { type: String, default: '' }
+  receiptFooter: {
+    type: DataTypes.TEXT,
+    defaultValue: 'We hope to see you again soon!'
   },
-  taxId: {
-    type: String,
-    default: null
+  taxRate: {
+    type: DataTypes.DECIMAL(5, 2),
+    defaultValue: 15.0
   },
-  receiptSettings: {
-    header: {
-      type: String,
-      default: 'Thank you for your business!'
-    },
-    footer: {
-      type: String,
-      default: 'We hope to see you again soon!'
-    },
-    taxRate: {
-      type: Number,
-      default: 15
-    },
-    includeTaxId: {
-      type: Boolean,
-      default: false
-    }
-  },
-  createdBy: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: false
+  includeTaxId: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
   }
 }, {
+  tableName: 'company',
   timestamps: true
 });
 
-companySchema.statics.getCompany = async function() {
+Company.getCompany = async function() {
   let company = await this.findOne();
   if (!company) {
     company = await this.create({});
@@ -63,4 +55,4 @@ companySchema.statics.getCompany = async function() {
   return company;
 };
 
-module.exports = mongoose.model('Company', companySchema);
+module.exports = Company;

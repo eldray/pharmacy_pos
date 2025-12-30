@@ -1,15 +1,47 @@
 // models/InventoryLog.js
-const mongoose = require('mongoose');
+const { sequelize, DataTypes } = require('../database');
+const User = require('./User');
+const Product = require('./Product');
 
-const inventoryLogSchema = new mongoose.Schema({
-  productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
-  productName: String,
-  type: { type: String, enum: ['inflow', 'outflow', 'adjustment'], required: true },
-  quantity: { type: Number, required: true },
-  reference: String,
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  userName: String,
-  notes: String,
-}, { timestamps: true });
+const InventoryLog = sequelize.define('InventoryLog', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true
+  },
+  productId: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: Product,
+      key: 'id'
+    }
+  },
+  productName: DataTypes.STRING,
+  type: {
+    type: DataTypes.ENUM('inflow', 'outflow', 'adjustment'),
+    allowNull: false
+  },
+  quantity: {
+    type: DataTypes.INTEGER,
+    allowNull: false
+  },
+  reference: DataTypes.STRING,
+  userId: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: User,
+      key: 'id'
+    }
+  },
+  userName: DataTypes.STRING,
+  notes: DataTypes.TEXT
+}, {
+  tableName: 'inventory_logs'
+});
 
-module.exports = mongoose.model('InventoryLog', inventoryLogSchema);
+InventoryLog.belongsTo(Product, { foreignKey: 'productId' });
+InventoryLog.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+
+module.exports = InventoryLog;

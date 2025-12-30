@@ -1,0 +1,45 @@
+appId: com.pharmacypos.app
+productName: PharmacyPOS
+directories:
+  output: release
+  buildResources: build
+
+linux:
+  target:
+    - deb
+    - AppImage
+  category: Utility
+  icon: build/icons
+  maintainer: Emmanuel Appiah <emk.appiah@gmail.com>
+  artifactName: ${productName}-${version}-${arch}.${ext}
+  desktop:
+    Name: PharmacyPOS
+    Comment: Pharmacy Point of Sale System
+    Categories: Office;Business;Utility
+    StartupNotify: true
+    Terminal: false
+    Type: Application
+    MimeType:
+  afterInstall: build/installer/linux/after-install.tpl
+  afterRemove: build/installer/linux/after-remove.tpl
+
+deb:
+  depends:
+    - libgtk-3-0
+    - libnotify4
+    - libnss3
+    - libxss1
+    - libxtst6
+    - xdg-utils
+    - libatspi2.0-0
+    - libuuid1
+    - libsecret-1-0
+    - libvips
+    - libcups2
+  compression: xz
+  priority: optional
+
+npmRebuild: false
+npmSkipBuildFromSource: true
+
+publish: null
