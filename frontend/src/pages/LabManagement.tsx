@@ -50,6 +50,30 @@ export const LabManagement: React.FC = () => {
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 10;
 
+    // --- Shared field style ---
+    const fieldStyle: React.CSSProperties = {
+        background: 'var(--color-input-bg)',
+        border: '1px solid var(--color-input-border)',
+        borderRadius: '6px',
+        color: 'var(--color-input-text)',
+        outline: 'none',
+        fontSize: '14px',
+        padding: '10px 14px',
+        width: '100%',
+        height: '42px',
+        transition: 'border-color 100ms ease, box-shadow 100ms ease',
+    };
+
+    const onFieldFocus = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => {
+        e.currentTarget.style.borderColor = 'var(--color-input-border-focus)';
+        e.currentTarget.style.boxShadow = '0 0 0 2px var(--color-input-ring)';
+    };
+
+    const onFieldBlur = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => {
+        e.currentTarget.style.borderColor = 'var(--color-input-border)';
+        e.currentTarget.style.boxShadow = 'none';
+    };
+
     const safeNumber = (value: any): number => {
         const num = Number(value);
         return isNaN(num) ? 0 : num;
@@ -103,24 +127,24 @@ export const LabManagement: React.FC = () => {
 
     const getStatusBadge = (status: string) => {
         const config: Record<string, string> = {
-            pending: 'bg-yellow-500',
-            in_progress: 'bg-blue-500',
-            completed: 'bg-green-500',
-            cancelled: 'bg-red-500',
+            pending: 'badge-warning',
+            in_progress: 'badge-info',
+            completed: 'badge-success',
+            cancelled: 'badge-danger',
         };
-        const color = config[status] || 'bg-gray-500';
-        return <span className={`px-2.5 py-1 text-xs font-bold text-white rounded-full ${color}`}>{status.replace('_', ' ')}</span>;
+        const cls = config[status] || 'badge-info';
+        return <span className={`badge ${cls} text-sm px-3 py-1.5`}>{status.replace('_', ' ')}</span>;
     };
 
     const getPaymentStatusBadge = (status: string) => {
         const config: Record<string, string> = {
-            pending: 'bg-yellow-500',
-            paid: 'bg-green-500',
-            partial: 'bg-orange-500',
-            refunded: 'bg-red-500',
+            pending: 'badge-warning',
+            paid: 'badge-success',
+            partial: 'badge-warning',
+            refunded: 'badge-danger',
         };
-        const color = config[status] || 'bg-gray-500';
-        return <span className={`px-2.5 py-1 text-xs font-bold text-white rounded-full ${color}`}>{status}</span>;
+        const cls = config[status] || 'badge-info';
+        return <span className={`badge ${cls} text-sm px-3 py-1.5`}>{status}</span>;
     };
 
     if (loading) {
@@ -136,11 +160,11 @@ export const LabManagement: React.FC = () => {
             <div className="flex items-center justify-center h-64">
                 <div className="text-center">
                     <div className="text-4xl mb-4" style={{ color: 'var(--color-danger)' }}>⚠️</div>
-                    <h3 className="text-lg font-bold" style={{ color: 'var(--color-text-primary)' }}>Error Loading Lab Data</h3>
-                    <p className="mt-2" style={{ color: 'var(--color-text-secondary)' }}>{error}</p>
+                    <h3 className="text-xl font-bold text-primary">Error Loading Lab Data</h3>
+                    <p className="mt-2 text-secondary">{error}</p>
                     <button
                         onClick={loadData}
-                        className="btn-accent mt-4 px-4 py-2"
+                        className="btn-accent mt-4 px-4 py-2.5 text-sm"
                     >
                         Retry
                     </button>
@@ -149,44 +173,50 @@ export const LabManagement: React.FC = () => {
         );
     }
 
+    // Check if user can request lab tests
+    const canRequestLab = currentUser?.role === 'admin' || currentUser?.role === 'lab' || currentUser?.role === 'officer';
+
     return (
-        <div className="space-y-6">
-            {/* Header */}
-            <div className="bg-brand rounded-2xl shadow-xl p-6 text-white">
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div className="space-y-6 pb-6">
+            {/* Header - Clean & Simple */}
+            <div className="mb-5">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                     <div>
-                        <h1 className="text-2xl font-bold mb-2">Laboratory Management</h1>
-                        <p className="text-white/80">Manage lab test requests, results, and reports</p>
+                        <h1 className="text-base font-bold" style={{ color: 'var(--color-text-primary)' }}>Laboratory Management</h1>
+                        <p className="text-[0.72rem] mt-0.5" style={{ color: 'var(--color-text-muted)' }}>Manage lab test requests, results, and reports</p>
                         <div className="flex flex-wrap items-center gap-3 mt-2">
-                            <span className="text-white/60 text-sm">
+                            <span className="text-[0.7rem]" style={{ color: 'var(--color-text-muted)' }}>
                                 {labTransactions?.length || 0} transactions
                             </span>
-                            <span className="text-white/40">•</span>
-                            <span className="text-white/60 text-sm">
+                            <span className="text-[0.7rem]" style={{ color: 'var(--color-text-muted)' }}>•</span>
+                            <span className="text-[0.7rem]" style={{ color: 'var(--color-text-muted)' }}>
                                 {labTestTemplates?.length || 0} templates
                             </span>
                         </div>
                     </div>
-                    <button
-                        onClick={() => setShowRequestModal(true)}
-                        className="flex items-center gap-2 px-5 py-2.5 bg-white/10 hover:bg-white/20 backdrop-blur-sm text-white font-semibold rounded-xl transition-all duration-200 border border-white/20"
-                    >
-                        <Plus className="h-5 w-5" />
-                        Request Test
-                    </button>
+                    {canRequestLab && (
+                        <button
+                            onClick={() => setShowRequestModal(true)}
+                            className="btn-accent flex items-center gap-2 px-5 py-2.5 text-sm"
+                            style={{ height: '42px' }}
+                        >
+                            <Plus className="h-4 w-4" />
+                            Request Lab Test
+                        </button>
+                    )}
                 </div>
             </div>
 
-            {/* Stats */}
+            {/* Stats - Larger cards with better readability */}
             {stats && (
-                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
                     <Card className="p-4">
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-muted text-xs">Total</p>
-                                <p className="text-2xl font-bold text-primary">{stats.total || 0}</p>
+                                <p className="text-sm text-secondary font-medium">Total</p>
+                                <p className="text-2xl font-bold text-primary tabular-nums">{stats.total || 0}</p>
                             </div>
-                            <div className="p-2 bg-accent rounded-lg text-accent-fg">
+                            <div className="p-2.5 rounded-lg" style={{ background: 'var(--color-accent)', color: 'var(--color-accent-fg)' }}>
                                 <FlaskConical className="h-4 w-4" />
                             </div>
                         </div>
@@ -195,10 +225,10 @@ export const LabManagement: React.FC = () => {
                     <Card className="p-4" style={{ borderColor: 'var(--color-warning)', background: 'var(--color-warning-light)' }}>
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-muted text-xs">Pending</p>
-                                <p className="text-2xl font-bold" style={{ color: 'var(--color-warning-text)' }}>{stats.pending || 0}</p>
+                                <p className="text-sm font-medium" style={{ color: 'var(--color-warning-text)' }}>Pending</p>
+                                <p className="text-2xl font-bold tabular-nums" style={{ color: 'var(--color-warning-text)' }}>{stats.pending || 0}</p>
                             </div>
-                            <div className="p-2 rounded-lg" style={{ background: 'var(--color-warning)', color: 'var(--color-accent-fg)' }}>
+                            <div className="p-2.5 rounded-lg" style={{ background: 'var(--color-warning)', color: 'var(--color-accent-fg)' }}>
                                 <Clock className="h-4 w-4" />
                             </div>
                         </div>
@@ -207,10 +237,10 @@ export const LabManagement: React.FC = () => {
                     <Card className="p-4" style={{ borderColor: 'var(--color-info)', background: 'var(--color-info-light)' }}>
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-muted text-xs">In Progress</p>
-                                <p className="text-2xl font-bold" style={{ color: 'var(--color-info-text)' }}>{stats.inProgress || 0}</p>
+                                <p className="text-sm font-medium" style={{ color: 'var(--color-info-text)' }}>In Progress</p>
+                                <p className="text-2xl font-bold tabular-nums" style={{ color: 'var(--color-info-text)' }}>{stats.inProgress || 0}</p>
                             </div>
-                            <div className="p-2 rounded-lg" style={{ background: 'var(--color-info)', color: 'var(--color-accent-fg)' }}>
+                            <div className="p-2.5 rounded-lg" style={{ background: 'var(--color-info)', color: 'var(--color-accent-fg)' }}>
                                 <Loader2 className="h-4 w-4 animate-spin" />
                             </div>
                         </div>
@@ -219,10 +249,10 @@ export const LabManagement: React.FC = () => {
                     <Card className="p-4" style={{ borderColor: 'var(--color-success)', background: 'var(--color-success-light)' }}>
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-muted text-xs">Completed</p>
-                                <p className="text-2xl font-bold" style={{ color: 'var(--color-success-text)' }}>{stats.completed || 0}</p>
+                                <p className="text-sm font-medium" style={{ color: 'var(--color-success-text)' }}>Completed</p>
+                                <p className="text-2xl font-bold tabular-nums" style={{ color: 'var(--color-success-text)' }}>{stats.completed || 0}</p>
                             </div>
-                            <div className="p-2 rounded-lg" style={{ background: 'var(--color-success)', color: 'var(--color-accent-fg)' }}>
+                            <div className="p-2.5 rounded-lg" style={{ background: 'var(--color-success)', color: 'var(--color-accent-fg)' }}>
                                 <CheckCircle className="h-4 w-4" />
                             </div>
                         </div>
@@ -231,10 +261,10 @@ export const LabManagement: React.FC = () => {
                     <Card className="p-4" style={{ borderColor: 'var(--color-danger)', background: 'var(--color-danger-light)' }}>
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-muted text-xs">Cancelled</p>
-                                <p className="text-2xl font-bold" style={{ color: 'var(--color-danger-text)' }}>{stats.cancelled || 0}</p>
+                                <p className="text-sm font-medium" style={{ color: 'var(--color-danger-text)' }}>Cancelled</p>
+                                <p className="text-2xl font-bold tabular-nums" style={{ color: 'var(--color-danger-text)' }}>{stats.cancelled || 0}</p>
                             </div>
-                            <div className="p-2 rounded-lg" style={{ background: 'var(--color-danger)', color: 'var(--color-accent-fg)' }}>
+                            <div className="p-2.5 rounded-lg" style={{ background: 'var(--color-danger)', color: 'var(--color-accent-fg)' }}>
                                 <XCircle className="h-4 w-4" />
                             </div>
                         </div>
@@ -243,12 +273,12 @@ export const LabManagement: React.FC = () => {
                     <Card className="p-4" style={{ borderColor: 'var(--color-success)', background: 'var(--color-success-light)' }}>
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-muted text-xs">Today Revenue</p>
-                                <p className="text-2xl font-bold" style={{ color: 'var(--color-success-text)' }}>
+                                <p className="text-sm font-medium" style={{ color: 'var(--color-success-text)' }}>Today Revenue</p>
+                                <p className="text-2xl font-bold tabular-nums" style={{ color: 'var(--color-success-text)' }}>
                                     GHS {safeNumber(stats.today?.revenue).toFixed(2)}
                                 </p>
                             </div>
-                            <div className="p-2 rounded-lg" style={{ background: 'var(--color-success)', color: 'var(--color-accent-fg)' }}>
+                            <div className="p-2.5 rounded-lg" style={{ background: 'var(--color-success)', color: 'var(--color-accent-fg)' }}>
                                 <DollarSign className="h-4 w-4" />
                             </div>
                         </div>
@@ -256,24 +286,30 @@ export const LabManagement: React.FC = () => {
                 </div>
             )}
 
-            {/* Search and Filter */}
+            {/* Search and Filter - Larger inputs */}
             <Card className="p-4">
                 <div className="flex flex-col sm:flex-row gap-4">
                     <div className="relative flex-1">
-                        <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted" />
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted" />
                         <input
                             type="text"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             placeholder="Search by patient name, transaction number, or test type..."
-                            className="input-base w-full pl-10 pr-4 py-2.5 text-sm"
+                            className="input-base w-full pl-10 pr-4 text-sm"
+                            style={{ ...fieldStyle, paddingLeft: '2.5rem' }}
+                            onFocus={onFieldFocus}
+                            onBlur={onFieldBlur}
                         />
                     </div>
                     <div className="flex gap-2">
                         <select
                             value={statusFilter}
                             onChange={(e) => setStatusFilter(e.target.value)}
-                            className="input-base px-4 py-2.5 text-sm"
+                            className="input-base px-4 text-sm"
+                            style={fieldStyle}
+                            onFocus={onFieldFocus}
+                            onBlur={onFieldBlur}
                         >
                             <option value="all">All Status</option>
                             <option value="pending">Pending</option>
@@ -284,6 +320,7 @@ export const LabManagement: React.FC = () => {
                         <button
                             onClick={loadData}
                             className="btn-ghost px-4 py-2.5"
+                            style={{ height: '42px' }}
                         >
                             <RefreshCw className="h-5 w-5" />
                         </button>
@@ -291,7 +328,7 @@ export const LabManagement: React.FC = () => {
                 </div>
             </Card>
 
-            {/* Transactions Table */}
+            {/* Transactions Table - Larger text */}
             <Card className="overflow-hidden">
                 <div className="overflow-x-auto">
                     <table className="w-full">
@@ -313,7 +350,7 @@ export const LabManagement: React.FC = () => {
                                     <td colSpan={8} className="px-4 py-12 text-center">
                                         <FlaskConical className="h-12 w-12 text-muted mx-auto mb-3" />
                                         <p className="text-lg font-medium text-primary">No transactions found</p>
-                                        <p className="text-sm text-muted">Try adjusting your filters</p>
+                                        <p className="text-sm text-secondary">Try adjusting your filters</p>
                                     </td>
                                 </tr>
                             ) : (
@@ -325,24 +362,24 @@ export const LabManagement: React.FC = () => {
                                         <tr key={transaction.id} className="hover:bg-subtle transition-colors">
                                             <td className="px-4 py-3">
                                                 <div className="flex items-center gap-2">
-                                                    <div className="p-1.5 bg-accent rounded-lg text-accent-fg">
+                                                    <div className="p-1.5 rounded-lg" style={{ background: 'var(--color-accent-light)', color: 'var(--color-accent-text)' }}>
                                                         <FileText className="h-3 w-3" />
                                                     </div>
                                                     <div>
-                                                        <p className="font-medium text-primary text-sm">{transaction.transactionNumber}</p>
+                                                        <p className="font-medium text-sm text-primary">{transaction.transactionNumber}</p>
                                                     </div>
                                                 </div>
                                             </td>
                                             <td className="px-4 py-3">
                                                 <div>
-                                                    <p className="font-medium text-primary">{transaction.patientName}</p>
+                                                    <p className="font-medium text-base text-primary">{transaction.patientName}</p>
                                                     {transaction.patientPhone && (
-                                                        <p className="text-xs text-muted">{transaction.patientPhone}</p>
+                                                        <p className="text-sm text-secondary">{transaction.patientPhone}</p>
                                                     )}
                                                 </div>
                                             </td>
                                             <td className="px-4 py-3">
-                                                <span className="font-medium text-primary">{testCount}</span>
+                                                <span className="font-medium text-base text-primary tabular-nums">{testCount}</span>
                                             </td>
                                             <td className="px-4 py-3">
                                                 {getStatusBadge(transaction.status)}
@@ -350,21 +387,23 @@ export const LabManagement: React.FC = () => {
                                             <td className="px-4 py-3">
                                                 <div className="flex flex-col gap-1">
                                                     {getPaymentStatusBadge(transaction.paymentStatus)}
-                                                    <span className="text-xs text-muted capitalize">
+                                                    <span className="text-sm text-secondary capitalize">
                                                         {transaction.paymentMethod || 'N/A'}
                                                     </span>
                                                 </div>
                                             </td>
                                             <td className="px-4 py-3 text-right">
-                                                <p className="font-bold text-accent">GHS {totalAmount.toFixed(2)}</p>
+                                                <p className="font-bold text-base tabular-nums" style={{ color: 'var(--color-accent)' }}>
+                                                    GHS {totalAmount.toFixed(2)}
+                                                </p>
                                             </td>
-                                            <td className="px-4 py-3 text-right text-sm text-muted">
+                                            <td className="px-4 py-3 text-right text-sm text-secondary">
                                                 {new Date(transaction.createdAt).toLocaleDateString()}
                                             </td>
                                             <td className="px-4 py-3 text-center">
                                                 <Link
                                                     to={`/dashboard/lab/${transaction.id}`}
-                                                    className="inline-flex items-center gap-1 px-3 py-1.5 btn-accent text-xs"
+                                                    className="inline-flex items-center gap-1 px-3 py-1.5 btn-accent text-sm"
                                                 >
                                                     <Eye className="h-3 w-3" />
                                                     View
@@ -378,13 +417,13 @@ export const LabManagement: React.FC = () => {
                     </table>
                 </div>
 
-                {/* Pagination */}
+                {/* Pagination - Larger text */}
                 {totalPages > 1 && (
-                    <div className="flex items-center justify-between px-4 py-3 border-t border-theme">
-                        <p className="text-sm text-muted">
+                    <div className="flex items-center justify-between px-4 py-3 border-t border-theme flex-wrap gap-3">
+                        <p className="text-sm text-secondary">
                             Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, filteredTransactions.length)} of {filteredTransactions.length}
                         </p>
-                        <div className="flex gap-2">
+                        <div className="flex items-center gap-2">
                             <button
                                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                                 disabled={currentPage === 1}
@@ -392,7 +431,7 @@ export const LabManagement: React.FC = () => {
                             >
                                 <ChevronLeft className="h-4 w-4" />
                             </button>
-                            <span className="px-3 py-1.5 text-sm text-primary">{currentPage} / {totalPages}</span>
+                            <span className="px-3 py-1.5 text-sm font-medium text-primary">{currentPage} / {totalPages}</span>
                             <button
                                 onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                                 disabled={currentPage === totalPages}

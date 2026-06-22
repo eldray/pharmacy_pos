@@ -20,13 +20,27 @@ import {
   FileText,
   ChevronLeft,
   ChevronRight,
-  X
+  X,
+  Box,
+  Clock,
+  Filter,
+  Eye,
+  Download,
+  LayoutDashboard,
+  CheckCircle,
+  GripVertical,
+  Layers,
+  AlertCircle,
+  Clock as ClockIcon
 } from 'lucide-react';
 import { useAppStore } from '../store';
 import { Product, InventoryLog } from '../types';
 import { Card } from '../components/ui/Card';
 
+type TabType = 'overview' | 'low-stock' | 'expiry' | 'history';
+
 const InventoryPage: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [adjustmentQty, setAdjustmentQty] = useState(0);
@@ -34,15 +48,14 @@ const InventoryPage: React.FC = () => {
   const [showAdjustmentModal, setShowAdjustmentModal] = useState(false);
   const [showDisposalModal, setShowDisposalModal] = useState(false);
   const [isAdjusting, setIsAdjusting] = useState(false);
-  const [showLowStock, setShowLowStock] = useState(false);
-  const [showExpiring, setShowExpiring] = useState(false);
-  const [showHistory, setShowHistory] = useState(false);
   const [disposalQty, setDisposalQty] = useState(0);
   const [disposalReason, setDisposalReason] = useState('');
-  
-  // Pagination states
-  const [productsCurrentPage, setProductsCurrentPage] = useState(1);
-  const [historyCurrentPage, setHistoryCurrentPage] = useState(1);
+
+  // Pagination states for each tab
+  const [overviewPage, setOverviewPage] = useState(1);
+  const [lowStockPage, setLowStockPage] = useState(1);
+  const [expiryPage, setExpiryPage] = useState(1);
+  const [historyPage, setHistoryPage] = useState(1);
   const [itemsPerPage] = useState(10);
 
   const {
@@ -55,6 +68,37 @@ const InventoryPage: React.FC = () => {
     fetchInventoryLogs,
     isLoading: storeLoading,
   } = useAppStore();
+
+  // --- Shared field style ---
+  const fieldStyle: React.CSSProperties = {
+    background: 'var(--color-input-bg)',
+    border: '1px solid var(--color-input-border)',
+    borderRadius: '6px',
+    color: 'var(--color-input-text)',
+    outline: 'none',
+    fontSize: '14px',
+    padding: '10px 14px',
+    width: '100%',
+    height: '42px',
+    transition: 'border-color 100ms ease, box-shadow 100ms ease',
+  };
+
+  const textareaStyle: React.CSSProperties = {
+    ...fieldStyle,
+    height: 'auto',
+    minHeight: '80px',
+    resize: 'vertical',
+  };
+
+  const onFieldFocus = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    e.currentTarget.style.borderColor = 'var(--color-input-border-focus)';
+    e.currentTarget.style.boxShadow = '0 0 0 2px var(--color-input-ring)';
+  };
+
+  const onFieldBlur = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    e.currentTarget.style.borderColor = 'var(--color-input-border)';
+    e.currentTarget.style.boxShadow = 'none';
+  };
 
   useEffect(() => {
     fetchProducts();
@@ -84,24 +128,44 @@ const InventoryPage: React.FC = () => {
     return products.filter((p) => p.expiryDate && new Date(p.expiryDate) <= threeMonthsFromNow);
   }, [products]);
 
-  // Products pagination
-  const productsTotalPages = Math.ceil(filteredProducts.length / itemsPerPage);
-  const productsStartIndex = (productsCurrentPage - 1) * itemsPerPage;
-  const productsEndIndex = productsStartIndex + itemsPerPage;
-  const currentProducts = filteredProducts.slice(productsStartIndex, productsEndIndex);
+  // ─── OVERVIEW PAGINATION ──────────────────────────────────────
+  const overviewTotalPages = Math.ceil(filteredProducts.length / itemsPerPage);
+  const overviewStartIndex = (overviewPage - 1) * itemsPerPage;
+  const overviewEndIndex = overviewStartIndex + itemsPerPage;
+  const currentProducts = filteredProducts.slice(overviewStartIndex, overviewEndIndex);
 
-  // History pagination
-  const historyTotalPages = Math.ceil(inventoryLogs.length / itemsPerPage);
-  const historyStartIndex = (historyCurrentPage - 1) * itemsPerPage;
-  const historyEndIndex = historyStartIndex + itemsPerPage;
-  const currentHistoryLogs = inventoryLogs.slice(historyStartIndex, historyEndIndex);
-
-  const goToProductsPage = (page: number) => {
-    setProductsCurrentPage(Math.max(1, Math.min(page, productsTotalPages)));
+  const goToOverviewPage = (page: number) => {
+    setOverviewPage(Math.max(1, Math.min(page, overviewTotalPages)));
   };
 
+  // ─── LOW STOCK PAGINATION ──────────────────────────────────────
+  const lowStockTotalPages = Math.ceil(lowStockProducts.length / itemsPerPage);
+  const lowStockStartIndex = (lowStockPage - 1) * itemsPerPage;
+  const lowStockEndIndex = lowStockStartIndex + itemsPerPage;
+  const currentLowStock = lowStockProducts.slice(lowStockStartIndex, lowStockEndIndex);
+
+  const goToLowStockPage = (page: number) => {
+    setLowStockPage(Math.max(1, Math.min(page, lowStockTotalPages)));
+  };
+
+  // ─── EXPIRY PAGINATION ──────────────────────────────────────
+  const expiryTotalPages = Math.ceil(expiringProducts.length / itemsPerPage);
+  const expiryStartIndex = (expiryPage - 1) * itemsPerPage;
+  const expiryEndIndex = expiryStartIndex + itemsPerPage;
+  const currentExpiry = expiringProducts.slice(expiryStartIndex, expiryEndIndex);
+
+  const goToExpiryPage = (page: number) => {
+    setExpiryPage(Math.max(1, Math.min(page, expiryTotalPages)));
+  };
+
+  // ─── HISTORY PAGINATION ──────────────────────────────────────
+  const historyTotalPages = Math.ceil(inventoryLogs.length / itemsPerPage);
+  const historyStartIndex = (historyPage - 1) * itemsPerPage;
+  const historyEndIndex = historyStartIndex + itemsPerPage;
+  const currentHistory = inventoryLogs.slice(historyStartIndex, historyEndIndex);
+
   const goToHistoryPage = (page: number) => {
-    setHistoryCurrentPage(Math.max(1, Math.min(page, historyTotalPages)));
+    setHistoryPage(Math.max(1, Math.min(page, historyTotalPages)));
   };
 
   const openAdjustmentModal = (product: Product) => {
@@ -203,19 +267,19 @@ const InventoryPage: React.FC = () => {
 
   const getStockBadge = (quantity: number) => {
     if (quantity === 0)
-      return <span className="px-2 py-1 text-xs font-bold bg-gradient-to-r from-red-500 to-pink-600 text-white rounded-full shadow">Out of Stock</span>;
+      return <span className="badge badge-danger text-sm px-3 py-1.5">Out of Stock</span>;
     if (quantity < 10)
-      return <span className="px-2 py-1 text-xs font-bold bg-gradient-to-r from-red-500 to-orange-600 text-white rounded-full shadow">Critical</span>;
+      return <span className="badge badge-danger text-sm px-3 py-1.5">Critical</span>;
     if (quantity < 20)
-      return <span className="px-2 py-1 text-xs font-bold bg-gradient-to-r from-yellow-500 to-orange-600 text-white rounded-full shadow">Low Stock</span>;
+      return <span className="badge badge-warning text-sm px-3 py-1.5">Low Stock</span>;
     if (quantity < 50)
-      return <span className="px-2 py-1 text-xs font-bold bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-full shadow">Medium</span>;
-    return <span className="px-2 py-1 text-xs font-bold bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-full shadow">In Stock</span>;
+      return <span className="badge badge-info text-sm px-3 py-1.5">Medium</span>;
+    return <span className="badge badge-success text-sm px-3 py-1.5">In Stock</span>;
   };
 
   const getExpiryBadge = (expiryDate: string) => {
     if (!expiryDate) return null;
-    
+
     const expiry = new Date(expiryDate);
     const today = new Date();
     const oneMonth = new Date(today);
@@ -224,40 +288,32 @@ const InventoryPage: React.FC = () => {
     threeMonths.setMonth(threeMonths.getMonth() + 3);
 
     if (expiry < today)
-      return <span className="px-2 py-1 text-xs font-bold bg-gradient-to-r from-red-500 to-pink-600 text-white rounded-full shadow">Expired</span>;
+      return <span className="badge badge-danger text-sm px-3 py-1.5">Expired</span>;
     if (expiry < oneMonth)
-      return <span className="px-2 py-1 text-xs font-bold bg-gradient-to-r from-orange-500 to-red-600 text-white rounded-full shadow">Expiring Soon</span>;
+      return <span className="badge badge-warning text-sm px-3 py-1.5">Expiring Soon</span>;
     if (expiry < threeMonths)
-      return <span className="px-2 py-1 text-xs font-bold bg-gradient-to-r from-yellow-500 to-orange-600 text-white rounded-full shadow">3mo</span>;
-    return <span className="px-2 py-1 text-xs font-bold bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-full shadow">Valid</span>;
+      return <span className="badge badge-warning text-sm px-3 py-1.5">3mo</span>;
+    return <span className="badge badge-success text-sm px-3 py-1.5">Valid</span>;
   };
 
   const getLogTypeColor = (type: string) => {
     switch (type) {
-      case 'inflow': return 'text-green-600 bg-green-50 border-green-200';
-      case 'outflow': return 'text-red-600 bg-red-50 border-red-200';
-      case 'adjustment': return 'text-blue-600 bg-blue-50 border-blue-200';
-      default: return 'text-gray-600 bg-gray-50 border-gray-200';
+      case 'inflow': return 'badge-success';
+      case 'outflow': return 'badge-danger';
+      case 'adjustment': return 'badge-info';
+      default: return 'badge-secondary';
     }
   };
 
-  const getLogIcon = (type: string) => {
-    switch (type) {
-      case 'inflow': return <Plus className="h-3 w-3" />;
-      case 'outflow': return <Minus className="h-3 w-3" />;
-      case 'adjustment': return <Edit2 className="h-3 w-3" />;
-      default: return <FileText className="h-3 w-3" />;
-    }
-  };
-
-  // Pagination Component
-  const Pagination = ({ 
-    currentPage, 
-    totalPages, 
+  // ─── PAGINATION COMPONENT ──────────────────────────────────────
+  const Pagination = ({
+    currentPage,
+    totalPages,
     onPageChange,
     startIndex,
     endIndex,
-    totalItems 
+    totalItems,
+    itemsLabel = 'items'
   }: {
     currentPage: number;
     totalPages: number;
@@ -265,386 +321,691 @@ const InventoryPage: React.FC = () => {
     startIndex: number;
     endIndex: number;
     totalItems: number;
-  }) => (
-    <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200">
-      <div className="text-sm text-gray-500">
-        Showing {startIndex + 1}-{Math.min(endIndex, totalItems)} of {totalItems} items
-      </div>
-      <div className="flex items-center gap-2">
-        <button
-          onClick={() => onPageChange(currentPage - 1)}
-          disabled={currentPage === 1}
-          className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <ChevronLeft className="h-4 w-4" />
-          Previous
-        </button>
-        
-        <div className="flex gap-1">
-          {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
-            <button
-              key={page}
-              onClick={() => onPageChange(page)}
-              className={`px-3 py-1.5 text-sm font-medium rounded-lg ${
-                currentPage === page
-                  ? 'bg-blue-600 text-white'
-                  : 'text-gray-700 bg-white border border-gray-300 hover:bg-gray-50'
-              }`}
-            >
-              {page}
-            </button>
-          ))}
-        </div>
-        
-        <button
-          onClick={() => onPageChange(currentPage + 1)}
-          disabled={currentPage === totalPages}
-          className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          Next
-          <ChevronRight className="h-4 w-4" />
-        </button>
-      </div>
-    </div>
-  );
+    itemsLabel?: string;
+  }) => {
+    if (totalPages <= 1) return null;
 
-  if (storeLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-6 pb-6">
-      {/* Page Header */}
-      <div className="bg-gradient-to-r from-slate-900 via-purple-900 to-slate-900 rounded-2xl shadow-xl p-6 text-white">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold mb-2">Inventory Management</h1>
-            <p className="text-white/80">Manage stock levels, track expiry, and adjust inventory</p>
-          </div>
-          <div className="hidden md:flex items-center gap-2 px-4 py-2 bg-white/10 rounded-xl backdrop-blur-sm border border-white/20">
-            <TrendingUp className="h-4 w-4 text-yellow-400" />
-            <span className="text-sm font-medium">Live Inventory</span>
-          </div>
+      <div className="flex items-center justify-between px-4 py-3 border-t border-theme flex-wrap gap-3">
+        <div className="text-sm text-secondary">
+          Showing {startIndex + 1}-{Math.min(endIndex, totalItems)} of {totalItems} {itemsLabel}
         </div>
-      </div>
-
-      {/* Compact Alerts */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Low Stock Alert */}
-        <Card className="backdrop-blur-sm bg-white/80 border-2 border-yellow-200">
+        <div className="flex items-center gap-2 flex-wrap">
           <button
-            onClick={() => setShowLowStock(!showLowStock)}
-            className="w-full p-4 text-left"
+            onClick={() => onPageChange(currentPage - 1)}
+            disabled={currentPage === 1}
+            className="btn-ghost flex items-center gap-1 px-3 py-1.5 text-sm disabled:opacity-50"
           >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-gradient-to-r from-yellow-500 to-orange-600 rounded-lg shadow">
-                  <AlertTriangle className="h-4 w-4 text-white" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-yellow-900">Low Stock</h3>
-                  <p className="text-sm text-yellow-800">
-                    {lowStockProducts.length} products below 20 units
-                  </p>
-                </div>
-              </div>
-              {showLowStock ? <ChevronUp className="h-4 w-4 text-yellow-600" /> : <ChevronDown className="h-4 w-4 text-yellow-600" />}
-            </div>
+            <ChevronLeft className="h-4 w-4" />
+            Previous
           </button>
-          
-          {showLowStock && lowStockProducts.length > 0 && (
-            <div className="border-t border-yellow-200 p-4">
-              <div className="space-y-2 max-h-60 overflow-y-auto">
-                {lowStockProducts.map((p) => (
-                  <div key={p.id} className="flex items-center justify-between p-3 bg-yellow-50 rounded-lg border border-yellow-200">
-                    <div className="flex-1">
-                      <p className="font-medium text-yellow-900 text-sm">{p.name}</p>
-                      <p className="text-xs text-yellow-700">SKU: {p.sku}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-bold text-yellow-900">{p.quantity} units</p>
-                      {getStockBadge(p.quantity)}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </Card>
 
-        {/* Expiry Alert */}
-        <Card className="backdrop-blur-sm bg-white/80 border-2 border-red-200">
-          <button
-            onClick={() => setShowExpiring(!showExpiring)}
-            className="w-full p-4 text-left"
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-gradient-to-r from-red-500 to-pink-600 rounded-lg shadow">
-                  <Calendar className="h-4 w-4 text-white" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-red-900">Expiry Alert</h3>
-                  <p className="text-sm text-red-800">
-                    {expiringProducts.length} products expiring soon
-                  </p>
-                </div>
-              </div>
-              {showExpiring ? <ChevronUp className="h-4 w-4 text-red-600" /> : <ChevronDown className="h-4 w-4 text-red-600" />}
-            </div>
-          </button>
-          
-          {showExpiring && expiringProducts.length > 0 && (
-            <div className="border-t border-red-200 p-4">
-              <div className="space-y-2 max-h-60 overflow-y-auto">
-                {expiringProducts.map((p) => (
-                  <div key={p.id} className="flex items-center justify-between p-3 bg-red-50 rounded-lg border border-red-200">
-                    <div className="flex-1">
-                      <p className="font-medium text-red-900 text-sm">{p.name}</p>
-                      <p className="text-xs text-red-700">Batch: {p.batchNumber}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-bold text-red-900 text-sm">
-                        {new Date(p.expiryDate).toLocaleDateString()}
-                      </p>
-                      {getExpiryBadge(p.expiryDate)}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </Card>
-      </div>
-
-      {/* Inventory History */}
-      <Card className="backdrop-blur-sm bg-white/80 border-2 border-gray-100">
-        <button
-          onClick={() => setShowHistory(!showHistory)}
-          className="w-full p-4 text-left"
-        >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg shadow">
-                <History className="h-4 w-4 text-white" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-gray-900">Inventory History</h3>
-                <p className="text-sm text-gray-600">
-                  {inventoryLogs.length} recent activities
-                </p>
-              </div>
-            </div>
-            {showHistory ? <ChevronUp className="h-4 w-4 text-gray-600" /> : <ChevronDown className="h-4 w-4 text-gray-600" />}
-          </div>
-        </button>
-        
-        {showHistory && (
-          <div className="border-t border-gray-200">
-            <div className="max-h-96 overflow-y-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Product</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Type</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Quantity</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">User</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Date</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Notes</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {currentHistoryLogs.map((log) => (
-                    <tr key={log.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3 text-sm font-medium text-gray-900">
-                        {log.productName}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full border ${getLogTypeColor(log.type)}`}>
-                          {getLogIcon(log.type)}
-                          {log.type}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-sm font-semibold">
-                        <span className={log.quantity > 0 ? 'text-green-600' : 'text-red-600'}>
-                          {log.quantity > 0 ? '+' : ''}{log.quantity}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-600">
-                        {log.userName}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-600">
-                        {new Date(log.createdAt).toLocaleDateString()}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-600 max-w-xs truncate">
-                        {log.notes}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {inventoryLogs.length === 0 && (
-                <div className="text-center py-8 text-gray-500">
-                  <History className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                  <p>No inventory activity yet</p>
-                </div>
-              )}
-            </div>
-
-            {/* History Pagination */}
-            {inventoryLogs.length > itemsPerPage && (
-              <Pagination
-                currentPage={historyCurrentPage}
-                totalPages={historyTotalPages}
-                onPageChange={goToHistoryPage}
-                startIndex={historyStartIndex}
-                endIndex={historyEndIndex}
-                totalItems={inventoryLogs.length}
-              />
+          <div className="flex gap-1">
+            {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
+              const page = i + 1;
+              return (
+                <button
+                  key={page}
+                  onClick={() => onPageChange(page)}
+                  className={`px-3 py-1.5 text-sm font-medium rounded-lg ${currentPage === page
+                    ? 'btn-accent'
+                    : 'btn-ghost'
+                    }`}
+                >
+                  {page}
+                </button>
+              );
+            })}
+            {totalPages > 7 && (
+              <span className="px-2 py-1.5 text-sm text-secondary">...</span>
             )}
           </div>
-        )}
-      </Card>
 
-      {/* Search */}
-      <Card className="p-4 backdrop-blur-sm bg-white/80 border-2 border-gray-100">
+          <button
+            onClick={() => onPageChange(currentPage + 1)}
+            disabled={currentPage === totalPages}
+            className="btn-ghost flex items-center gap-1 px-3 py-1.5 text-sm disabled:opacity-50"
+          >
+            Next
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  // ─── OVERVIEW VIEW (Dashboard + Products Combined) ──────────────
+  const renderOverview = () => {
+    const totalProducts = products.length;
+    const lowStockCount = lowStockProducts.length;
+    const outOfStockCount = products.filter(p => p.quantity === 0).length;
+    const expiringCount = expiringProducts.length;
+    const totalValue = products.reduce((sum, p) => sum + (p.quantity * p.unitPrice), 0);
+
+    const stats = [
+      {
+        label: 'Total Products',
+        value: totalProducts,
+        icon: Package,
+        color: 'var(--color-accent)',
+        bg: 'var(--color-accent-light)'
+      },
+      {
+        label: 'Low Stock',
+        value: lowStockCount,
+        icon: AlertTriangle,
+        color: 'var(--color-warning-text)',
+        bg: 'var(--color-warning-light)',
+        link: 'low-stock'
+      },
+      {
+        label: 'Out of Stock',
+        value: outOfStockCount,
+        icon: AlertCircle,
+        color: 'var(--color-danger-text)',
+        bg: 'var(--color-danger-light)'
+      },
+      {
+        label: 'Expiring Soon',
+        value: expiringCount,
+        icon: Calendar,
+        color: 'var(--color-danger-text)',
+        bg: 'var(--color-danger-light)',
+        link: 'expiry'
+      },
+      {
+        label: 'Inventory Value',
+        value: `GHS ${totalValue.toFixed(2)}`,
+        icon: TrendingUp,
+        color: 'var(--color-success-text)',
+        bg: 'var(--color-success-light)'
+      },
+      {
+        label: 'Activity Logs',
+        value: inventoryLogs.length,
+        icon: History,
+        color: 'var(--color-info-text)',
+        bg: 'var(--color-info-light)',
+        link: 'history'
+      },
+    ];
+
+    return (
+      <div className="space-y-6">
+        {/* Stats Grid */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+          {stats.map((stat) => (
+            <Card
+              key={stat.label}
+              className="p-4 cursor-pointer hover:shadow-md transition-all"
+              onClick={() => stat.link && setActiveTab(stat.link as TabType)}
+              style={{
+                cursor: stat.link ? 'pointer' : 'default',
+              }}
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium text-secondary">{stat.label}</p>
+                  <p className="text-xl font-bold text-primary tabular-nums">{stat.value}</p>
+                </div>
+                <div className="p-2 rounded-lg" style={{ background: stat.bg, color: stat.color }}>
+                  <stat.icon className="h-4 w-4" />
+                </div>
+              </div>
+              {stat.link && (
+                <div className="mt-2">
+                  <span className="text-xs font-medium" style={{ color: stat.color }}>
+                    Click to view →
+                  </span>
+                </div>
+              )}
+            </Card>
+          ))}
+        </div>
+
+        {/* Search Bar */}
         <div className="relative">
-          <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => {
               setSearchQuery(e.target.value);
-              setProductsCurrentPage(1); // Reset to first page when searching
+              setOverviewPage(1);
             }}
-            placeholder="Search by name, SKU, barcode, or category..."
-            className="w-full pl-10 pr-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-white/50 backdrop-blur-sm text-sm"
+            placeholder="Search products by name, SKU, barcode, or category..."
+            className="input-base w-full pl-10 pr-4 text-sm"
+            style={{ ...fieldStyle, paddingLeft: '2.5rem' }}
+            onFocus={onFieldFocus}
+            onBlur={onFieldBlur}
           />
+        </div>
+
+        {/* Products Table */}
+        <Card>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[1000px]">
+              <thead className="bg-subtle border-b border-theme">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase">Product</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase">SKU</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase">Category</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase">Quantity</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase">Status</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-theme">
+                {currentProducts.map((product) => (
+                  <tr key={product.id} className="hover:bg-subtle transition-colors group">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <div className="p-1.5 rounded-lg" style={{ background: 'var(--color-accent-light)', color: 'var(--color-accent-text)' }}>
+                          <Package className="h-3 w-3" />
+                        </div>
+                        <div>
+                          <p className="font-semibold text-primary text-sm group-hover:text-accent transition-colors">
+                            {product.name}
+                          </p>
+                          {product.batchNumber && (
+                            <p className="text-xs text-secondary">Batch: {product.batchNumber}</p>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <p className="font-mono text-sm text-primary">{product.sku}</p>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="badge badge-secondary text-xs px-2 py-0.5">
+                        {product.category}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div>
+                        <p className="text-base font-bold text-primary tabular-nums">{product.quantity}</p>
+                        <p className="text-xs text-secondary">units</p>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-col gap-1">
+                        {getStockBadge(product.quantity)}
+                        {product.expiryDate && getExpiryBadge(product.expiryDate)}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => openAdjustmentModal(product)}
+                          className="btn-accent flex items-center gap-1 px-3 py-1.5 text-sm"
+                        >
+                          <Edit2 className="h-3 w-3" />
+                          Adjust
+                        </button>
+                        <button
+                          onClick={() => openDisposalModal(product)}
+                          className="btn-ghost flex items-center gap-1 px-3 py-1.5 text-sm"
+                          style={{ color: 'var(--color-danger-text)' }}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                          Dispose
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {filteredProducts.length === 0 && (
+              <div className="text-center py-12">
+                <Package className="h-12 w-12 text-muted mx-auto mb-3" />
+                <p className="text-base font-medium text-primary mb-1">No products found</p>
+                <p className="text-sm text-secondary">Try adjusting your search criteria</p>
+              </div>
+            )}
+          </div>
+
+          {/* Overview Pagination */}
+          <Pagination
+            currentPage={overviewPage}
+            totalPages={overviewTotalPages}
+            onPageChange={goToOverviewPage}
+            startIndex={overviewStartIndex}
+            endIndex={overviewEndIndex}
+            totalItems={filteredProducts.length}
+            itemsLabel="products"
+          />
+        </Card>
+      </div>
+    );
+  };
+
+  // ─── LOW STOCK VIEW ──────────────────────────────────────────────
+  const renderLowStock = () => (
+    <div className="space-y-4">
+      <Card className="p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-base font-bold text-primary">Low Stock Items</h2>
+            <p className="text-sm text-secondary">{lowStockProducts.length} products below 20 units</p>
+          </div>
+          <button
+            onClick={() => setActiveTab('overview')}
+            className="btn-ghost px-4 py-2.5 text-sm flex items-center gap-1"
+          >
+            <ArrowUpRight className="h-4 w-4" />
+            Back to Overview
+          </button>
         </div>
       </Card>
 
-      {/* Products Table */}
-      <Card className="backdrop-blur-sm bg-white/80 border-2 border-gray-100">
+      <Card>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1000px]">
-            <thead className="bg-gray-50/80 border-b border-gray-200">
+          <table className="w-full min-w-[800px]">
+            <thead className="bg-subtle border-b border-theme">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Product</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">SKU / Barcode</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Category</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Quantity</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Batch / Expiry</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Status</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Actions</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase">Product</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase">Quantity</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase">Status</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
-              {currentProducts.map((product) => (
-                <tr key={product.id} className="hover:bg-gray-50/50 transition-colors group">
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <div className="p-1.5 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg shadow">
-                        <Package className="h-4 w-4 text-white" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="font-semibold text-gray-900 text-sm group-hover:text-blue-600 transition-colors truncate">
-                          {product.name}
-                        </p>
-                        {product.description && (
-                          <p className="text-xs text-gray-500 truncate">
-                            {product.description}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <p className="font-mono font-semibold text-sm">{product.sku}</p>
-                    <p className="text-gray-500 text-xs">{product.barcode}</p>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="px-2 py-1 text-xs font-bold bg-gradient-to-r from-gray-500 to-gray-700 text-white rounded-full shadow">
-                      <Tag className="h-3 w-3 inline mr-1" />
-                      {product.category}
-                    </span>
-                  </td>
+            <tbody className="divide-y divide-theme">
+              {currentLowStock.map((product) => (
+                <tr key={product.id} className="hover:bg-subtle transition-colors">
                   <td className="px-4 py-3">
                     <div>
-                      <p className="text-base font-bold text-gray-900">{product.quantity}</p>
-                      <div className="mt-1">{getStockBadge(product.quantity)}</div>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-sm">
-                    <p className="font-semibold text-xs">Batch: {product.batchNumber}</p>
-                    {product.expiryDate && (
-                      <>
-                        <p className="text-gray-500 text-xs">
-                          Exp: {new Date(product.expiryDate).toLocaleDateString()}
-                        </p>
-                        <div className="mt-1">{getExpiryBadge(product.expiryDate)}</div>
-                      </>
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex flex-col gap-1">
-                      {getStockBadge(product.quantity)}
-                      {product.expiryDate && getExpiryBadge(product.expiryDate)}
+                      <p className="font-semibold text-primary">{product.name}</p>
+                      <p className="text-xs text-secondary">SKU: {product.sku}</p>
                     </div>
                   </td>
                   <td className="px-4 py-3">
-                    <div className="flex gap-1">
-                      <button
-                        onClick={() => openAdjustmentModal(product)}
-                        className="flex items-center gap-1 px-3 py-1.5 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white text-xs font-semibold rounded-lg transition-all duration-200 shadow"
-                      >
-                        <Edit2 className="h-3 w-3" />
-                        
-                      </button>
-                      <button
-                        onClick={() => openDisposalModal(product)}
-                        className="flex items-center gap-1 px-3 py-1.5 bg-gradient-to-r from-red-500 to-pink-600 hover:from-red-600 hover:to-pink-700 text-white text-xs font-semibold rounded-lg transition-all duration-200 shadow"
-                      >
-                        <Trash2 className="h-3 w-3" />
-                        
-                      </button>
-                    </div>
+                    <p className="text-base font-bold text-primary tabular-nums">{product.quantity}</p>
+                  </td>
+                  <td className="px-4 py-3">
+                    {getStockBadge(product.quantity)}
+                  </td>
+                  <td className="px-4 py-3">
+                    <button
+                      onClick={() => openAdjustmentModal(product)}
+                      className="btn-accent flex items-center gap-1 px-3 py-1.5 text-sm"
+                    >
+                      <Edit2 className="h-3 w-3" />
+                      Adjust
+                    </button>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
 
-          {filteredProducts.length === 0 && (
+          {lowStockProducts.length === 0 && (
             <div className="text-center py-12">
-              <Package className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-              <p className="text-base font-medium text-gray-900 mb-1">No products found</p>
-              <p className="text-sm text-gray-500">Try adjusting your search criteria</p>
+              <CheckCircle className="h-12 w-12 mx-auto mb-3" style={{ color: 'var(--color-success)' }} />
+              <p className="text-base font-medium text-primary">All products are well stocked!</p>
             </div>
           )}
         </div>
 
-        {/* Products Pagination */}
-        {filteredProducts.length > itemsPerPage && (
-          <Pagination
-            currentPage={productsCurrentPage}
-            totalPages={productsTotalPages}
-            onPageChange={goToProductsPage}
-            startIndex={productsStartIndex}
-            endIndex={productsEndIndex}
-            totalItems={filteredProducts.length}
-          />
-        )}
+        {/* Low Stock Pagination */}
+        <Pagination
+          currentPage={lowStockPage}
+          totalPages={lowStockTotalPages}
+          onPageChange={goToLowStockPage}
+          startIndex={lowStockStartIndex}
+          endIndex={lowStockEndIndex}
+          totalItems={lowStockProducts.length}
+          itemsLabel="products"
+        />
+      </Card>
+    </div>
+  );
+
+  // ─── EXPIRY VIEW ──────────────────────────────────────────────
+  const renderExpiry = () => (
+    <div className="space-y-4">
+      <Card className="p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-base font-bold text-primary">Expiry Management</h2>
+            <p className="text-sm text-secondary">{expiringProducts.length} products expiring within 3 months</p>
+          </div>
+          <button
+            onClick={() => setActiveTab('overview')}
+            className="btn-ghost px-4 py-2.5 text-sm flex items-center gap-1"
+          >
+            <ArrowUpRight className="h-4 w-4" />
+            Back to Overview
+          </button>
+        </div>
       </Card>
 
-      {/* Stock Adjustment Modal */}
+      <Card>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[800px]">
+            <thead className="bg-subtle border-b border-theme">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase">Product</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase">Expiry Date</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase">Status</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-theme">
+              {currentExpiry
+                .sort((a, b) => new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime())
+                .map((product) => (
+                  <tr key={product.id} className="hover:bg-subtle transition-colors">
+                    <td className="px-4 py-3">
+                      <div>
+                        <p className="font-semibold text-primary">{product.name}</p>
+                        <p className="text-xs text-secondary">Batch: {product.batchNumber}</p>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <p className="text-base font-medium text-primary">
+                        {new Date(product.expiryDate).toLocaleDateString()}
+                      </p>
+                    </td>
+                    <td className="px-4 py-3">
+                      {getExpiryBadge(product.expiryDate)}
+                    </td>
+                    <td className="px-4 py-3">
+                      <button
+                        onClick={() => openDisposalModal(product)}
+                        className="btn-ghost flex items-center gap-1 px-3 py-1.5 text-sm"
+                        style={{ color: 'var(--color-danger-text)' }}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                        Dispose
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+
+          {expiringProducts.length === 0 && (
+            <div className="text-center py-12">
+              <CheckCircle className="h-12 w-12 mx-auto mb-3" style={{ color: 'var(--color-success)' }} />
+              <p className="text-base font-medium text-primary">No products expiring soon!</p>
+            </div>
+          )}
+        </div>
+
+        {/* Expiry Pagination */}
+        <Pagination
+          currentPage={expiryPage}
+          totalPages={expiryTotalPages}
+          onPageChange={goToExpiryPage}
+          startIndex={expiryStartIndex}
+          endIndex={expiryEndIndex}
+          totalItems={expiringProducts.length}
+          itemsLabel="products"
+        />
+      </Card>
+    </div>
+  );
+
+  // ─── HISTORY VIEW ──────────────────────────────────────────────
+  const renderHistory = () => (
+    <div className="space-y-4">
+      <Card className="p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-base font-bold text-primary">Inventory History</h2>
+            <p className="text-sm text-secondary">{inventoryLogs.length} total activities</p>
+          </div>
+          <button
+            onClick={() => setActiveTab('overview')}
+            className="btn-ghost px-4 py-2.5 text-sm flex items-center gap-1"
+          >
+            <ArrowUpRight className="h-4 w-4" />
+            Back to Overview
+          </button>
+        </div>
+      </Card>
+
+      <Card>
+        <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
+          <table className="w-full min-w-[800px]">
+            <thead className="bg-subtle border-b border-theme sticky top-0">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase">Product</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase">Type</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase">Quantity</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase">User</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase">Date</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase">Notes</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-theme">
+              {currentHistory.map((log) => (
+                <tr key={log.id} className="hover:bg-subtle transition-colors">
+                  <td className="px-4 py-3">
+                    <p className="font-medium text-sm text-primary">{log.productName}</p>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`badge ${getLogTypeColor(log.type)} text-sm inline-flex items-center gap-1`}>
+                      {log.type}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`text-sm font-bold ${log.quantity > 0 ? 'text-success' : 'text-danger'}`}>
+                      {log.quantity > 0 ? '+' : ''}{log.quantity}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-secondary">
+                    {log.userName || 'System'}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-secondary">
+                    {new Date(log.createdAt).toLocaleDateString()}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-secondary max-w-xs truncate">
+                    {log.notes || '—'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          {inventoryLogs.length === 0 && (
+            <div className="text-center py-12">
+              <History className="h-12 w-12 mx-auto mb-3 opacity-40" />
+              <p className="text-base font-medium text-primary">No history yet</p>
+              <p className="text-sm text-secondary">Inventory adjustments will appear here</p>
+            </div>
+          )}
+        </div>
+
+        {/* History Pagination */}
+        <Pagination
+          currentPage={historyPage}
+          totalPages={historyTotalPages}
+          onPageChange={goToHistoryPage}
+          startIndex={historyStartIndex}
+          endIndex={historyEndIndex}
+          totalItems={inventoryLogs.length}
+          itemsLabel="logs"
+        />
+      </Card>
+    </div>
+  );
+
+  // ─── TABS ──────────────────────────────────────────────────────
+  const tabs = [
+    {
+      id: 'overview',
+      label: 'Overview',
+      icon: <LayoutDashboard size={16} />,
+      description: 'Dashboard & Products'
+    },
+    {
+      id: 'low-stock',
+      label: 'Low Stock',
+      icon: <AlertTriangle size={16} />,
+      description: 'Items below 20 units',
+      count: lowStockProducts.length,
+      countColor: 'var(--color-warning)'
+    },
+    {
+      id: 'expiry',
+      label: 'Expiry',
+      icon: <Calendar size={16} />,
+      description: 'Expiring soon',
+      count: expiringProducts.length,
+      countColor: 'var(--color-danger)'
+    },
+    {
+      id: 'history',
+      label: 'History',
+      icon: <History size={16} />,
+      description: 'Activity logs',
+      count: inventoryLogs.length,
+      countColor: 'var(--color-info)'
+    },
+  ];
+
+  if (storeLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin" style={{ color: 'var(--color-accent)' }} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6 pb-6">
+      {/* Header */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-xl font-bold" style={{ color: 'var(--color-text-primary)' }}>Inventory Management</h1>
+          <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>Manage stock levels, track expiry, and adjust inventory</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs px-3 py-1 rounded-full" style={{ background: 'var(--color-accent-light)', color: 'var(--color-accent-text)' }}>
+            {products.length} products
+          </span>
+        </div>
+      </div>
+
+      {/* Cute Tab Buttons */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => {
+              setActiveTab(tab.id as TabType);
+              // Reset page to 1 when switching tabs
+              if (tab.id === 'overview') setOverviewPage(1);
+              else if (tab.id === 'low-stock') setLowStockPage(1);
+              else if (tab.id === 'expiry') setExpiryPage(1);
+              else if (tab.id === 'history') setHistoryPage(1);
+            }}
+            className="relative p-4 rounded-xl text-left transition-all duration-200 group"
+            style={{
+              background: activeTab === tab.id
+                ? 'var(--color-accent)'
+                : 'var(--color-bg-surface)',
+              border: activeTab === tab.id
+                ? '2px solid var(--color-accent)'
+                : '2px solid var(--color-border)',
+              boxShadow: activeTab === tab.id
+                ? '0 4px 12px rgba(14, 116, 144, 0.25)'
+                : 'var(--shadow-card)',
+              transform: activeTab === tab.id ? 'scale(1.02)' : 'scale(1)',
+            }}
+            onMouseEnter={(e) => {
+              if (activeTab !== tab.id) {
+                (e.currentTarget as HTMLElement).style.borderColor = 'var(--color-accent)';
+                (e.currentTarget as HTMLElement).style.transform = 'scale(1.02)';
+                (e.currentTarget as HTMLElement).style.boxShadow = 'var(--shadow-md)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (activeTab !== tab.id) {
+                (e.currentTarget as HTMLElement).style.borderColor = 'var(--color-border)';
+                (e.currentTarget as HTMLElement).style.transform = 'scale(1)';
+                (e.currentTarget as HTMLElement).style.boxShadow = 'var(--shadow-card)';
+              }
+            }}
+          >
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <div
+                  className="p-2 rounded-lg transition-colors"
+                  style={{
+                    background: activeTab === tab.id
+                      ? 'rgba(255,255,255,0.2)'
+                      : 'var(--color-bg-subtle)',
+                    color: activeTab === tab.id
+                      ? '#fff'
+                      : 'var(--color-text-secondary)',
+                  }}
+                >
+                  {tab.icon}
+                </div>
+                <div>
+                  <p
+                    className="font-semibold text-sm"
+                    style={{
+                      color: activeTab === tab.id
+                        ? '#fff'
+                        : 'var(--color-text-primary)',
+                    }}
+                  >
+                    {tab.label}
+                  </p>
+                  <p
+                    className="text-xs"
+                    style={{
+                      color: activeTab === tab.id
+                        ? 'rgba(255,255,255,0.7)'
+                        : 'var(--color-text-muted)',
+                    }}
+                  >
+                    {tab.description}
+                  </p>
+                </div>
+              </div>
+              {tab.count !== undefined && tab.count > 0 && (
+                <span
+                  className="px-2 py-0.5 rounded-full text-xs font-bold"
+                  style={{
+                    background: activeTab === tab.id
+                      ? 'rgba(255,255,255,0.25)'
+                      : tab.countColor || 'var(--color-accent)',
+                    color: activeTab === tab.id
+                      ? '#fff'
+                      : '#fff',
+                  }}
+                >
+                  {tab.count}
+                </span>
+              )}
+            </div>
+            {activeTab === tab.id && (
+              <div
+                className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-8 h-1 rounded-full"
+                style={{ background: 'rgba(255,255,255,0.5)' }}
+              />
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* Render Active Tab */}
+      {activeTab === 'overview' && renderOverview()}
+      {activeTab === 'low-stock' && renderLowStock()}
+      {activeTab === 'expiry' && renderExpiry()}
+      {activeTab === 'history' && renderHistory()}
+
+      {/* ─── STOCK ADJUSTMENT MODAL ──────────────────────────────────── */}
       {showAdjustmentModal && selectedProduct && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md border-2 border-gray-100">
-            <div className="sticky top-0 bg-gradient-to-r from-slate-900 via-purple-900 to-slate-900 text-white rounded-t-2xl px-6 py-4">
+        <div className="fixed inset-0 bg-overlay flex items-center justify-center p-4 z-modal">
+          <div className="surface-elevated rounded-2xl shadow-xl w-full max-w-md border-theme">
+            <div className="sticky top-0 bg-brand text-white rounded-t-2xl px-6 py-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-bold">Stock Adjustment</h2>
                 <button
@@ -657,62 +1018,67 @@ const InventoryPage: React.FC = () => {
             </div>
 
             <div className="p-6 space-y-6">
-              <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-xl border border-gray-200">
-                <div className="p-2 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg text-white">
+              <div className="flex items-center gap-3 p-4 bg-subtle rounded-xl border-theme">
+                <div className="p-2 rounded-lg" style={{ background: 'var(--color-accent-light)', color: 'var(--color-accent-text)' }}>
                   <Package className="h-5 w-5" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-gray-900">{selectedProduct.name}</h3>
-                  <p className="text-sm text-gray-600">
-                    Current: <strong>{selectedProduct.quantity}</strong> units
+                  <h3 className="font-semibold text-primary">{selectedProduct.name}</h3>
+                  <p className="text-sm text-secondary">
+                    Current: <strong className="text-primary">{selectedProduct.quantity}</strong> units
                   </p>
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-3">
+                <label className="block text-sm font-semibold text-primary mb-3">
                   Adjustment Amount *
                 </label>
-
-<div className="flex items-center gap-3">
-  <button
-    onClick={() =>
-      setAdjustmentQty(
-        Math.max(-selectedProduct.quantity, adjustmentQty - 1)
-      )
-    }
-    className="p-3 border-2 border-gray-200 rounded-xl hover:bg-gray-50 transition-colors flex-shrink-0"
-  >
-    <Minus className="h-5 w-5" />
-  </button>
-  <input
-    type="number"
-    value={adjustmentQty}
-    onChange={(e) => setAdjustmentQty(parseInt(e.target.value) || 0)}
-    className="w-64 px-3 py-3 text-center text-lg font-bold border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all bg-white"
-  />
-  <button
-    onClick={() => setAdjustmentQty(adjustmentQty + 1)}
-    className="p-3 border-2 border-gray-200 rounded-xl hover:bg-gray-50 transition-colors flex-shrink-0"
-  >
-    <Plus className="h-5 w-5" />
-  </button>
-</div>
-                <p className="text-xs text-gray-500 mt-2 text-center">
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setAdjustmentQty(Math.max(-selectedProduct.quantity, adjustmentQty - 1))}
+                    className="p-3 border-2 rounded-xl hover:bg-subtle transition-colors flex-shrink-0"
+                    style={{ borderColor: 'var(--color-border)' }}
+                  >
+                    <Minus className="h-5 w-5 text-secondary" />
+                  </button>
+                  <input
+                    type="number"
+                    value={adjustmentQty}
+                    onChange={(e) => setAdjustmentQty(parseInt(e.target.value) || 0)}
+                    className="w-64 px-3 py-3 text-center text-lg font-bold border-2 rounded-xl focus:ring-2 outline-none transition-all"
+                    style={{
+                      borderColor: 'var(--color-border)',
+                      background: 'var(--color-input-bg)',
+                      color: 'var(--color-text-primary)',
+                      fontVariantNumeric: 'tabular-nums'
+                    }}
+                    onFocus={onFieldFocus}
+                    onBlur={onFieldBlur}
+                  />
+                  <button
+                    onClick={() => setAdjustmentQty(adjustmentQty + 1)}
+                    className="p-3 border-2 rounded-xl hover:bg-subtle transition-colors flex-shrink-0"
+                    style={{ borderColor: 'var(--color-border)' }}
+                  >
+                    <Plus className="h-5 w-5 text-secondary" />
+                  </button>
+                </div>
+                <p className="text-xs text-secondary mt-2 text-center">
                   Use negative to reduce, positive to add
                 </p>
               </div>
 
-              <div className="p-4 bg-blue-50 rounded-xl border border-blue-200">
-                <p className="text-sm font-semibold text-blue-900 text-center">
-                  New Stock: <span className={selectedProduct.quantity + adjustmentQty < 0 ? 'text-red-600' : 'text-green-600'}>
+              <div className="p-4 rounded-xl" style={{ background: 'var(--color-info-light)', border: '1px solid var(--color-info)' }}>
+                <p className="text-sm font-semibold text-center" style={{ color: 'var(--color-info-text)' }}>
+                  New Stock: <span className={selectedProduct.quantity + adjustmentQty < 0 ? 'text-danger' : 'text-success'}>
                     {selectedProduct.quantity + adjustmentQty}
                   </span> units
                 </p>
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                <label className="block text-sm font-semibold text-primary mb-2">
                   Notes (Optional)
                 </label>
                 <textarea
@@ -720,27 +1086,30 @@ const InventoryPage: React.FC = () => {
                   onChange={(e) => setAdjustmentNotes(e.target.value)}
                   placeholder="e.g., Damaged stock, received shipment, found discrepancy..."
                   rows={3}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all resize-none bg-white text-sm"
+                  className="w-full px-4 py-3 border-2 rounded-xl focus:ring-2 outline-none transition-all resize-none text-sm"
+                  style={{
+                    borderColor: 'var(--color-border)',
+                    background: 'var(--color-input-bg)',
+                    color: 'var(--color-text-primary)'
+                  }}
+                  onFocus={onFieldFocus}
+                  onBlur={onFieldBlur}
                 />
               </div>
             </div>
 
-            <div className="border-t border-gray-200 px-6 py-4 flex gap-3">
+            <div className="border-t border-theme px-6 py-4 flex gap-3">
               <button
                 onClick={() => setShowAdjustmentModal(false)}
                 disabled={isAdjusting}
-                className="flex-1 px-6 py-3 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold rounded-xl transition-all duration-200 disabled:opacity-50"
+                className="flex-1 btn-ghost py-3 text-base"
               >
                 Cancel
               </button>
               <button
                 onClick={handleStockAdjustment}
-                disabled={
-                  isAdjusting ||
-                  adjustmentQty === 0 ||
-                  selectedProduct.quantity + adjustmentQty < 0
-                }
-                className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white font-semibold rounded-xl transition-all duration-200 shadow disabled:opacity-50"
+                disabled={isAdjusting || adjustmentQty === 0 || selectedProduct.quantity + adjustmentQty < 0}
+                className="flex-1 btn-accent py-3 text-base"
               >
                 {isAdjusting ? (
                   <>
@@ -756,11 +1125,11 @@ const InventoryPage: React.FC = () => {
         </div>
       )}
 
-      {/* Disposal Modal */}
+      {/* ─── DISPOSAL MODAL ──────────────────────────────────────── */}
       {showDisposalModal && selectedProduct && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md border-2 border-gray-100">
-            <div className="sticky top-0 bg-gradient-to-r from-slate-900 via-purple-900 to-slate-900 text-white rounded-t-2xl px-6 py-4">
+        <div className="fixed inset-0 bg-overlay flex items-center justify-center p-4 z-modal">
+          <div className="surface-elevated rounded-2xl shadow-xl w-full max-w-md border-theme">
+            <div className="sticky top-0 bg-brand text-white rounded-t-2xl px-6 py-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-bold">Dispose Stock</h2>
                 <button
@@ -773,28 +1142,29 @@ const InventoryPage: React.FC = () => {
             </div>
 
             <div className="p-6 space-y-6">
-              <div className="flex items-center gap-3 p-4 bg-red-50 rounded-xl border border-red-200">
-                <div className="p-2 bg-gradient-to-r from-red-500 to-pink-600 rounded-lg text-white">
+              <div className="flex items-center gap-3 p-4 rounded-xl" style={{ background: 'var(--color-danger-light)', border: '1px solid var(--color-danger)' }}>
+                <div className="p-2 rounded-lg" style={{ background: 'var(--color-danger-light)', color: 'var(--color-danger-text)' }}>
                   <Trash2 className="h-5 w-5" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-red-900">{selectedProduct.name}</h3>
-                  <p className="text-sm text-red-700">
+                  <h3 className="font-semibold" style={{ color: 'var(--color-danger-text)' }}>{selectedProduct.name}</h3>
+                  <p className="text-sm" style={{ color: 'var(--color-danger-text)' }}>
                     Current: <strong>{selectedProduct.quantity}</strong> units
                   </p>
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-3">
+                <label className="block text-sm font-semibold text-primary mb-3">
                   Quantity to Dispose *
                 </label>
                 <div className="flex items-center gap-3">
                   <button
                     onClick={() => setDisposalQty(Math.max(0, disposalQty - 1))}
-                    className="p-3 border-2 border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
+                    className="p-3 border-2 rounded-xl hover:bg-subtle transition-colors"
+                    style={{ borderColor: 'var(--color-border)' }}
                   >
-                    <Minus className="h-5 w-5" />
+                    <Minus className="h-5 w-5 text-secondary" />
                   </button>
                   <input
                     type="number"
@@ -802,34 +1172,50 @@ const InventoryPage: React.FC = () => {
                     onChange={(e) => setDisposalQty(parseInt(e.target.value) || 0)}
                     min="0"
                     max={selectedProduct.quantity}
-                    className="flex-1 px-4 py-3 text-center text-lg font-bold border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all bg-white"
+                    className="flex-1 px-4 py-3 text-center text-lg font-bold border-2 rounded-xl focus:ring-2 outline-none transition-all"
+                    style={{
+                      borderColor: 'var(--color-border)',
+                      background: 'var(--color-input-bg)',
+                      color: 'var(--color-text-primary)',
+                      fontVariantNumeric: 'tabular-nums'
+                    }}
+                    onFocus={onFieldFocus}
+                    onBlur={onFieldBlur}
                   />
                   <button
                     onClick={() => setDisposalQty(Math.min(selectedProduct.quantity, disposalQty + 1))}
-                    className="p-3 border-2 border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
+                    className="p-3 border-2 rounded-xl hover:bg-subtle transition-colors"
+                    style={{ borderColor: 'var(--color-border)' }}
                   >
-                    <Plus className="h-5 w-5" />
+                    <Plus className="h-5 w-5 text-secondary" />
                   </button>
                 </div>
-                <p className="text-xs text-gray-500 mt-2 text-center">
+                <p className="text-xs text-secondary mt-2 text-center">
                   Max: {selectedProduct.quantity} units
                 </p>
               </div>
 
-              <div className="p-4 bg-red-50 rounded-xl border border-red-200">
-                <p className="text-sm font-semibold text-red-900 text-center">
+              <div className="p-4 rounded-xl" style={{ background: 'var(--color-danger-light)', border: '1px solid var(--color-danger)' }}>
+                <p className="text-sm font-semibold text-center" style={{ color: 'var(--color-danger-text)' }}>
                   After disposal: <strong>{selectedProduct.quantity - disposalQty}</strong> units
                 </p>
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                <label className="block text-sm font-semibold text-primary mb-2">
                   Reason for Disposal *
                 </label>
                 <select
                   value={disposalReason}
                   onChange={(e) => setDisposalReason(e.target.value)}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all bg-white text-sm"
+                  className="w-full px-4 py-3 border-2 rounded-xl focus:ring-2 outline-none transition-all text-sm"
+                  style={{
+                    borderColor: 'var(--color-border)',
+                    background: 'var(--color-input-bg)',
+                    color: 'var(--color-text-primary)'
+                  }}
+                  onFocus={onFieldFocus}
+                  onBlur={onFieldBlur}
                 >
                   <option value="">Select reason</option>
                   <option value="expired">Expired</option>
@@ -842,30 +1228,35 @@ const InventoryPage: React.FC = () => {
                   <input
                     type="text"
                     placeholder="Specify reason..."
-                    className="w-full mt-3 px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all bg-white text-sm"
-                    onChange={(e) => setDisposalReason(e.target.value)}
+                    className="w-full mt-3 px-4 py-3 border-2 rounded-xl focus:ring-2 outline-none transition-all text-sm"
+                    style={{
+                      borderColor: 'var(--color-border)',
+                      background: 'var(--color-input-bg)',
+                      color: 'var(--color-text-primary)'
+                    }}
+                    onFocus={onFieldFocus}
+                    onBlur={onFieldBlur}
                   />
                 )}
               </div>
             </div>
 
-            <div className="border-t border-gray-200 px-6 py-4 flex gap-3">
+            <div className="border-t border-theme px-6 py-4 flex gap-3">
               <button
                 onClick={() => setShowDisposalModal(false)}
                 disabled={isAdjusting}
-                className="flex-1 px-6 py-3 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold rounded-xl transition-all duration-200 disabled:opacity-50"
+                className="flex-1 btn-ghost py-3 text-base"
               >
                 Cancel
               </button>
               <button
                 onClick={handleDisposal}
-                disabled={
-                  isAdjusting ||
-                  disposalQty <= 0 ||
-                  disposalQty > selectedProduct.quantity ||
-                  !disposalReason.trim()
-                }
-                className="flex-1 px-6 py-3 bg-gradient-to-r from-red-500 to-pink-600 hover:from-red-600 hover:to-pink-700 text-white font-semibold rounded-xl transition-all duration-200 shadow disabled:opacity-50"
+                disabled={isAdjusting || disposalQty <= 0 || disposalQty > selectedProduct.quantity || !disposalReason.trim()}
+                className="flex-1 py-3 text-base font-semibold rounded-xl transition-all duration-200 disabled:opacity-50"
+                style={{
+                  background: 'var(--color-danger)',
+                  color: '#fff'
+                }}
               >
                 {isAdjusting ? (
                   <>

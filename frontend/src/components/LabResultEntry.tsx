@@ -1,25 +1,8 @@
 // src/components/LabResultEntry.tsx
 import React, { useState, useEffect } from 'react';
 import {
-    X,
-    Save,
-    Printer,
-    Loader2,
-    FileText,
-    CheckCircle,
-    Plus,
-    Trash2,
-    Edit2,
-    Eye,
-    Download,
-    Calendar,
-    User,
-    Phone,
-    Mail,
-    Clock,
-    AlertCircle,
-    ChevronDown,
-    ChevronUp
+    X, Save, Printer, Loader2, FileText,
+    CheckCircle, Plus, Trash2, AlertCircle
 } from 'lucide-react';
 import { LabTest, LabTestTemplate } from '../types';
 import { useAppStore } from '../store';
@@ -38,51 +21,97 @@ interface ResultField {
     flag?: 'normal' | 'high' | 'low' | 'critical';
 }
 
+/* ── Flag badge ────────────────────────────────────────────────────── */
+const FlagBadge: React.FC<{ flag: string }> = ({ flag }) => {
+    const styles: Record<string, React.CSSProperties> = {
+        critical: { background: 'var(--color-danger-light)', color: 'var(--color-danger-text)' },
+        high: { background: 'var(--color-warning-light)', color: 'var(--color-warning-text)' },
+        low: { background: 'var(--color-warning-light)', color: 'var(--color-warning-text)' },
+        normal: { background: 'var(--color-success-light)', color: 'var(--color-success-text)' },
+    };
+    const icons: Record<string, React.CSSProperties> = {
+        critical: { color: 'var(--color-danger)' },
+        high: { color: 'var(--color-warning)' },
+        low: { color: 'var(--color-warning)' },
+        normal: { color: 'var(--color-success)' },
+    };
+
+    return (
+        <span
+            className="inline-flex items-center gap-1 px-1.5 py-[2px] text-[0.6rem] font-semibold rounded"
+            style={styles[flag] || styles.normal}
+        >
+            <AlertCircle className="h-3 w-3" style={icons[flag] || icons.normal} />
+            {flag.toUpperCase()}
+        </span>
+    );
+};
+
+/* ── Shared field style ───────────────────────────────────────────── */
+const fieldStyle: React.CSSProperties = {
+    background: 'var(--color-input-bg)',
+    border: '1px solid var(--color-input-border)',
+    borderRadius: 'var(--radius-md)',
+    color: 'var(--color-input-text)',
+    outline: 'none',
+    fontSize: '0.78rem',
+    padding: '6px 8px',
+    width: '100%',
+    transition: 'border-color 100ms ease, box-shadow 100ms ease',
+};
+
+const onFocus = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    e.currentTarget.style.borderColor = 'var(--color-input-border-focus)';
+    e.currentTarget.style.boxShadow = '0 0 0 2px var(--color-input-ring)';
+};
+const onBlur = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    e.currentTarget.style.borderColor = 'var(--color-input-border)';
+    e.currentTarget.style.boxShadow = 'none';
+};
+
 export const LabResultEntry: React.FC<LabResultEntryProps> = ({
     test,
     onClose,
-    onSuccess
+    onSuccess,
 }) => {
-    const { addLabTestResults, updateLabTest, labTestTemplates } = useAppStore();
+    const { addLabTestResults, labTestTemplates } = useAppStore();
     const [loading, setLoading] = useState(false);
     const [results, setResults] = useState<ResultField[]>([]);
     const [resultSummary, setResultSummary] = useState(test.resultSummary || '');
     const [resultInterpretation, setResultInterpretation] = useState(test.resultInterpretation || '');
     const [template, setTemplate] = useState<LabTestTemplate | null>(null);
-    const [activeTab, setActiveTab] = useState<'results' | 'summary' | 'print'>('results');
+    const [activeTab, setActiveTab] = useState<'results' | 'summary'>('results');
 
-    // Initialize results from template or existing data
     useEffect(() => {
-        // Find template for this test
-        const foundTemplate = labTestTemplates.find(t => t.name === test.testType);
+        const foundTemplate = labTestTemplates.find((t) => t.name === test.testType);
         setTemplate(foundTemplate || null);
 
-        // Initialize results
         if (test.results && Object.keys(test.results).length > 0) {
-            // Load existing results
-            const existingResults: ResultField[] = Object.entries(test.results).map(([key, value]) => ({
-                name: key,
-                value: String(value || ''),
-                referenceRange: test.referenceRanges?.[key]?.referenceRange || '',
-                unit: test.referenceRanges?.[key]?.unit || '',
-                flag: test.referenceRanges?.[key]?.flag || 'normal'
-            }));
+            const existingResults: ResultField[] = Object.entries(test.results).map(
+                ([key, value]) => ({
+                    name: key,
+                    value: String(value || ''),
+                    referenceRange: test.referenceRanges?.[key]?.referenceRange || '',
+                    unit: test.referenceRanges?.[key]?.unit || '',
+                    flag: test.referenceRanges?.[key]?.flag || 'normal',
+                })
+            );
             setResults(existingResults);
         } else if (foundTemplate) {
-            // Initialize from template
-            const templateFields: ResultField[] = (foundTemplate.resultFields || []).map((field: any) => ({
-                name: field.name,
-                value: '',
-                referenceRange: foundTemplate.defaultReferenceRanges?.[field.name]?.referenceRange || '',
-                unit: foundTemplate.defaultReferenceRanges?.[field.name]?.unit || '',
-                flag: 'normal'
-            }));
+            const templateFields: ResultField[] = (foundTemplate.resultFields || []).map(
+                (field: any) => ({
+                    name: field.name,
+                    value: '',
+                    referenceRange:
+                        foundTemplate.defaultReferenceRanges?.[field.name]?.referenceRange || '',
+                    unit: foundTemplate.defaultReferenceRanges?.[field.name]?.unit || '',
+                    flag: 'normal',
+                })
+            );
             setResults(templateFields);
         } else {
-            // Default fields
             setResults([
                 { name: 'Result', value: '', referenceRange: '', unit: '', flag: 'normal' },
-                { name: 'Reference Range', value: '', referenceRange: '', unit: '', flag: 'normal' }
             ]);
         }
     }, [test, labTestTemplates]);
@@ -91,12 +120,11 @@ export const LabResultEntry: React.FC<LabResultEntryProps> = ({
         const updated = [...results];
         updated[index] = { ...updated[index], [field]: value };
 
-        // Auto-detect flags based on reference range
         if (field === 'value' && updated[index].referenceRange) {
             const val = parseFloat(value);
             const range = updated[index].referenceRange;
             if (!isNaN(val) && range) {
-                const [low, high] = range.split('-').map(s => parseFloat(s.trim()));
+                const [low, high] = range.split('-').map((s) => parseFloat(s.trim()));
                 if (!isNaN(low) && !isNaN(high)) {
                     if (val > high * 1.5) updated[index].flag = 'critical';
                     else if (val > high) updated[index].flag = 'high';
@@ -110,41 +138,36 @@ export const LabResultEntry: React.FC<LabResultEntryProps> = ({
         setResults(updated);
     };
 
-    const addResultRow = () => {
-        setResults([...results, { name: 'New Test', value: '', referenceRange: '', unit: '', flag: 'normal' }]);
-    };
+    const addResultRow = () =>
+        setResults([
+            ...results,
+            { name: 'New Parameter', value: '', referenceRange: '', unit: '', flag: 'normal' },
+        ]);
 
     const removeResultRow = (index: number) => {
-        if (results.length > 1) {
-            setResults(results.filter((_, i) => i !== index));
-        }
+        if (results.length > 1) setResults(results.filter((_, i) => i !== index));
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
-
         try {
-            // Convert results to object format
             const resultsObject: Record<string, any> = {};
             const referenceRanges: Record<string, any> = {};
-
-            results.forEach(r => {
+            results.forEach((r) => {
                 resultsObject[r.name] = r.value;
                 referenceRanges[r.name] = {
                     referenceRange: r.referenceRange,
                     unit: r.unit,
-                    flag: r.flag
+                    flag: r.flag,
                 };
             });
-
             await addLabTestResults(test.id, {
                 results: resultsObject,
                 resultSummary,
                 resultInterpretation,
-                referenceRanges
+                referenceRanges,
             });
-
             onSuccess();
             onClose();
         } catch (err) {
@@ -155,279 +178,521 @@ export const LabResultEntry: React.FC<LabResultEntryProps> = ({
         }
     };
 
-    const handlePrint = () => {
-        window.print();
-    };
-
-    const getFlagColor = (flag: string) => {
-        switch (flag) {
-            case 'critical': return 'bg-red-100 text-red-800 border-red-300';
-            case 'high': return 'bg-orange-100 text-orange-800 border-orange-300';
-            case 'low': return 'bg-yellow-100 text-yellow-800 border-yellow-300';
-            default: return 'bg-green-100 text-green-800 border-green-300';
-        }
-    };
-
-    const getFlagIcon = (flag: string) => {
-        switch (flag) {
-            case 'critical': return <AlertCircle className="h-4 w-4 text-red-600" />;
-            case 'high': return <AlertCircle className="h-4 w-4 text-orange-600" />;
-            case 'low': return <AlertCircle className="h-4 w-4 text-yellow-600" />;
-            default: return <CheckCircle className="h-4 w-4 text-green-600" />;
-        }
+    /* ── Priority badge ─────────────────────────────────────────────── */
+    const priorityStyle: Record<string, React.CSSProperties> = {
+        stat: { background: 'var(--color-danger)', color: '#fff' },
+        urgent: { background: 'var(--color-warning)', color: '#fff' },
+        normal: { background: 'var(--color-info)', color: '#fff' },
     };
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-y-auto">
-                {/* Header */}
-                <div className="sticky top-0 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-t-2xl px-6 py-4 z-10">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                            <FileText className="h-6 w-6" />
-                            <div>
-                                <h2 className="text-xl font-bold">Enter Lab Results</h2>
-                                <p className="text-white/80 text-sm">{test.testNumber} - {test.patientName}</p>
-                            </div>
-                        </div>
-                        <button
-                            onClick={onClose}
-                            className="text-white/80 hover:text-white transition-colors p-2 hover:bg-white/10 rounded-xl"
+        <div
+            className="fixed inset-0 flex items-center justify-center p-4"
+            style={{ background: 'var(--color-bg-overlay)', zIndex: 'var(--z-modal)' }}
+            onClick={onClose}
+        >
+            <div
+                className="rounded-[12px] overflow-hidden flex flex-col"
+                style={{
+                    background: 'var(--color-bg-elevated)',
+                    border: '1px solid var(--color-border)',
+                    boxShadow: 'var(--shadow-xl)',
+                    width: '100%',
+                    maxWidth: 820,
+                    maxHeight: '90vh',
+                }}
+                onClick={(e) => e.stopPropagation()}
+            >
+                {/* ── Header ──────────────────────────────────────────────── */}
+                <div
+                    className="flex items-center justify-between px-5 py-3.5 flex-shrink-0"
+                    style={{ borderBottom: '1px solid var(--color-border)' }}
+                >
+                    <div className="flex items-center gap-2.5">
+                        <div
+                            className="flex items-center justify-center flex-shrink-0"
+                            style={{
+                                width: 30,
+                                height: 30,
+                                borderRadius: 'var(--radius-sm)',
+                                background: 'var(--color-accent-light)',
+                                color: 'var(--color-accent-text)',
+                            }}
                         >
-                            <X className="h-6 w-6" />
-                        </button>
-                    </div>
-                </div>
-
-                <div className="p-6">
-                    {/* Patient Info */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-gray-50 rounded-xl border border-gray-200 mb-6">
+                            <FileText className="h-4 w-4" />
+                        </div>
                         <div>
-                            <p className="text-xs text-gray-500">Patient</p>
-                            <p className="font-semibold flex items-center gap-1">
-                                <User className="h-3 w-3" />
-                                {test.patientName}
+                            <h2
+                                className="text-[0.85rem] font-bold leading-none"
+                                style={{ color: 'var(--color-text-primary)' }}
+                            >
+                                Enter Lab Results
+                            </h2>
+                            <p
+                                className="text-[0.65rem] mt-0.5"
+                                style={{ color: 'var(--color-text-muted)' }}
+                            >
+                                {test.testNumber} — {test.patientName}
                             </p>
                         </div>
-                        {test.patientPhone && (
+                    </div>
+                    <button
+                        onClick={onClose}
+                        className="flex items-center justify-center flex-shrink-0 transition-colors duration-100 cursor-pointer"
+                        style={{
+                            width: 28,
+                            height: 28,
+                            borderRadius: 'var(--radius-sm)',
+                            background: 'transparent',
+                            border: 'none',
+                            color: 'var(--color-text-muted)',
+                        }}
+                        onMouseEnter={(e) =>
+                        ((e.currentTarget as HTMLElement).style.background =
+                            'var(--color-bg-subtle)')}
+                        onMouseLeave={(e) =>
+                            ((e.currentTarget as HTMLElement).style.background = 'transparent')}
+                    >
+                        <X className="h-4 w-4" />
+                    </button>
+                </div>
+
+                {/* ── Body ────────────────────────────────────────────────── */}
+                <div className="flex-1 overflow-y-auto">
+                    <div className="p-5">
+                        {/* Patient info bar */}
+                        <div
+                            className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 rounded-[10px] mb-5"
+                            style={{
+                                background: 'var(--color-bg-subtle)',
+                                border: '1px solid var(--color-border)',
+                            }}
+                        >
                             <div>
-                                <p className="text-xs text-gray-500">Phone</p>
-                                <p className="font-semibold flex items-center gap-1">
-                                    <Phone className="h-3 w-3" />
-                                    {test.patientPhone}
+                                <p
+                                    className="text-[0.6rem] font-medium mb-0.5"
+                                    style={{ color: 'var(--color-text-muted)' }}
+                                >
+                                    Patient
+                                </p>
+                                <p
+                                    className="text-[0.78rem] font-semibold truncate"
+                                    style={{ color: 'var(--color-text-primary)' }}
+                                >
+                                    {test.patientName}
                                 </p>
                             </div>
-                        )}
-                        <div>
-                            <p className="text-xs text-gray-500">Test Type</p>
-                            <p className="font-semibold">{test.testType}</p>
-                        </div>
-                        <div>
-                            <p className="text-xs text-gray-500">Priority</p>
-                            <span className={`px-2 py-0.5 text-xs font-bold rounded-full ${test.priority === 'stat' ? 'bg-red-500 text-white' :
-                                    test.priority === 'urgent' ? 'bg-orange-500 text-white' :
-                                        'bg-blue-500 text-white'
-                                }`}>
-                                {test.priority.toUpperCase()}
-                            </span>
-                        </div>
-                    </div>
-
-                    {/* Tabs */}
-                    <div className="flex gap-2 mb-6 border-b border-gray-200">
-                        <button
-                            onClick={() => setActiveTab('results')}
-                            className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${activeTab === 'results'
-                                    ? 'border-blue-500 text-blue-600'
-                                    : 'border-transparent text-gray-500 hover:text-gray-700'
-                                }`}
-                        >
-                            <FileText className="h-4 w-4 inline mr-1" />
-                            Results
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('summary')}
-                            className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${activeTab === 'summary'
-                                    ? 'border-blue-500 text-blue-600'
-                                    : 'border-transparent text-gray-500 hover:text-gray-700'
-                                }`}
-                        >
-                            <FileText className="h-4 w-4 inline mr-1" />
-                            Summary & Interpretation
-                        </button>
-                    </div>
-
-                    <form onSubmit={handleSubmit}>
-                        {/* Results Table */}
-                        {activeTab === 'results' && (
-                            <div className="space-y-4">
-                                <div className="flex items-center justify-between">
-                                    <h3 className="text-sm font-semibold text-gray-700">Test Results</h3>
-                                    <button
-                                        type="button"
-                                        onClick={addResultRow}
-                                        className="flex items-center gap-1 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 text-sm font-medium rounded-lg transition-colors"
+                            {test.patientPhone && (
+                                <div>
+                                    <p
+                                        className="text-[0.6rem] font-medium mb-0.5"
+                                        style={{ color: 'var(--color-text-muted)' }}
                                     >
-                                        <Plus className="h-4 w-4" />
-                                        Add Row
-                                    </button>
+                                        Phone
+                                    </p>
+                                    <p
+                                        className="text-[0.78rem] font-semibold"
+                                        style={{ color: 'var(--color-text-primary)' }}
+                                    >
+                                        {test.patientPhone}
+                                    </p>
                                 </div>
-
-                                <div className="overflow-x-auto">
-                                    <table className="w-full border-collapse">
-                                        <thead>
-                                            <tr className="bg-gray-50 border-b border-gray-200">
-                                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Test</th>
-                                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Result</th>
-                                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Reference Range</th>
-                                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Unit</th>
-                                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Flag</th>
-                                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Actions</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-gray-200">
-                                            {results.map((result, index) => (
-                                                <tr key={index} className="hover:bg-gray-50/50 transition-colors">
-                                                    <td className="px-4 py-3">
-                                                        <input
-                                                            type="text"
-                                                            value={result.name}
-                                                            onChange={(e) => handleResultChange(index, 'name', e.target.value)}
-                                                            className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition text-sm"
-                                                            placeholder="Test name"
-                                                        />
-                                                    </td>
-                                                    <td className="px-4 py-3">
-                                                        <input
-                                                            type="text"
-                                                            value={result.value}
-                                                            onChange={(e) => handleResultChange(index, 'value', e.target.value)}
-                                                            className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition text-sm"
-                                                            placeholder="Result value"
-                                                        />
-                                                    </td>
-                                                    <td className="px-4 py-3">
-                                                        <input
-                                                            type="text"
-                                                            value={result.referenceRange}
-                                                            onChange={(e) => handleResultChange(index, 'referenceRange', e.target.value)}
-                                                            className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition text-sm"
-                                                            placeholder="e.g., 10-20"
-                                                        />
-                                                    </td>
-                                                    <td className="px-4 py-3">
-                                                        <input
-                                                            type="text"
-                                                            value={result.unit}
-                                                            onChange={(e) => handleResultChange(index, 'unit', e.target.value)}
-                                                            className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition text-sm"
-                                                            placeholder="Unit"
-                                                        />
-                                                    </td>
-                                                    <td className="px-4 py-3">
-                                                        <span className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full border ${getFlagColor(result.flag)}`}>
-                                                            {getFlagIcon(result.flag)}
-                                                            {result.flag.toUpperCase()}
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-4 py-3">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => removeResultRow(index)}
-                                                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                                            disabled={results.length <= 1}
-                                                        >
-                                                            <Trash2 className="h-4 w-4" />
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-
-                                {template?.instructions && (
-                                    <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                                        <p className="text-sm text-blue-800">
-                                            <strong>Instructions:</strong> {template.instructions}
-                                        </p>
-                                    </div>
-                                )}
+                            )}
+                            <div>
+                                <p
+                                    className="text-[0.6rem] font-medium mb-0.5"
+                                    style={{ color: 'var(--color-text-muted)' }}
+                                >
+                                    Test Type
+                                </p>
+                                <p
+                                    className="text-[0.78rem] font-semibold"
+                                    style={{ color: 'var(--color-text-primary)' }}
+                                >
+                                    {test.testType}
+                                </p>
                             </div>
-                        )}
-
-                        {/* Summary & Interpretation */}
-                        {activeTab === 'summary' && (
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                                        Result Summary
-                                    </label>
-                                    <textarea
-                                        value={resultSummary}
-                                        onChange={(e) => setResultSummary(e.target.value)}
-                                        rows={4}
-                                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all resize-none"
-                                        placeholder="Summary of the results..."
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                                        Clinical Interpretation
-                                    </label>
-                                    <textarea
-                                        value={resultInterpretation}
-                                        onChange={(e) => setResultInterpretation(e.target.value)}
-                                        rows={4}
-                                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all resize-none"
-                                        placeholder="Clinical interpretation of the results..."
-                                    />
-                                </div>
-
-                                {test.notes && (
-                                    <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
-                                        <p className="text-sm text-gray-600">
-                                            <strong>Notes:</strong> {test.notes}
-                                        </p>
-                                    </div>
-                                )}
+                            <div>
+                                <p
+                                    className="text-[0.6rem] font-medium mb-0.5"
+                                    style={{ color: 'var(--color-text-muted)' }}
+                                >
+                                    Priority
+                                </p>
+                                <span
+                                    className="inline-block text-[0.6rem] font-bold uppercase px-2 py-[2px] rounded mt-0.5"
+                                    style={priorityStyle[test.priority] || priorityStyle.normal}
+                                >
+                                    {test.priority}
+                                </span>
                             </div>
-                        )}
-
-                        {/* Actions */}
-                        <div className="flex gap-3 pt-6 mt-6 border-t border-gray-200">
-                            <button
-                                type="button"
-                                onClick={onClose}
-                                className="flex-1 px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl transition-all duration-200"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                type="button"
-                                onClick={handlePrint}
-                                className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-all duration-200 shadow-lg flex items-center gap-2"
-                            >
-                                <Printer className="h-4 w-4" />
-                                Print
-                            </button>
-                            <button
-                                type="submit"
-                                disabled={loading}
-                                className="flex-1 px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-semibold rounded-xl transition-all duration-200 shadow-lg disabled:opacity-50 flex items-center justify-center gap-2"
-                            >
-                                {loading ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : (
-                                    <>
-                                        <Save className="h-4 w-4" />
-                                        Save Results
-                                    </>
-                                )}
-                            </button>
                         </div>
-                    </form>
+
+                        {/* Tabs */}
+                        <div
+                            className="flex gap-0 mb-5"
+                            style={{ borderBottom: '1px solid var(--color-border)' }}
+                        >
+                            {(['results', 'summary'] as const).map((tab) => (
+                                <button
+                                    key={tab}
+                                    type="button"
+                                    onClick={() => setActiveTab(tab)}
+                                    className="px-4 py-2.5 text-[0.78rem] font-medium transition-colors duration-100 cursor-pointer"
+                                    style={{
+                                        background: 'transparent',
+                                        border: 'none',
+                                        color:
+                                            activeTab === tab
+                                                ? 'var(--color-accent-text)'
+                                                : 'var(--color-text-muted)',
+                                        boxShadow:
+                                            activeTab === tab
+                                                ? 'inset 0 -2px 0 var(--color-accent)'
+                                                : 'inset 0 -2px 0 transparent',
+                                    }}
+                                    onMouseEnter={(e) => {
+                                        if (activeTab !== tab) {
+                                            (e.currentTarget as HTMLElement).style.color =
+                                                'var(--color-text-primary)';
+                                            (e.currentTarget as HTMLElement).style.boxShadow =
+                                                'inset 0 -2px 0 var(--color-border-strong)';
+                                        }
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        if (activeTab !== tab) {
+                                            (e.currentTarget as HTMLElement).style.color =
+                                                'var(--color-text-muted)';
+                                            (e.currentTarget as HTMLElement).style.boxShadow =
+                                                'inset 0 -2px 0 transparent';
+                                        }
+                                    }}
+                                >
+                                    {tab === 'results' ? 'Results' : 'Summary & Interpretation'}
+                                </button>
+                            ))}
+                        </div>
+
+                        <form onSubmit={handleSubmit}>
+                            {/* ── Results tab ────────────────────────────────────── */}
+                            {activeTab === 'results' && (
+                                <div>
+                                    <div className="flex items-center justify-between mb-3">
+                                        <span
+                                            className="text-[0.72rem] font-semibold"
+                                            style={{ color: 'var(--color-text-primary)' }}
+                                        >
+                                            Test Parameters
+                                        </span>
+                                        <button
+                                            type="button"
+                                            onClick={addResultRow}
+                                            className="flex items-center gap-1.5 px-3 py-1.5 text-[0.7rem] font-medium rounded-[6px] transition-colors duration-100 cursor-pointer"
+                                            style={{
+                                                background: 'var(--color-accent-light)',
+                                                color: 'var(--color-accent-text)',
+                                                border: 'none',
+                                            }}
+                                            onMouseEnter={(e) =>
+                                                ((e.currentTarget as HTMLElement).style.background =
+                                                    'var(--color-accent)') &&
+                                                ((e.currentTarget as HTMLElement).style.color =
+                                                    'var(--color-accent-fg)')}
+                                            onMouseLeave={(e) =>
+                                                ((e.currentTarget as HTMLElement).style.background =
+                                                    'var(--color-accent-light)') &&
+                                                ((e.currentTarget as HTMLElement).style.color =
+                                                    'var(--color-accent-text)')}
+                                        >
+                                            <Plus className="h-3 w-3" />
+                                            Add Row
+                                        </button>
+                                    </div>
+
+                                    {/* Table */}
+                                    <div className="overflow-x-auto rounded-[10px] border"
+                                        style={{ borderColor: 'var(--color-border)' }}
+                                    >
+                                        <table
+                                            className="w-full"
+                                            style={{ borderCollapse: 'collapse' }}
+                                        >
+                                            <thead>
+                                                <tr
+                                                    style={{
+                                                        background: 'var(--color-bg-subtle)',
+                                                    }}
+                                                >
+                                                    {['Parameter', 'Result', 'Ref. Range', 'Unit', 'Flag', ''].map(
+                                                        (h) => (
+                                                            <th
+                                                                key={h}
+                                                                className="px-3 py-2.5 text-left text-[0.6rem] font-semibold uppercase tracking-wider"
+                                                                style={{
+                                                                    color: 'var(--color-text-muted)',
+                                                                    borderBottom: '1px solid var(--color-border)',
+                                                                }}
+                                                            >
+                                                                {h}
+                                                            </th>
+                                                        )
+                                                    )}
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {results.map((result, index) => (
+                                                    <tr
+                                                        key={index}
+                                                        style={{
+                                                            borderBottom: index < results.length - 1
+                                                                ? '1px solid var(--color-border)'
+                                                                : 'none',
+                                                        }}
+                                                    >
+                                                        <td className="px-2 py-2">
+                                                            <input
+                                                                type="text"
+                                                                value={result.name}
+                                                                onChange={(e) =>
+                                                                    handleResultChange(index, 'name', e.target.value)
+                                                                }
+                                                                style={fieldStyle}
+                                                                onFocus={onFocus}
+                                                                onBlur={onBlur}
+                                                                placeholder="Name"
+                                                            />
+                                                        </td>
+                                                        <td className="px-2 py-2">
+                                                            <input
+                                                                type="text"
+                                                                value={result.value}
+                                                                onChange={(e) =>
+                                                                    handleResultChange(index, 'value', e.target.value)
+                                                                }
+                                                                style={fieldStyle}
+                                                                onFocus={onFocus}
+                                                                onBlur={onBlur}
+                                                                placeholder="Value"
+                                                            />
+                                                        </td>
+                                                        <td className="px-2 py-2">
+                                                            <input
+                                                                type="text"
+                                                                value={result.referenceRange}
+                                                                onChange={(e) =>
+                                                                    handleResultChange(
+                                                                        index,
+                                                                        'referenceRange',
+                                                                        e.target.value
+                                                                    )
+                                                                }
+                                                                style={fieldStyle}
+                                                                onFocus={onFocus}
+                                                                onBlur={onBlur}
+                                                                placeholder="10-20"
+                                                            />
+                                                        </td>
+                                                        <td className="px-2 py-2">
+                                                            <input
+                                                                type="text"
+                                                                value={result.unit}
+                                                                onChange={(e) =>
+                                                                    handleResultChange(index, 'unit', e.target.value)
+                                                                }
+                                                                style={fieldStyle}
+                                                                onFocus={onFocus}
+                                                                onBlur={onBlur}
+                                                                placeholder="mg/dL"
+                                                            />
+                                                        </td>
+                                                        <td className="px-2 py-2">
+                                                            <FlagBadge flag={result.flag} />
+                                                        </td>
+                                                        <td className="px-2 py-2">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => removeResultRow(index)}
+                                                                disabled={results.length <= 1}
+                                                                className="flex items-center justify-center transition-colors duration-100 cursor-pointer"
+                                                                style={{
+                                                                    width: 28,
+                                                                    height: 28,
+                                                                    borderRadius: 4,
+                                                                    background: 'transparent',
+                                                                    border: 'none',
+                                                                    color:
+                                                                        results.length <= 1
+                                                                            ? 'var(--color-border-strong)'
+                                                                            : 'var(--color-text-muted)',
+                                                                    opacity: results.length <= 1 ? 0.4 : 0.6,
+                                                                }}
+                                                                onMouseEnter={(e) => {
+                                                                    if (results.length > 1) {
+                                                                        (e.currentTarget as HTMLElement).style.color =
+                                                                            'var(--color-danger-text)';
+                                                                        (e.currentTarget as HTMLElement).style.opacity =
+                                                                            '1';
+                                                                        (e.currentTarget as HTMLElement).style.background =
+                                                                            'var(--color-danger-light)';
+                                                                    }
+                                                                }}
+                                                                onMouseLeave={(e) => {
+                                                                    (e.currentTarget as HTMLElement).style.color =
+                                                                        'var(--color-text-muted)';
+                                                                    (e.currentTarget as HTMLElement).style.opacity =
+                                                                        '0.6';
+                                                                    (e.currentTarget as HTMLElement).style.background =
+                                                                        'transparent';
+                                                                }}
+                                                            >
+                                                                <Trash2 className="h-3 w-3" />
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    {/* Template instructions */}
+                                    {template?.instructions && (
+                                        <div
+                                            className="mt-3 p-3 rounded-[8px] text-[0.72rem]"
+                                            style={{
+                                                background: 'var(--color-info-light)',
+                                                color: 'var(--color-info-text)',
+                                                border: '1px solid var(--color-info)',
+                                            }}
+                                        >
+                                            <span className="font-semibold">Instructions: </span>
+                                            {template.instructions}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* ── Summary tab ───────────────────────────────────── */}
+                            {activeTab === 'summary' && (
+                                <div className="space-y-4">
+                                    <div>
+                                        <label
+                                            className="block text-[0.7rem] font-medium mb-1.5"
+                                            style={{ color: 'var(--color-text-muted)' }}
+                                        >
+                                            Result Summary
+                                        </label>
+                                        <textarea
+                                            value={resultSummary}
+                                            onChange={(e) => setResultSummary(e.target.value)}
+                                            rows={3}
+                                            style={{
+                                                ...fieldStyle,
+                                                padding: '8px 10px',
+                                                resize: 'vertical',
+                                                minHeight: 72,
+                                            }}
+                                            onFocus={onFocus}
+                                            onBlur={onBlur}
+                                            placeholder="Summary of the results…"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label
+                                            className="block text-[0.7rem] font-medium mb-1.5"
+                                            style={{ color: 'var(--color-text-muted)' }}
+                                        >
+                                            Clinical Interpretation
+                                        </label>
+                                        <textarea
+                                            value={resultInterpretation}
+                                            onChange={(e) => setResultInterpretation(e.target.value)}
+                                            rows={3}
+                                            style={{
+                                                ...fieldStyle,
+                                                padding: '8px 10px',
+                                                resize: 'vertical',
+                                                minHeight: 72,
+                                            }}
+                                            onFocus={onFocus}
+                                            onBlur={onBlur}
+                                            placeholder="Clinical interpretation…"
+                                        />
+                                    </div>
+                                    {test.notes && (
+                                        <div
+                                            className="p-3 rounded-[8px] text-[0.72rem]"
+                                            style={{
+                                                background: 'var(--color-bg-subtle)',
+                                                color: 'var(--color-text-secondary)',
+                                                border: '1px solid var(--color-border)',
+                                            }}
+                                        >
+                                            <span className="font-semibold">Notes: </span>
+                                            {test.notes}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* ── Actions ───────────────────────────────────────── */}
+                            <div
+                                className="flex gap-2.5 pt-5 mt-5"
+                                style={{ borderTop: '1px solid var(--color-border)' }}
+                            >
+                                <button
+                                    type="button"
+                                    onClick={onClose}
+                                    className="btn-ghost flex-1"
+                                    style={{
+                                        height: 'var(--btn-height-lg)',
+                                        fontSize: 'var(--text-base)',
+                                    }}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => window.print()}
+                                    className="btn-ghost flex items-center justify-center gap-1.5"
+                                    style={{
+                                        padding: '0 var(--space-4)',
+                                        height: 'var(--btn-height-lg)',
+                                        fontSize: 'var(--text-base)',
+                                    }}
+                                >
+                                    <Printer className="h-3.5 w-3.5" />
+                                    Print
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={loading}
+                                    className="btn-success flex-1 flex items-center justify-center gap-1.5"
+                                    style={{
+                                        height: 'var(--btn-height-lg)',
+                                        fontSize: 'var(--text-base)',
+                                    }}
+                                >
+                                    {loading ? (
+                                        <>
+                                            <div
+                                                className="w-3.5 h-3.5 border-2 rounded-full animate-spin"
+                                                style={{
+                                                    borderColor: 'rgba(255,255,255,0.3)',
+                                                    borderTopColor: '#fff',
+                                                }}
+                                            />
+                                            Saving…
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Save className="h-3.5 w-3.5" />
+                                            Save Results
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
                 </div>
             </div>
         </div>

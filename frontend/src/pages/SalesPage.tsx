@@ -1,12 +1,12 @@
-// src/pages/SalesPage.tsx (Updated with Receipt Modal)
+// src/pages/SalesPage.tsx
 import React, { useMemo, useState } from 'react';
-import { 
-  TrendingUp, 
-  DollarSign, 
-  ShoppingCart, 
-  Package, 
-  Calendar, 
-  Download, 
+import {
+  TrendingUp,
+  DollarSign,
+  ShoppingCart,
+  Package,
+  Calendar,
+  Download,
   Search,
   Eye,
   Receipt,
@@ -20,7 +20,7 @@ import {
 import { useAppStore } from '../store';
 import { Card } from '../components/ui/Card';
 import { Transaction } from '../types';
-import { ReceiptModal } from '../components/ReceiptModal'; // Import the ReceiptModal
+import { ReceiptModal } from '../components/ReceiptModal';
 
 export const SalesPage: React.FC = () => {
   const [dateRange, setDateRange] = useState('today');
@@ -30,6 +30,29 @@ export const SalesPage: React.FC = () => {
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [showCustomDate, setShowCustomDate] = useState(false);
+
+  // --- Shared field style ---
+  const fieldStyle: React.CSSProperties = {
+    background: 'var(--color-input-bg)',
+    border: '1px solid var(--color-input-border)',
+    borderRadius: 'var(--radius-md)',
+    color: 'var(--color-input-text)',
+    outline: 'none',
+    fontSize: '0.875rem',
+    padding: '10px 14px',
+    width: '100%',
+    transition: 'border-color 100ms ease, box-shadow 100ms ease',
+  };
+
+  const onFieldFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+    e.currentTarget.style.borderColor = 'var(--color-input-border-focus)';
+    e.currentTarget.style.boxShadow = '0 0 0 2px var(--color-input-ring)';
+  };
+
+  const onFieldBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    e.currentTarget.style.borderColor = 'var(--color-input-border)';
+    e.currentTarget.style.boxShadow = 'none';
+  };
 
   const { currentUser, transactions, products } = useAppStore();
 
@@ -89,7 +112,7 @@ export const SalesPage: React.FC = () => {
     // Payment method breakdown with revenue (excluding cash)
     const paymentBreakdown = searchedTransactions.reduce((acc, t) => {
       if (t.paymentMethod === 'cash') return acc;
-      
+
       if (!acc[t.paymentMethod]) {
         acc[t.paymentMethod] = { count: 0, revenue: 0 };
       }
@@ -166,15 +189,15 @@ export const SalesPage: React.FC = () => {
   const getPaymentMethodColor = (method: string) => {
     switch (method) {
       case 'cash':
-        return 'from-green-500 to-emerald-600';
+        return 'var(--color-success)';
       case 'mtn':
-        return 'from-yellow-500 to-orange-600';
+        return 'var(--color-warning)';
       case 'vodafone':
-        return 'from-red-500 to-pink-600';
+        return 'var(--color-danger)';
       case 'airteltigo':
-        return 'from-purple-500 to-indigo-600';
+        return 'var(--color-accent)';
       default:
-        return 'from-gray-500 to-gray-600';
+        return 'var(--color-text-muted)';
     }
   };
 
@@ -202,119 +225,141 @@ export const SalesPage: React.FC = () => {
 
   return (
     <div className="space-y-6 pb-6">
-      {/* Compact Header */}
-      <div className="bg-gradient-to-r from-slate-900 via-purple-900 to-slate-900 rounded-2xl shadow-xl p-6 text-white">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          <div className="flex-1">
-            <h1 className="text-2xl font-bold mb-3">Sales Management</h1>
-            {/* Compact Metrics Row */}
-            <div className="flex flex-wrap items-center gap-6 text-sm">
-              <div className="flex items-center gap-2 bg-white/10 px-3 py-2 rounded-lg backdrop-blur-sm border border-white/20">
-                <DollarSign className="h-4 w-4 text-green-400" />
-                <span>Total: <strong className="text-white">GHS {metrics.totalRevenue.toFixed(2)}</strong></span>
+      {/* Header - Clean & Simple (matching AnalyticsPage) */}
+      <div className="mb-5">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+          <div>
+            <h1 className="text-base font-bold" style={{ color: 'var(--color-text-primary)' }}>Sales Management</h1>
+            <p className="text-[0.72rem] mt-0.5" style={{ color: 'var(--color-text-muted)' }}>Track and manage all sales transactions</p>
+
+            {/* Compact Metrics Row - Clean style */}
+            <div className="flex flex-wrap items-center gap-4 mt-3">
+              <div className="flex items-center gap-2">
+                <DollarSign className="h-3.5 w-3.5" style={{ color: 'var(--color-success-text)' }} />
+                <span className="text-[0.7rem]" style={{ color: 'var(--color-text-muted)' }}>
+                  Total: <strong style={{ color: 'var(--color-text-primary)' }}>GHS {metrics.totalRevenue.toFixed(2)}</strong>
+                </span>
               </div>
-              <div className="flex items-center gap-2 bg-white/10 px-3 py-2 rounded-lg backdrop-blur-sm border border-white/20">
-                <ShoppingCart className="h-4 w-4 text-blue-400" />
-                <span>Transactions: <strong className="text-white">{metrics.totalTransactions}</strong></span>
+              <div className="flex items-center gap-2">
+                <ShoppingCart className="h-3.5 w-3.5" style={{ color: 'var(--color-accent-text)' }} />
+                <span className="text-[0.7rem]" style={{ color: 'var(--color-text-muted)' }}>
+                  Transactions: <strong style={{ color: 'var(--color-text-primary)' }}>{metrics.totalTransactions}</strong>
+                </span>
               </div>
-              <div className="flex items-center gap-2 bg-white/10 px-3 py-2 rounded-lg backdrop-blur-sm border border-white/20">
-                <Package className="h-4 w-4 text-orange-400" />
-                <span>Items: <strong className="text-white">{metrics.totalItemsSold}</strong></span>
+              <div className="flex items-center gap-2">
+                <Package className="h-3.5 w-3.5" style={{ color: 'var(--color-warning-text)' }} />
+                <span className="text-[0.7rem]" style={{ color: 'var(--color-text-muted)' }}>
+                  Items: <strong style={{ color: 'var(--color-text-primary)' }}>{metrics.totalItemsSold}</strong>
+                </span>
               </div>
-              <div className="flex items-center gap-2 bg-white/10 px-3 py-2 rounded-lg backdrop-blur-sm border border-white/20">
-                <DollarSign className="h-4 w-4 text-green-400" />
-                <span>Cash: <strong className="text-white">GHS {metrics.cashRevenue.toFixed(2)}</strong></span>
-                <span className="text-white/60 text-xs">({metrics.cashCount})</span>
+              <div className="flex items-center gap-2">
+                <DollarSign className="h-3.5 w-3.5" style={{ color: 'var(--color-success-text)' }} />
+                <span className="text-[0.7rem]" style={{ color: 'var(--color-text-muted)' }}>
+                  Cash: <strong style={{ color: 'var(--color-text-primary)' }}>GHS {metrics.cashRevenue.toFixed(2)}</strong>
+                </span>
+                <span className="text-[0.65rem]" style={{ color: 'var(--color-text-muted)' }}>({metrics.cashCount})</span>
               </div>
             </div>
           </div>
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="flex items-center gap-2 px-4 py-2 bg-white/10 rounded-xl backdrop-blur-sm border border-white/20">
-              <Zap className="h-4 w-4 text-yellow-400" />
-              <span className="text-sm font-medium">Live Sales</span>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <div className="flex items-center gap-2 px-3 py-1.5 border rounded-lg" style={{ borderColor: 'var(--color-border)' }}>
+              <Zap className="h-3.5 w-3.5" style={{ color: 'var(--color-warning)' }} />
+              <span className="text-[0.72rem] font-medium" style={{ color: 'var(--color-text-secondary)' }}>Live Sales</span>
             </div>
             <button
               onClick={exportToCSV}
-              className="flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-semibold rounded-xl transition-all duration-200 shadow-lg whitespace-nowrap"
+              className="btn-success flex items-center justify-center gap-2 px-4 py-1.5 text-[0.75rem]"
             >
-              <Download className="h-4 w-4" />
+              <Download className="h-3.5 w-3.5" />
               Export CSV
             </button>
           </div>
         </div>
       </div>
 
-      {/* Search and Date Range - Single Compact Row */}
-      <Card className="p-4 backdrop-blur-sm bg-white/80 border-2 border-gray-100">
+      {/* Search and Date Range - Clean style */}
+      <Card className="p-4">
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-          {/* Search - Smaller */}
+          {/* Search */}
           <div className="relative flex-1 max-w-xs min-w-0">
-            <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search transactions..."
-              className="w-full pl-10 pr-4 py-2 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-white/50 backdrop-blur-sm text-sm"
+              className="input-base w-full pl-10 pr-4 text-sm"
+              style={{ ...fieldStyle, paddingLeft: '2.5rem' }}
+              onFocus={onFieldFocus}
+              onBlur={onFieldBlur}
             />
           </div>
 
-          {/* Date Range - Inline Custom */}
-          <div className="flex items-center gap-3 flex-1 min-w-0">
+          {/* Date Range */}
+          <div className="flex items-center gap-3 flex-1 min-w-0 flex-wrap">
             <div className="flex items-center gap-2 shrink-0">
-              <Calendar className="h-4 w-4 text-gray-600" />
-              <span className="font-semibold text-gray-700 text-sm whitespace-nowrap">Date Range:</span>
+              <Calendar className="h-4 w-4 text-muted" />
+              <span className="font-semibold text-sm" style={{ color: 'var(--color-text-secondary)' }}>Range:</span>
             </div>
-            
+
             <div className="flex items-center gap-1.5 flex-wrap flex-1 min-w-0">
               {['today', 'week', 'month', 'all'].map((range) => (
                 <button
                   key={range}
                   onClick={() => handleDateRangeChange(range)}
-                  className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 whitespace-nowrap ${
-                    dateRange === range
-                      ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200'
-                  }`}
+                  className={`px-2.5 py-1.5 rounded-lg text-[0.72rem] font-semibold transition-all duration-200 whitespace-nowrap ${dateRange === range
+                      ? 'btn-accent'
+                      : 'btn-ghost'
+                    }`}
                 >
                   {range.charAt(0).toUpperCase() + range.slice(1)}
                 </button>
               ))}
-              
+
               {/* Custom Date - Inline when active */}
               {dateRange === 'custom' ? (
-                <div className="flex items-center gap-2 bg-blue-50 border-2 border-blue-200 rounded-lg px-3 py-1.5">
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg" style={{ background: 'var(--color-accent-light)', border: '1px solid var(--color-accent)' }}>
                   <div className="flex items-center gap-1.5">
                     <input
                       type="date"
                       value={startDate}
                       onChange={(e) => setStartDate(e.target.value)}
-                      className="px-2 py-1 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white"
+                      className="px-2 py-1 border rounded text-xs focus:ring-2 outline-none"
+                      style={{
+                        borderColor: 'var(--color-input-border)',
+                        background: 'var(--color-input-bg)',
+                        color: 'var(--color-input-text)',
+                      }}
+                      onFocus={onFieldFocus}
+                      onBlur={onFieldBlur}
                     />
-                    <span className="text-gray-500 text-xs">to</span>
+                    <span className="text-xs text-muted">to</span>
                     <input
                       type="date"
                       value={endDate}
                       onChange={(e) => setEndDate(e.target.value)}
-                      className="px-2 py-1 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white"
+                      className="px-2 py-1 border rounded text-xs focus:ring-2 outline-none"
+                      style={{
+                        borderColor: 'var(--color-input-border)',
+                        background: 'var(--color-input-bg)',
+                        color: 'var(--color-input-text)',
+                      }}
+                      onFocus={onFieldFocus}
+                      onBlur={onFieldBlur}
                     />
                   </div>
                   <button
                     onClick={() => handleDateRangeChange('all')}
-                    className="p-1 hover:bg-blue-100 rounded transition-colors"
+                    className="p-1 rounded transition-colors hover:bg-subtle"
                     title="Close custom date"
                   >
-                    <X className="h-3 w-3 text-gray-500" />
+                    <X className="h-3 w-3 text-muted" />
                   </button>
                 </div>
               ) : (
                 <button
                   onClick={() => handleDateRangeChange('custom')}
-                  className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 whitespace-nowrap ${
-                    dateRange === 'custom'
-                      ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200'
-                  }`}
+                  className="px-2.5 py-1.5 rounded-lg text-[0.72rem] font-semibold transition-all duration-200 whitespace-nowrap btn-ghost"
                 >
                   Custom
                 </button>
@@ -324,154 +369,154 @@ export const SalesPage: React.FC = () => {
         </div>
       </Card>
 
-      {/* Payment Method Breakdown - Compact Grid */}
+      {/* Payment Method Breakdown - Clean cards */}
       {Object.keys(metrics.paymentBreakdown).length > 0 && (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
           {Object.entries(metrics.paymentBreakdown).map(([method, data]) => {
             const Icon = getPaymentMethodIcon(method);
             const percentage = ((data.count / metrics.totalTransactions) * 100).toFixed(1);
+            const color = getPaymentMethodColor(method);
             return (
-              <Card key={method} className="p-3 backdrop-blur-sm bg-white/80 border-2 border-gray-100 hover:border-blue-200 transition-all duration-200">
+              <Card key={method} className="p-3 border-theme hover:border-accent transition-all duration-200">
                 <div className="flex items-center justify-between">
-                  <div className={`p-2 rounded-lg bg-gradient-to-r ${getPaymentMethodColor(method)} text-white shadow-lg`}>
+                  <div className="p-2 rounded-lg" style={{ background: color, color: 'var(--color-accent-fg)' }}>
                     <Icon className="h-4 w-4" />
                   </div>
                   <div className="text-right">
-                    <p className="text-sm font-bold text-gray-900">{data.count}</p>
-                    <p className="text-xs text-gray-500">txns</p>
+                    <p className="text-sm font-bold text-primary tabular-nums">{data.count}</p>
+                    <p className="text-xs text-secondary">txns</p>
                   </div>
                 </div>
-                <h3 className="font-semibold text-gray-900 text-xs mt-2 truncate">{formatPaymentMethod(method)}</h3>
-                <p className="text-xs font-bold text-blue-600">GHS {data.revenue.toFixed(2)}</p>
-                <p className="text-xs text-gray-500">{percentage}% of total</p>
+                <h3 className="font-semibold text-sm text-primary mt-2 truncate">{formatPaymentMethod(method)}</h3>
+                <p className="text-sm font-bold" style={{ color: 'var(--color-accent-text)' }}>GHS {data.revenue.toFixed(2)}</p>
+                <p className="text-xs text-secondary">{percentage}% of total</p>
               </Card>
             );
           })}
         </div>
       )}
 
-      {/* Transaction History - Optimized Table */}
-      <Card className="backdrop-blur-sm bg-white/80 border-2 border-gray-100">
-        <div className="px-4 py-3 border-b border-gray-200">
+      {/* Transaction History - Clean table */}
+      <Card>
+        <div className="px-4 py-3 border-b border-theme">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div>
-              <h2 className="text-base font-bold text-gray-900">Transaction History</h2>
-              <p className="text-xs text-gray-500">
+              <h2 className="text-base font-bold text-primary">Transaction History</h2>
+              <p className="text-sm text-secondary">
                 {searchedTransactions.length} transactions
                 {metrics.cashCount > 0 && ` • ${metrics.cashCount} cash`}
               </p>
             </div>
-            <div className="flex items-center gap-1 text-xs text-gray-500">
-              <TrendingUp className="h-3 w-3" />
+            <div className="flex items-center gap-1 text-sm text-secondary">
+              <TrendingUp className="h-3.5 w-3.5" />
               <span>Real-time Updates</span>
             </div>
           </div>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[700px]">
-            <thead className="bg-gray-50/80 border-b border-gray-200">
+          <table className="w-full min-w-[800px]">
+            <thead className="bg-subtle border-b border-theme">
               <tr>
-                <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">
+                <th className="px-3 py-3 text-left text-xs font-semibold text-secondary uppercase tracking-wider whitespace-nowrap">
                   Transaction #
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">
+                <th className="px-3 py-3 text-left text-xs font-semibold text-secondary uppercase tracking-wider whitespace-nowrap">
                   Date & Time
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">
+                <th className="px-3 py-3 text-left text-xs font-semibold text-secondary uppercase tracking-wider whitespace-nowrap">
                   Cashier
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">
+                <th className="px-3 py-3 text-left text-xs font-semibold text-secondary uppercase tracking-wider whitespace-nowrap">
                   Customer
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">
+                <th className="px-3 py-3 text-left text-xs font-semibold text-secondary uppercase tracking-wider whitespace-nowrap">
                   Items
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">
+                <th className="px-3 py-3 text-left text-xs font-semibold text-secondary uppercase tracking-wider whitespace-nowrap">
                   Payment
                 </th>
-                <th className="px-3 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">
+                <th className="px-3 py-3 text-right text-xs font-semibold text-secondary uppercase tracking-wider whitespace-nowrap">
                   Total
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">
+                <th className="px-3 py-3 text-left text-xs font-semibold text-secondary uppercase tracking-wider whitespace-nowrap">
                   Actions
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
+            <tbody className="divide-y divide-theme">
               {searchedTransactions.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
-                    <div className="flex flex-col items-center gap-2">
-                      <Receipt className="h-8 w-8 text-gray-400" />
-                      <p className="text-sm font-medium text-gray-900">No transactions found</p>
-                      <p className="text-xs text-gray-500">No transactions match your current filters</p>
-                    </div>
+                  <td colSpan={8} className="px-4 py-8 text-center">
+                    <Receipt className="h-8 w-8 text-muted mx-auto mb-2" />
+                    <p className="text-sm font-medium text-primary">No transactions found</p>
+                    <p className="text-xs text-secondary">No transactions match your current filters</p>
                   </td>
                 </tr>
               ) : (
                 searchedTransactions.map((transaction) => {
                   const PaymentIcon = getPaymentMethodIcon(transaction.paymentMethod);
+                  const color = getPaymentMethodColor(transaction.paymentMethod);
                   return (
-                    <tr key={transaction.id} className="hover:bg-gray-50/50 transition-colors group">
-                      <td className="px-3 py-3 text-xs font-semibold text-gray-900 whitespace-nowrap group-hover:text-blue-600 transition-colors">
+                    <tr key={transaction.id} className="hover:bg-subtle transition-colors group">
+                      <td className="px-3 py-3 text-sm font-semibold text-primary whitespace-nowrap group-hover:text-accent transition-colors">
                         {transaction.transactionNumber}
                       </td>
-                      <td className="px-3 py-3 text-xs text-gray-600 whitespace-nowrap">
+                      <td className="px-3 py-3 text-sm text-secondary whitespace-nowrap">
                         <div className="flex flex-col">
                           <span>{new Date(transaction.createdAt).toLocaleDateString()}</span>
-                          <span className="text-xs text-gray-500">
+                          <span className="text-xs text-secondary">
                             {new Date(transaction.createdAt).toLocaleTimeString()}
                           </span>
                         </div>
                       </td>
-                      <td className="px-3 py-3 text-xs text-gray-600 whitespace-nowrap">
+                      <td className="px-3 py-3 text-sm text-secondary whitespace-nowrap">
                         <div className="flex items-center gap-1">
-                          <User className="h-3 w-3 text-gray-400" />
+                          <User className="h-3 w-3 text-muted" />
                           <span className="truncate max-w-[80px]">{transaction.cashierName}</span>
                         </div>
                       </td>
-                      <td className="px-3 py-3 text-xs text-gray-600">
+                      <td className="px-3 py-3 text-sm text-secondary">
                         <div className="max-w-[100px]">
-                          <div className="whitespace-nowrap overflow-hidden text-ellipsis font-medium">
+                          <div className="whitespace-nowrap overflow-hidden text-ellipsis font-medium text-primary">
                             {transaction.customerName || (
-                              <span className="text-gray-400">Walk-in</span>
+                              <span className="text-secondary">Walk-in</span>
                             )}
                           </div>
                           {transaction.customerPhone && (
-                            <div className="text-xs text-gray-500 whitespace-nowrap overflow-hidden text-ellipsis">
+                            <div className="text-xs text-secondary whitespace-nowrap overflow-hidden text-ellipsis">
                               {transaction.customerPhone}
                             </div>
                           )}
                         </div>
                       </td>
-                      <td className="px-3 py-3 text-xs text-gray-600 whitespace-nowrap">
+                      <td className="px-3 py-3 text-sm text-secondary whitespace-nowrap">
                         <div className="flex items-center gap-1">
-                          <Package className="h-3 w-3 text-gray-400" />
-                          <span className="font-semibold">
+                          <Package className="h-3 w-3 text-muted" />
+                          <span className="font-semibold text-primary tabular-nums">
                             {transaction.items.reduce((sum, item) => sum + item.quantity, 0)}
                           </span>
                         </div>
                       </td>
                       <td className="px-3 py-3 whitespace-nowrap">
                         <div className="flex items-center gap-1">
-                          <div className={`p-1.5 rounded-lg bg-gradient-to-r ${getPaymentMethodColor(transaction.paymentMethod)} text-white shadow-lg`}>
+                          <div className="p-1.5 rounded-lg" style={{ background: color, color: 'var(--color-accent-fg)' }}>
                             <PaymentIcon className="h-3 w-3" />
                           </div>
-                          <span className="text-xs font-semibold text-gray-700 capitalize truncate max-w-[60px]">
+                          <span className="text-sm font-semibold text-secondary capitalize truncate max-w-[60px]">
                             {formatPaymentMethod(transaction.paymentMethod)}
                           </span>
                         </div>
                       </td>
-                      <td className="px-3 py-3 text-xs font-bold text-gray-900 text-right whitespace-nowrap">
+                      <td className="px-3 py-3 text-sm font-bold text-primary text-right whitespace-nowrap tabular-nums">
                         GHS {transaction.total.toFixed(2)}
                       </td>
                       <td className="px-3 py-3 whitespace-nowrap">
                         <button
                           onClick={() => viewTransactionReceipt(transaction)}
-                          className="flex items-center gap-1 px-2 py-1.5 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white text-xs font-semibold rounded-lg transition-all duration-200 shadow-lg group/btn"
+                          className="btn-accent flex items-center gap-1 px-3 py-1.5 text-sm"
                         >
                           <Eye className="h-3 w-3" />
-                          <span>View</span>
+                          View
                         </button>
                       </td>
                     </tr>

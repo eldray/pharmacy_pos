@@ -2,19 +2,29 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import {
   Search, ShoppingCart, Trash2, DollarSign,
-  Plus, Minus, Scan, User, Phone
+  Plus, Minus, X
 } from 'lucide-react';
 import { useAppStore } from '../store';
-import { Product, CartItem, PaymentMethod, Transaction } from '../types';
+import { Product, PaymentMethod, Transaction } from '../types';
 import { ReceiptModal } from './ReceiptModal';
-import { Card } from './ui/Card';
 
 const safeNumber = (value: unknown): number => {
   const n = Number(value);
   return isNaN(n) ? 0 : n;
 };
 
-/* ─── Stock badge helper ─────────────────────────────────────────────────── */
+/* ─── Tabular number wrapper ─────────────────────────────────────────────── */
+const Num: React.FC<{ children: React.ReactNode; className?: string; style?: React.CSSProperties }> = ({
+  children,
+  className = '',
+  style,
+}) => (
+  <span className={className} style={{ fontVariantNumeric: 'tabular-nums', ...style }}>
+    {children}
+  </span>
+);
+
+/* ─── Stock badge ────────────────────────────────────────────────────────── */
 const StockBadge: React.FC<{ quantity: number }> = ({ quantity }) => {
   const style: React.CSSProperties =
     quantity > 10
@@ -24,73 +34,101 @@ const StockBadge: React.FC<{ quantity: number }> = ({ quantity }) => {
         : { background: 'var(--color-danger-light)', color: 'var(--color-danger-text)' };
 
   return (
-    <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={style}>
+    <span
+      className="whitespace-nowrap"
+      style={{ fontSize: '0.6rem', fontWeight: 600, padding: '2px 8px', borderRadius: 'var(--radius-sm)', ...style }}
+    >
       {quantity > 0 ? `${quantity} in stock` : 'Out of stock'}
     </span>
   );
 };
 
-/* ─── Product Card ───────────────────────────────────────────────────────── */
-const ProductCard: React.FC<{ product: Product; onClick: () => void }> = ({ product, onClick }) => (
-  <div
-    onClick={onClick}
-    className="rounded-xl p-4 cursor-pointer transition-all duration-150"
-    style={{
-      background: 'var(--color-bg-surface)',
-      border: '1px solid var(--color-border)',
-      boxShadow: 'var(--shadow-sm)',
-    }}
-    onMouseEnter={(e) => {
-      const el = e.currentTarget as HTMLElement;
-      el.style.borderColor = 'var(--color-accent)';
-      el.style.boxShadow = 'var(--shadow-md)';
-      el.style.transform = 'translateY(-1px)';
-    }}
-    onMouseLeave={(e) => {
-      const el = e.currentTarget as HTMLElement;
-      el.style.borderColor = 'var(--color-border)';
-      el.style.boxShadow = 'var(--shadow-sm)';
-      el.style.transform = 'translateY(0)';
-    }}
-  >
-    <h4 className="font-semibold text-sm truncate" style={{ color: 'var(--color-text-primary)' }}>
-      {product.name}
-    </h4>
-    <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--color-text-muted)' }}>
-      {product.category}
-    </p>
-    <div className="flex items-center justify-between mt-3 gap-2">
-      <StockBadge quantity={product.quantity} />
-      <span className="text-sm font-bold" style={{ color: 'var(--color-accent-text)' }}>
-        GHS {safeNumber(product.unitPrice).toFixed(2)}
-      </span>
+/* ─── Product card ───────────────────────────────────────────────────────── */
+const ProductCard: React.FC<{ product: Product; onClick: () => void }> = ({
+  product,
+  onClick,
+}) => {
+  const outOfStock = product.quantity <= 0;
+  return (
+    <div
+      onClick={!outOfStock ? onClick : undefined}
+      className="transition-all duration-100"
+      style={{
+        background: 'var(--color-bg-surface)',
+        border: '1px solid var(--color-border)',
+        borderRadius: 'var(--radius-lg)',
+        padding: '12px',
+        cursor: outOfStock ? 'not-allowed' : 'pointer',
+        opacity: outOfStock ? 0.55 : 1,
+      }}
+      onMouseEnter={(e) => {
+        if (outOfStock) return;
+        const el = e.currentTarget as HTMLElement;
+        el.style.borderColor = 'var(--color-border-focus)';
+        el.style.boxShadow = 'var(--shadow-sm)';
+        el.style.transform = 'translateY(-1px)';
+      }}
+      onMouseLeave={(e) => {
+        const el = e.currentTarget as HTMLElement;
+        el.style.borderColor = 'var(--color-border)';
+        el.style.boxShadow = 'none';
+        el.style.transform = 'translateY(0)';
+      }}
+    >
+      <p
+        className="truncate"
+        style={{ fontSize: '13px', fontWeight: 600, lineHeight: 'var(--leading-tight)', color: 'var(--color-text-primary)' }}
+      >
+        {product.name}
+      </p>
+      <p
+        className="truncate"
+        style={{ fontSize: '10px', marginTop: 2, color: 'var(--color-text-muted)' }}
+      >
+        {product.category}
+      </p>
+      <div className="flex items-center justify-between" style={{ marginTop: '8px' }}>
+        <StockBadge quantity={product.quantity} />
+        <Num
+          style={{ fontSize: '14px', fontWeight: 700, color: 'var(--color-accent-text)' }}
+        >
+          GHS {safeNumber(product.unitPrice).toFixed(2)}
+        </Num>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
-/* ─── Input helper ───────────────────────────────────────────────────────── */
-const FieldInput: React.FC<React.InputHTMLAttributes<HTMLInputElement> & { label?: string }> = ({
-  label, ...props
-}) => (
+/* ─── Field — compact labeled input with HARD-CODED padding ────────────── */
+const Field: React.FC<
+  React.InputHTMLAttributes<HTMLInputElement> & { label?: string }
+> = ({ label, ...props }) => (
   <div>
     {label && (
-      <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--color-text-secondary)' }}>
+      <label
+        className="block"
+        style={{ fontSize: '12px', fontWeight: 600, marginBottom: '4px', color: 'var(--color-text-muted)' }}
+      >
         {label}
       </label>
     )}
     <input
       {...props}
-      className="input-base w-full px-3 py-2 text-sm"
+      className="w-full transition-all duration-100"
       style={{
+        fontSize: '14px',
         background: 'var(--color-input-bg)',
         border: '1px solid var(--color-input-border)',
-        borderRadius: 'var(--radius-md)',
+        borderRadius: '6px',
         color: 'var(--color-input-text)',
-        ...props.style,
+        padding: '10px 14px',
+        outline: 'none',
+        height: '42px',
+        width: '100%',
       }}
       onFocus={(e) => {
         e.target.style.borderColor = 'var(--color-input-border-focus)';
-        e.target.style.boxShadow = '0 0 0 3px var(--color-input-ring)';
+        e.target.style.boxShadow = '0 0 0 2px var(--color-input-ring)';
         props.onFocus?.(e);
       }}
       onBlur={(e) => {
@@ -100,6 +138,41 @@ const FieldInput: React.FC<React.InputHTMLAttributes<HTMLInputElement> & { label
       }}
     />
   </div>
+);
+
+/* ─── Small square button for qty controls ───────────────────────────────── */
+const QtyBtn: React.FC<{
+  children: React.ReactNode;
+  onClick: () => void;
+  danger?: boolean;
+  ariaLabel: string;
+}> = ({ children, onClick, danger, ariaLabel }) => (
+  <button
+    onClick={onClick}
+    aria-label={ariaLabel}
+    className="flex items-center justify-center transition-colors duration-100 cursor-pointer"
+    style={{
+      width: 26,
+      height: 26,
+      borderRadius: '4px',
+      border: '1px solid var(--color-border)',
+      background: 'var(--color-bg-surface)',
+      color: danger ? 'var(--color-danger-text)' : 'var(--color-text-secondary)',
+      padding: 0,
+    }}
+    onMouseEnter={(e) => {
+      const el = e.currentTarget as HTMLElement;
+      el.style.background = danger
+        ? 'var(--color-danger-light)'
+        : 'var(--color-bg-subtle)';
+    }}
+    onMouseLeave={(e) => {
+      const el = e.currentTarget as HTMLElement;
+      el.style.background = 'var(--color-bg-surface)';
+    }}
+  >
+    {children}
+  </button>
 );
 
 /* ─── POSInterface ───────────────────────────────────────────────────────── */
@@ -113,6 +186,7 @@ export const POSInterface: React.FC = () => {
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
+  const [formError, setFormError] = useState('');
 
   const {
     fetchProducts, products,
@@ -134,8 +208,9 @@ export const POSInterface: React.FC = () => {
   }, [searchQuery, products]);
 
   const handleAddProduct = (product: Product) => {
-    if (!product.id) { alert('Error: Product missing ID'); return; }
-    if (product.quantity <= 0) { alert('Product out of stock'); return; }
+    setFormError('');
+    if (!product.id) { setFormError('This product is missing an ID and cannot be added.'); return; }
+    if (product.quantity <= 0) { setFormError(`${product.name} is out of stock.`); return; }
     addToCart(product, 1);
     setSearchQuery('');
   };
@@ -149,21 +224,40 @@ export const POSInterface: React.FC = () => {
   const discountAmount = (subtotal * discountPercent) / 100;
   const finalTotal = subtotal - discountAmount + tax;
 
+  // src/components/POSInterface.tsx - Updated handlePayment function
+
   const handlePayment = async () => {
-    if (cartItems.length === 0) { alert('Cart is empty'); return; }
-    if (selectedPayment !== 'cash' && !mobileMoneyNumber) { alert('Please enter mobile money number'); return; }
-    if (selectedPayment !== 'cash' && mobileMoneyNumber.length < 10) { alert('Please enter a valid phone number'); return; }
+    setFormError('');
+    if (cartItems.length === 0) { setFormError('Cart is empty — add a product before checking out.'); return; }
+    if (selectedPayment !== 'cash' && !mobileMoneyNumber) { setFormError('Please enter a mobile money number.'); return; }
+    if (selectedPayment !== 'cash' && mobileMoneyNumber.length < 10) { setFormError('Please enter a valid phone number.'); return; }
 
     setPaymentLoading(true);
     try {
+      // Create items with proper product structure for the receipt
+      const transactionItems = cartItems.map((i) => ({
+        productId: i.productId,
+        product: {
+          id: i.productId,
+          name: i.product.name,
+          sku: i.product.sku,
+          category: i.product.category,
+          unitPrice: i.unitPrice,
+        },
+        productName: i.product.name,
+        productSku: i.product.sku,
+        productCategory: i.product.category,
+        quantity: i.quantity,
+        unitPrice: i.unitPrice,
+        total: i.total,
+        discount: i.discount || 0,
+      }));
+
       const txn = await addTransaction({
-        items: cartItems.map((i) => ({
-          productId: i.productId, productName: i.product.name,
-          productSku: i.product.sku, productCategory: i.product.category,
-          quantity: i.quantity, unitPrice: i.unitPrice,
-          total: i.total, discount: i.discount || 0,
-        })),
-        subtotal, tax, total: finalTotal,
+        items: transactionItems,
+        subtotal,
+        tax,
+        total: finalTotal,
         paymentMethod: selectedPayment,
         paymentReference: selectedPayment !== 'cash'
           ? `${selectedPayment.toUpperCase()}-${mobileMoneyNumber}` : undefined,
@@ -173,7 +267,12 @@ export const POSInterface: React.FC = () => {
       });
 
       if (txn) {
-        setLastTransaction(txn);
+        // Ensure the transaction has the proper items structure for the receipt
+        const receiptTransaction = {
+          ...txn,
+          items: transactionItems,
+        };
+        setLastTransaction(receiptTransaction);
         setShowReceipt(true);
         clearCart();
         setDiscountPercent(0);
@@ -181,10 +280,10 @@ export const POSInterface: React.FC = () => {
         setCustomerName('');
         setCustomerPhone('');
       } else {
-        alert('Transaction failed');
+        setFormError('Transaction failed. Please try again.');
       }
     } catch {
-      alert('Payment failed. Please try again.');
+      setFormError('Payment failed. Please try again.');
     } finally {
       setPaymentLoading(false);
     }
@@ -192,14 +291,14 @@ export const POSInterface: React.FC = () => {
 
   if (products.length === 0) {
     return (
-      <div className="flex items-center justify-center h-64">
+      <div className="flex items-center justify-center" style={{ height: 256 }}>
         <div className="text-center">
           <div
-            className="w-12 h-12 border-2 border-t-transparent rounded-full animate-spin mx-auto"
-            style={{ borderColor: 'var(--color-accent)', borderTopColor: 'transparent' }}
+            className="rounded-full animate-spin mx-auto"
+            style={{ width: 32, height: 32, border: '3px solid var(--color-accent)', borderTopColor: 'transparent' }}
           />
-          <p className="mt-4 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
-            Loading products...
+          <p style={{ marginTop: '12px', fontSize: '13px', color: 'var(--color-text-secondary)' }}>
+            Loading products…
           </p>
         </div>
       </div>
@@ -208,341 +307,421 @@ export const POSInterface: React.FC = () => {
 
   const displayedProducts = searchQuery.trim() ? searchResults : products;
 
-  return (
-    <div className="space-y-5">
+  /* ─── Shared input style with HARD-CODED padding ────────────────── */
+  const inputStyle: React.CSSProperties = {
+    background: 'var(--color-input-bg)',
+    border: '1px solid var(--color-input-border)',
+    borderRadius: '6px',
+    color: 'var(--color-input-text)',
+    outline: 'none',
+    fontSize: '14px',
+    padding: '10px 14px',
+    width: '100%',
+    height: '42px',
+    transition: 'border-color 100ms ease, box-shadow 100ms ease',
+  };
 
-      {/* Header banner */}
-      <div className="rounded-2xl p-5 shadow-md" style={{ background: 'var(--gradient-brand)' }}>
-        <h1 className="text-xl font-bold mb-2" style={{ color: 'var(--color-text-inverse)' }}>
-          Point of Sale
-        </h1>
-        <div className="flex flex-wrap gap-3">
-          {[
-            { icon: <Scan className="h-4 w-4" />, text: 'Ready to Scan' },
-            { icon: <ShoppingCart className="h-4 w-4" />, text: `Products: ${products.length}` },
-          ].map(({ icon, text }) => (
-            <div
-              key={text}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm"
-              style={{
-                background: 'rgba(255,255,255,0.10)',
-                border: '1px solid rgba(255,255,255,0.15)',
-                color: 'var(--color-text-inverse)',
-                backdropFilter: 'blur(8px)',
-              }}
-            >
-              {icon}
-              <span>{text}</span>
-            </div>
-          ))}
+  const selectStyle: React.CSSProperties = {
+    ...inputStyle,
+    appearance: 'none',
+    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%2394A3B8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
+    backgroundRepeat: 'no-repeat',
+    backgroundPosition: 'right 12px center',
+    cursor: 'pointer',
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+
+      {/* Page title */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1
+            style={{ fontSize: '20px', fontWeight: 700, color: 'var(--color-text-primary)' }}
+          >
+            Point of Sale
+          </h1>
+          <p
+            style={{ fontSize: '11px', marginTop: 2, color: 'var(--color-text-muted)' }}
+          >
+            {products.length} products available
+          </p>
         </div>
+        <span
+          style={{
+            fontSize: '10px',
+            fontWeight: 600,
+            padding: '4px 12px',
+            borderRadius: '9999px',
+            background: 'var(--color-success-light)',
+            color: 'var(--color-success-text)',
+          }}
+        >
+          Ready to scan
+        </span>
       </div>
 
-      {/* Main grid */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
+      {/* Form-level error banner */}
+      {formError && (
+        <div
+          className="flex items-center justify-between"
+          style={{
+            padding: '10px 16px',
+            borderRadius: '6px',
+            background: 'var(--color-danger-light)',
+            color: 'var(--color-danger-text)',
+            border: '1px solid var(--color-danger)',
+            fontSize: '13px',
+            fontWeight: 500,
+          }}
+        >
+          <span>{formError}</span>
+          <button
+            onClick={() => setFormError('')}
+            aria-label="Dismiss"
+            style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', opacity: 0.7, padding: 4 }}
+          >
+            <X style={{ width: 14, height: 14 }} />
+          </button>
+        </div>
+      )}
 
-        {/* ── Products panel ─────────────────────────────────────────── */}
-        <div className="xl:col-span-2">
-          <Card noPadding>
-            <div className="p-5">
-              {/* Search */}
-              <div className="mb-5">
-                <div className="flex items-center justify-between mb-2">
-                  <label className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-                    Search — Name, SKU, Barcode or Category
-                  </label>
-                  <span
-                    className="text-xs px-2 py-0.5 rounded-full"
-                    style={{ background: 'var(--color-bg-subtle)', color: 'var(--color-text-muted)' }}
-                  >
-                    {products.length} products
-                  </span>
-                </div>
-                <div className="relative">
-                  <Search
-                    className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4"
-                    style={{ color: 'var(--color-text-muted)' }}
-                  />
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && searchResults[0] && handleAddProduct(searchResults[0])}
-                    placeholder="Type to search or scan barcode…"
-                    autoFocus
-                    className="w-full pl-10 pr-4 py-2.5 text-sm"
-                    style={{
-                      background: 'var(--color-input-bg)',
-                      border: '1px solid var(--color-input-border)',
-                      borderRadius: 'var(--radius-md)',
-                      color: 'var(--color-input-text)',
-                      outline: 'none',
-                    }}
-                    onFocus={(e) => {
-                      e.target.style.borderColor = 'var(--color-input-border-focus)';
-                      e.target.style.boxShadow = '0 0 0 3px var(--color-input-ring)';
-                    }}
-                    onBlur={(e) => {
-                      e.target.style.borderColor = 'var(--color-input-border)';
-                      e.target.style.boxShadow = 'none';
-                    }}
-                  />
-                </div>
-              </div>
+      {/* Main layout */}
+      <div className="grid grid-cols-1 xl:grid-cols-4" style={{ gap: '16px' }}>
 
-              {/* Results header */}
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-                  {searchQuery.trim() ? 'Search Results' : 'Available Products'}
-                </h3>
-                <span
-                  className="text-xs px-2 py-0.5 rounded-full"
-                  style={{
-                    background: searchQuery.trim() ? 'var(--color-info-light)' : 'var(--color-bg-subtle)',
-                    color: searchQuery.trim() ? 'var(--color-info-text)' : 'var(--color-text-muted)',
-                  }}
-                >
-                  {displayedProducts.length} {searchQuery.trim() ? 'found' : 'total'}
-                </span>
-              </div>
+        {/* ── Products ─────────────────────────────────────────────────── */}
+        <div className="xl:col-span-3">
+          {/* Search */}
+          <div className="relative" style={{ marginBottom: '12px' }}>
+            <Search
+              className="absolute top-1/2 -translate-y-1/2"
+              style={{ left: 12, width: 16, height: 16, color: 'var(--color-text-muted)' }}
+            />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) =>
+                e.key === 'Enter' &&
+                searchResults[0] &&
+                handleAddProduct(searchResults[0])
+              }
+              placeholder="Search by name, SKU, barcode, or category…"
+              autoFocus
+              className="w-full transition-all duration-100"
+              style={{
+                fontSize: '14px',
+                background: 'var(--color-input-bg)',
+                border: '1px solid var(--color-input-border)',
+                borderRadius: '10px',
+                color: 'var(--color-input-text)',
+                padding: '10px 16px 10px 36px',
+                outline: 'none',
+                height: '42px',
+              }}
+              onFocus={(e) => {
+                e.target.style.borderColor = 'var(--color-input-border-focus)';
+                e.target.style.boxShadow = '0 0 0 2px var(--color-input-ring)';
+              }}
+              onBlur={(e) => {
+                e.target.style.borderColor = 'var(--color-input-border)';
+                e.target.style.boxShadow = 'none';
+              }}
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                aria-label="Clear search"
+                className="absolute top-1/2 -translate-y-1/2 cursor-pointer"
+                style={{ right: 12, background: 'none', border: 'none', color: 'var(--color-text-muted)', padding: 4 }}
+              >
+                <X style={{ width: 14, height: 14 }} />
+              </button>
+            )}
+          </div>
 
-              {/* Grid */}
-              {displayedProducts.length === 0 && searchQuery.trim() ? (
-                <p className="text-sm text-center py-8" style={{ color: 'var(--color-text-muted)' }}>
-                  No products match "{searchQuery}"
-                </p>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {displayedProducts.map((p) => (
-                    <ProductCard key={p.id} product={p} onClick={() => handleAddProduct(p)} />
-                  ))}
-                </div>
-              )}
+          {/* Results label */}
+          <div className="flex items-center justify-between" style={{ marginBottom: '8px' }}>
+            <span
+              style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-secondary)' }}
+            >
+              {searchQuery.trim() ? 'Search Results' : 'All Products'}
+            </span>
+            <span
+              style={{
+                fontSize: '10px',
+                fontWeight: 600,
+                marginBottom: '4px',
+                padding: '4px 8px',
+                borderRadius: '6px',
+                background: searchQuery.trim() ? 'var(--color-info-light)' : 'var(--color-bg-subtle)',
+                color: searchQuery.trim() ? 'var(--color-info-text)' : 'var(--color-text-muted)',
+              }}
+            >
+              {displayedProducts.length}
+            </span>
+          </div>
+
+          {/* Grid */}
+          {displayedProducts.length === 0 && searchQuery.trim() ? (
+            <div className="text-center" style={{ padding: '40px 0' }}>
+              <Search style={{ width: 28, height: 28, margin: '0 auto', color: 'var(--color-text-muted)', opacity: 0.4 }} />
+              <p style={{ fontSize: '13px', marginTop: '12px', color: 'var(--color-text-muted)' }}>
+                No products match "{searchQuery}"
+              </p>
             </div>
-          </Card>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4" style={{ gap: '10px' }}>
+              {displayedProducts.map((p) => (
+                <ProductCard
+                  key={p.id}
+                  product={p}
+                  onClick={() => handleAddProduct(p)}
+                />
+              ))}
+            </div>
+          )}
         </div>
 
-        {/* ── Cart panel ─────────────────────────────────────────────── */}
+        {/* ── Cart ─────────────────────────────────────────────────────── */}
         <div className="xl:col-span-1">
-          <div className="sticky top-20">
-            <Card noPadding style={{ boxShadow: 'var(--shadow-lg)' }}>
-
+          <div className="sticky" style={{ top: 'calc(var(--navbar-height) + 12px)' }}>
+            <div
+              className="overflow-hidden"
+              style={{
+                borderRadius: '14px',
+                background: 'var(--color-bg-surface)',
+                border: '1px solid var(--color-border)',
+                boxShadow: 'var(--shadow-card)',
+              }}
+            >
               {/* Cart header */}
               <div
-                className="flex items-center justify-between px-4 py-3 rounded-t-xl"
-                style={{
-                  background: 'var(--color-accent-light)',
-                  borderBottom: '1px solid var(--color-border)',
-                }}
+                className="flex items-center justify-between"
+                style={{ padding: '12px 16px', borderBottom: '1px solid var(--color-border)' }}
               >
-                <div className="flex items-center gap-3">
-                  <div
-                    className="p-2 rounded-lg"
-                    style={{ background: 'var(--gradient-accent)' }}
-                  >
-                    <ShoppingCart className="h-4 w-4" style={{ color: 'var(--color-accent-fg)' }} />
-                  </div>
-                  <div>
-                    <h2 className="text-sm font-bold" style={{ color: 'var(--color-text-primary)' }}>
-                      Cart
-                    </h2>
-                    <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                      {cartItems.length} item{cartItems.length !== 1 ? 's' : ''}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  {cartItems.length > 0 && (
-                    <button
-                      onClick={clearCart}
-                      className="p-1.5 rounded-lg transition-colors"
-                      style={{ color: 'var(--color-text-muted)' }}
-                      onMouseEnter={(e) => {
-                        (e.currentTarget as HTMLElement).style.background = 'var(--color-danger-light)';
-                        (e.currentTarget as HTMLElement).style.color = 'var(--color-danger-text)';
-                      }}
-                      onMouseLeave={(e) => {
-                        (e.currentTarget as HTMLElement).style.background = 'transparent';
-                        (e.currentTarget as HTMLElement).style.color = 'var(--color-text-muted)';
-                      }}
-                      title="Clear cart"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  )}
-                  <span
-                    className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold"
-                    style={{ background: 'var(--gradient-accent)', color: 'var(--color-accent-fg)' }}
-                  >
-                    {cartItems.length}
+                <div className="flex items-center" style={{ gap: '8px' }}>
+                  <ShoppingCart style={{ width: 16, height: 16, color: 'var(--color-text-secondary)' }} />
+                  <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-primary)' }}>
+                    Cart
                   </span>
+                  {cartItems.length > 0 && (
+                    <span
+                      style={{
+                        fontSize: '10px',
+                        fontWeight: 700,
+                        padding: '1px 8px',
+                        borderRadius: '6px',
+                        background: 'var(--color-accent-light)',
+                        color: 'var(--color-accent-text)',
+                      }}
+                    >
+                      {cartItems.length}
+                    </span>
+                  )}
                 </div>
+                {cartItems.length > 0 && (
+                  <button
+                    onClick={clearCart}
+                    className="transition-colors duration-100 cursor-pointer"
+                    style={{
+                      fontSize: '10px',
+                      fontWeight: 600,
+                      padding: '2px 10px',
+                      borderRadius: '6px',
+                      color: 'var(--color-text-muted)',
+                      background: 'transparent',
+                      border: 'none',
+                    }}
+                    onMouseEnter={(e) => {
+                      const el = e.currentTarget as HTMLElement;
+                      el.style.color = 'var(--color-danger-text)';
+                      el.style.background = 'var(--color-danger-light)';
+                    }}
+                    onMouseLeave={(e) => {
+                      const el = e.currentTarget as HTMLElement;
+                      el.style.color = 'var(--color-text-muted)';
+                      el.style.background = 'transparent';
+                    }}
+                  >
+                    Clear All
+                  </button>
+                )}
               </div>
 
-              <div className="p-4">
+              <div style={{ padding: '16px' }}>
                 {cartItems.length === 0 ? (
-                  /* Empty state */
-                  <div className="text-center py-10">
+                  <div className="text-center" style={{ padding: '32px 0' }}>
                     <div
-                      className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-3"
-                      style={{ background: 'var(--color-bg-subtle)' }}
+                      className="flex items-center justify-center mx-auto"
+                      style={{ width: 44, height: 44, borderRadius: '9999px', background: 'var(--color-bg-subtle)', marginBottom: '12px' }}
                     >
-                      <ShoppingCart className="h-6 w-6" style={{ color: 'var(--color-text-muted)' }} />
+                      <ShoppingCart style={{ width: 18, height: 18, color: 'var(--color-text-muted)' }} />
                     </div>
-                    <p className="text-sm font-medium" style={{ color: 'var(--color-text-secondary)' }}>
+                    <p style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-primary)' }}>
                       Cart is empty
                     </p>
-                    <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
-                      Add products to get started
+                    <p style={{ fontSize: '11px', marginTop: 2, color: 'var(--color-text-muted)' }}>
+                      Search or tap a product to add it
                     </p>
                   </div>
                 ) : (
                   <>
                     {/* Cart items */}
-                    <div className="space-y-2 max-h-56 overflow-y-auto mb-4">
+                    <div className="overflow-y-auto" style={{ maxHeight: 220, margin: '0 -4px' }}>
                       {cartItems.map((item) => (
                         <div
                           key={item.cartId}
-                          className="flex items-center justify-between p-3 rounded-xl"
-                          style={{
-                            background: 'var(--color-bg-subtle)',
-                            border: '1px solid var(--color-border)',
-                          }}
+                          className="flex items-center"
+                          style={{ gap: '8px', padding: '8px 4px', borderBottom: '1px solid var(--color-border)' }}
                         >
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-semibold truncate" style={{ color: 'var(--color-text-primary)' }}>
+                          <div className="min-w-0 flex-1">
+                            <p
+                              className="truncate"
+                              style={{ fontSize: '13px', fontWeight: 600, lineHeight: 'var(--leading-tight)', color: 'var(--color-text-primary)' }}
+                            >
                               {item.product.name}
                             </p>
-                            <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
-                              GHS {safeNumber(item.unitPrice).toFixed(2)} each
-                            </p>
-                            <p className="text-xs font-bold mt-0.5" style={{ color: 'var(--color-accent-text)' }}>
-                              GHS {safeNumber(item.total).toFixed(2)}
-                            </p>
+                            <Num style={{ fontSize: '10px', color: 'var(--color-text-muted)' }}>
+                              GHS {safeNumber(item.unitPrice).toFixed(2)} ea
+                            </Num>
                           </div>
 
-                          <div className="flex items-center gap-1 ml-2">
-                            {/* Minus */}
-                            <button
+                          <div className="flex items-center flex-shrink-0" style={{ gap: 2 }}>
+                            <QtyBtn
+                              ariaLabel={`Decrease quantity of ${item.product.name}`}
                               onClick={() => handleQtyChange(item.cartId, item.quantity - 1)}
-                              className="w-6 h-6 rounded-md flex items-center justify-center transition-colors"
-                              style={{ background: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}
-                              onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--color-accent-light)')}
-                              onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--color-bg-surface)')}
                             >
-                              <Minus className="h-3 w-3" style={{ color: 'var(--color-text-secondary)' }} />
-                            </button>
-
-                            <span
-                              className="w-7 text-center text-xs font-bold"
-                              style={{ color: 'var(--color-text-primary)' }}
+                              <Minus style={{ width: 10, height: 10 }} />
+                            </QtyBtn>
+                            <Num
+                              className="text-center"
+                              style={{ width: 28, fontSize: '13px', fontWeight: 700, color: 'var(--color-text-primary)' }}
                             >
                               {item.quantity}
-                            </span>
-
-                            {/* Plus */}
-                            <button
+                            </Num>
+                            <QtyBtn
+                              ariaLabel={`Increase quantity of ${item.product.name}`}
                               onClick={() => handleQtyChange(item.cartId, item.quantity + 1)}
-                              className="w-6 h-6 rounded-md flex items-center justify-center transition-colors"
-                              style={{ background: 'var(--color-bg-surface)', border: '1px solid var(--color-border)' }}
-                              onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--color-success-light)')}
-                              onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--color-bg-surface)')}
                             >
-                              <Plus className="h-3 w-3" style={{ color: 'var(--color-text-secondary)' }} />
-                            </button>
-
-                            {/* Remove */}
-                            <button
-                              onClick={() => removeFromCart(item.cartId)}
-                              className="w-6 h-6 rounded-md flex items-center justify-center ml-1 transition-colors"
-                              style={{ color: 'var(--color-danger-text)' }}
-                              onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--color-danger-light)')}
-                              onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </button>
+                              <Plus style={{ width: 10, height: 10 }} />
+                            </QtyBtn>
                           </div>
+
+                          <Num
+                            className="text-right flex-shrink-0"
+                            style={{ width: 60, fontSize: '13px', fontWeight: 700, color: 'var(--color-text-primary)' }}
+                          >
+                            GHS {safeNumber(item.total).toFixed(2)}
+                          </Num>
+
+                          <button
+                            onClick={() => removeFromCart(item.cartId)}
+                            aria-label={`Remove ${item.product.name} from cart`}
+                            className="flex-shrink-0 transition-colors duration-100 cursor-pointer"
+                            style={{
+                              color: 'var(--color-text-muted)',
+                              background: 'transparent',
+                              border: 'none',
+                              padding: 4,
+                              opacity: 0.5,
+                            }}
+                            onMouseEnter={(e) => {
+                              const el = e.currentTarget as HTMLElement;
+                              el.style.color = 'var(--color-danger-text)';
+                              el.style.opacity = '1';
+                            }}
+                            onMouseLeave={(e) => {
+                              const el = e.currentTarget as HTMLElement;
+                              el.style.color = 'var(--color-text-muted)';
+                              el.style.opacity = '0.5';
+                            }}
+                          >
+                            <Trash2 style={{ width: 13, height: 13 }} />
+                          </button>
                         </div>
                       ))}
                     </div>
 
                     {/* Customer info */}
-                    <div className="space-y-2 mb-4">
-                      <FieldInput
-                        label="Customer Name (optional)"
+                    <div className="grid grid-cols-2" style={{ gap: '10px', marginTop: '12px' }}>
+                      <Field
+                        label="Customer name"
                         type="text"
                         value={customerName}
                         onChange={(e) => setCustomerName(e.target.value)}
-                        placeholder="Enter customer name"
+                        placeholder="Optional"
                       />
-                      <FieldInput
-                        label="Customer Phone (optional)"
+                      <Field
+                        label="Phone"
                         type="tel"
                         value={customerPhone}
                         onChange={(e) => setCustomerPhone(e.target.value)}
-                        placeholder="Enter phone number"
+                        placeholder="Optional"
                       />
                     </div>
 
                     {/* Discount */}
-                    <div className="mb-4">
-                      <FieldInput
-                        label="Discount (%)"
+                    <div style={{ marginTop: '10px' }}>
+                      <Field
+                        label="Discount %"
                         type="number"
                         min={0}
                         max={100}
                         value={discountPercent}
                         onChange={(e) =>
-                          setDiscountPercent(Math.min(100, Math.max(0, parseFloat(e.target.value) || 0)))
+                          setDiscountPercent(
+                            Math.min(100, Math.max(0, parseFloat(e.target.value) || 0))
+                          )
                         }
                       />
                     </div>
 
                     {/* Totals */}
                     <div
-                      className="space-y-2 mb-4 p-3 rounded-xl"
-                      style={{
-                        background: 'var(--color-accent-light)',
-                        border: '1px solid var(--color-border)',
-                      }}
+                      style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column', gap: '6px' }}
                     >
                       {[
-                        { label: 'Subtotal', value: `GHS ${safeNumber(subtotal).toFixed(2)}`, color: 'var(--color-text-primary)' },
-                        ...(discountAmount > 0 ? [{ label: 'Discount', value: `-GHS ${safeNumber(discountAmount).toFixed(2)}`, color: 'var(--color-success-text)' }] : []),
-                        { label: 'VAT (15%)', value: `GHS ${safeNumber(tax).toFixed(2)}`, color: 'var(--color-text-primary)' },
+                        { label: 'Subtotal', value: subtotal, color: 'var(--color-text-secondary)' },
+                        ...(discountAmount > 0
+                          ? [{ label: 'Discount', value: -discountAmount, color: 'var(--color-success-text)' }]
+                          : []),
+                        { label: 'VAT 15%', value: tax, color: 'var(--color-text-secondary)' },
                       ].map(({ label, value, color }) => (
-                        <div key={label} className="flex justify-between text-xs">
-                          <span style={{ color: 'var(--color-text-secondary)' }}>{label}:</span>
-                          <span className="font-semibold" style={{ color }}>{value}</span>
+                        <div key={label} className="flex justify-between" style={{ fontSize: '13px' }}>
+                          <span style={{ color: 'var(--color-text-muted)' }}>{label}</span>
+                          <Num style={{ fontWeight: 600, color }}>
+                            GHS {safeNumber(value).toFixed(2)}
+                          </Num>
                         </div>
                       ))}
+
                       <div
-                        className="flex justify-between text-sm font-bold pt-2"
-                        style={{ borderTop: '1px solid var(--color-border)' }}
+                        className="flex justify-between"
+                        style={{ paddingTop: '10px', marginTop: '4px', borderTop: '1px solid var(--color-border)' }}
                       >
-                        <span style={{ color: 'var(--color-text-primary)' }}>Total:</span>
-                        <span style={{ color: 'var(--color-accent-text)' }}>
-                          GHS {safeNumber(finalTotal).toFixed(2)}
+                        <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--color-text-primary)' }}>
+                          Total
                         </span>
+                        <Num style={{ fontSize: '16px', fontWeight: 700, color: 'var(--color-accent-text)' }}>
+                          GHS {safeNumber(finalTotal).toFixed(2)}
+                        </Num>
                       </div>
                     </div>
 
                     {/* Payment method */}
-                    <div className="mb-4">
-                      <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--color-text-secondary)' }}>
-                        Payment Method
+                    <div style={{ marginTop: '12px' }}>
+                      <label
+                        className="block"
+                        style={{ fontSize: '12px', fontWeight: 600, marginBottom: '6px', color: 'var(--color-text-muted)' }}
+                      >
+                        Payment method
                       </label>
                       <select
                         value={selectedPayment}
                         onChange={(e) => setSelectedPayment(e.target.value as PaymentMethod)}
-                        className="w-full px-3 py-2 text-sm"
-                        style={{
-                          background: 'var(--color-input-bg)',
-                          border: '1px solid var(--color-input-border)',
-                          borderRadius: 'var(--radius-md)',
-                          color: 'var(--color-input-text)',
-                          outline: 'none',
-                        }}
+                        className="w-full"
+                        style={selectStyle}
                       >
                         <option value="cash">Cash</option>
                         <option value="mtn">MTN Mobile Money</option>
@@ -551,12 +730,12 @@ export const POSInterface: React.FC = () => {
                       </select>
 
                       {selectedPayment !== 'cash' && (
-                        <div className="mt-2">
-                          <FieldInput
+                        <div style={{ marginTop: '10px' }}>
+                          <Field
                             type="tel"
                             value={mobileMoneyNumber}
                             onChange={(e) => setMobileMoneyNumber(e.target.value)}
-                            placeholder="Phone number (e.g. 0551234567)"
+                            placeholder="Phone number"
                           />
                         </div>
                       )}
@@ -566,32 +745,48 @@ export const POSInterface: React.FC = () => {
                     <button
                       onClick={handlePayment}
                       disabled={paymentLoading || cartItems.length === 0}
-                      className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm transition-all"
+                      className="w-full flex items-center justify-center transition-all duration-100 cursor-pointer"
                       style={{
-                        background: paymentLoading || cartItems.length === 0
-                          ? 'var(--color-bg-subtle)'
-                          : 'linear-gradient(135deg, var(--color-success) 0%, #059669 100%)',
-                        color: paymentLoading || cartItems.length === 0
-                          ? 'var(--color-text-muted)'
-                          : '#fff',
-                        cursor: paymentLoading ? 'not-allowed' : 'pointer',
-                        boxShadow: 'var(--shadow-md)',
+                        gap: '8px',
+                        fontSize: '14px',
+                        fontWeight: 700,
+                        marginTop: '12px',
+                        padding: '12px 16px',
+                        borderRadius: '10px',
+                        border: 'none',
+                        background:
+                          paymentLoading || cartItems.length === 0
+                            ? 'var(--color-bg-subtle)'
+                            : 'var(--color-success)',
+                        color:
+                          paymentLoading || cartItems.length === 0
+                            ? 'var(--color-text-muted)'
+                            : '#fff',
+                        boxShadow:
+                          paymentLoading || cartItems.length === 0
+                            ? 'none'
+                            : '0 2px 10px rgba(22, 163, 74, 0.28)',
+                        height: '42px',
                       }}
                     >
-                      <DollarSign className="h-4 w-4" />
-                      {paymentLoading
-                        ? 'Processing…'
-                        : `Pay GHS ${safeNumber(finalTotal).toFixed(2)}`}
+                      {paymentLoading ? (
+                        <div
+                          className="rounded-full animate-spin"
+                          style={{ width: 15, height: 15, border: '2px solid #fff', borderTopColor: 'transparent' }}
+                        />
+                      ) : (
+                        <DollarSign style={{ width: 15, height: 15 }} />
+                      )}
+                      {paymentLoading ? 'Processing…' : `Pay GHS ${safeNumber(finalTotal).toFixed(2)}`}
                     </button>
                   </>
                 )}
               </div>
-            </Card>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Receipt modal */}
       {showReceipt && lastTransaction && (
         <ReceiptModal
           transaction={lastTransaction}

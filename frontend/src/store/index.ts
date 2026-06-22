@@ -39,6 +39,7 @@ interface AppStore {
   fetchProducts: () => Promise<void>;
   addProduct: (product: Omit<Product, 'id' | 'createdAt' | 'updatedAt'>) => Promise<Product | null>;
   updateProduct: (id: string, updates: Partial<Product>) => Promise<Product | null>;
+  deleteProduct: (id: string) => Promise<boolean>;  // ← ADDED
   getProductByBarcode: (barcode: string) => Product | undefined;
   getProductByName: (name: string) => Product[];
 
@@ -262,6 +263,21 @@ export const useAppStore = create<AppStore>((set, get) => ({
       return null;
     }
   },
+
+  // ─── DELETE PRODUCT ──────────────────────────────────────────────────
+  deleteProduct: async (id: string) => {
+    try {
+      await api.delete(`/products/${id}`);
+      set((state) => ({
+        products: state.products.filter((p) => p.id !== id)
+      }));
+      return true;
+    } catch (err: any) {
+      console.error('deleteProduct error:', err.response?.data || err);
+      return false;
+    }
+  },
+
   getProductByBarcode: (barcode: string): Product | undefined => {
     return get().products.find((p) => p.barcode === barcode);
   },

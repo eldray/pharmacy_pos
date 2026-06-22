@@ -1,3 +1,4 @@
+// models/Product.js
 const { sequelize, DataTypes } = require('../config/database');
 
 const Product = sequelize.define('Product', {
@@ -35,9 +36,14 @@ const Product = sequelize.define('Product', {
   },
   batchNumber: DataTypes.STRING,
   expiryDate: DataTypes.DATEONLY,
-  supplier: DataTypes.STRING
+  supplier: DataTypes.STRING,
+  deletedAt: {  // ← ADD THIS for soft delete
+    type: DataTypes.DATE,
+    allowNull: true
+  }
 }, {
-  tableName: 'products'
+  tableName: 'products',
+  paranoid: true  // ← ADD THIS for soft delete
 });
 
 module.exports = Product;

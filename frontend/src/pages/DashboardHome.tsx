@@ -1,35 +1,58 @@
 // src/components/DashboardHome.tsx
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   ShoppingCart, Package, DollarSign,
   Receipt, TrendingUp, AlertTriangle,
-  Zap, ArrowUpRight
+  Zap, ArrowUpRight, Users, Truck,
+  FlaskConical, Clock, CheckCircle,
+  XCircle, FileText, Box,
+  TrendingDown, BarChart3, PieChart as PieChartIcon,
+  PlusCircle, Eye, List
 } from 'lucide-react';
 import { useAppStore } from '../store';
 import { Link } from 'react-router-dom';
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid,
+  Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell,
+  AreaChart, Area
+} from 'recharts';
 
 /* ─── Stat Card ─────────────────────────────────────────────────────────────── */
 interface StatCardProps {
   label: string;
   value: string;
-  change: string;
   icon: React.ElementType;
-  variant: 'success' | 'warning' | 'accent' | 'info';
+  subtitle?: string;
+  trend?: 'up' | 'down' | 'neutral';
+  trendValue?: string;
 }
 
-const variantMap = {
-  success: { icon: 'var(--color-success)', bg: 'var(--color-success-light)', text: 'var(--color-success-text)' },
-  warning: { icon: 'var(--color-warning)', bg: 'var(--color-warning-light)', text: 'var(--color-warning-text)' },
-  accent: { icon: 'var(--color-accent)', bg: 'var(--color-accent-light)', text: 'var(--color-accent-text)' },
-  info: { icon: 'var(--color-info)', bg: 'var(--color-info-light)', text: 'var(--color-info-text)' },
-};
+const StatCard: React.FC<StatCardProps> = ({
+  label,
+  value,
+  icon: Icon,
+  subtitle,
+  trend = 'neutral',
+  trendValue
+}) => {
+  const TrendIcon = trend === 'up' ? TrendingUp : trend === 'down' ? TrendingDown : null;
 
-const StatCard: React.FC<StatCardProps> = ({ label, value, change, icon: Icon, variant }) => {
-  const v = variantMap[variant];
   return (
     <div
-      className="card p-4 theme-transition cursor-default"
-      style={{ transition: 'transform 150ms ease, box-shadow 150ms ease' }}
+      className="card theme-transition"
+      style={{
+        padding: '16px 20px',
+        background: 'var(--color-bg-surface)',
+        borderRadius: '10px',
+        transition: 'transform 150ms ease, box-shadow 150ms ease',
+        cursor: 'default',
+        border: '1px solid var(--color-border)',
+        minHeight: '80px',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        boxShadow: 'var(--shadow-card)',
+      }}
       onMouseEnter={(e) => {
         (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)';
         (e.currentTarget as HTMLElement).style.boxShadow = 'var(--shadow-md)';
@@ -39,75 +62,234 @@ const StatCard: React.FC<StatCardProps> = ({ label, value, change, icon: Icon, v
         (e.currentTarget as HTMLElement).style.boxShadow = 'var(--shadow-card)';
       }}
     >
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex items-start justify-between" style={{ gap: '12px' }}>
         <div className="flex-1 min-w-0">
-          <p className="text-xs font-medium truncate" style={{ color: 'var(--color-text-secondary)' }}>
+          <p style={{
+            fontSize: '11px',
+            fontWeight: 600,
+            color: 'var(--color-text-secondary)',
+            letterSpacing: '0.02em',
+            textTransform: 'uppercase',
+            margin: 0,
+            marginBottom: '4px',
+          }}>
             {label}
           </p>
-          <p className="text-2xl font-bold mt-1 truncate" style={{ color: 'var(--color-text-primary)' }}>
+          <p style={{
+            fontSize: '22px',
+            fontWeight: 700,
+            color: 'var(--color-text-primary)',
+            margin: 0,
+            lineHeight: 1.2,
+            letterSpacing: '-0.01em',
+            fontVariantNumeric: 'tabular-nums',
+          }}>
             {value}
           </p>
-          <p className="text-xs mt-1 font-medium" style={{ color: v.text }}>
-            {change}
-          </p>
+          {(subtitle || trendValue) && (
+            <div className="flex items-center" style={{ gap: '6px', marginTop: '4px' }}>
+              {TrendIcon && (
+                <TrendIcon style={{
+                  width: '14px',
+                  height: '14px',
+                  color: trend === 'up' ? 'var(--color-success)' : 'var(--color-danger)'
+                }} />
+              )}
+              {trendValue && (
+                <span style={{
+                  fontSize: '11px',
+                  fontWeight: 500,
+                  color: trend === 'up' ? 'var(--color-success-text)' : 'var(--color-danger-text)'
+                }}>
+                  {trendValue}
+                </span>
+              )}
+              {subtitle && !trendValue && (
+                <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
+                  {subtitle}
+                </span>
+              )}
+            </div>
+          )}
         </div>
         <div
-          className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-          style={{ background: v.bg }}
+          className="flex items-center justify-center flex-shrink-0"
+          style={{
+            width: '40px',
+            height: '40px',
+            borderRadius: '8px',
+            background: 'var(--color-bg-subtle)',
+            color: 'var(--color-accent-text)'
+          }}
         >
-          <Icon className="h-5 w-5" style={{ color: v.icon }} />
+          <Icon style={{ width: '18px', height: '18px' }} />
         </div>
       </div>
     </div>
   );
 };
 
-/* ─── Quick Action Link ──────────────────────────────────────────────────────── */
+/* ─── Quick Action Card ──────────────────────────────────────────────────────── */
 interface QuickActionProps {
   to: string;
   label: string;
   icon: React.ElementType;
-  variant: 'accent' | 'success' | 'info';
+  description?: string;
 }
 
-const quickActionColors = {
-  accent: { bg: 'var(--color-accent-light)', text: 'var(--color-accent-text)', border: 'var(--color-accent)' },
-  success: { bg: 'var(--color-success-light)', text: 'var(--color-success-text)', border: 'var(--color-success)' },
-  info: { bg: 'var(--color-info-light)', text: 'var(--color-info-text)', border: 'var(--color-info)' },
-};
-
-const QuickAction: React.FC<QuickActionProps> = ({ to, label, icon: Icon, variant }) => {
-  const c = quickActionColors[variant];
+const QuickAction: React.FC<QuickActionProps> = ({ to, label, icon: Icon, description }) => {
   return (
     <Link
       to={to}
-      className="flex items-center justify-between p-3 rounded-xl text-sm font-medium transition-all duration-150"
+      className="flex items-center group"
       style={{
-        background: c.bg,
-        color: c.text,
-        border: `1px solid ${c.border}20`,
+        gap: '10px',
+        padding: '12px 14px',
+        borderRadius: '8px',
+        background: 'var(--color-bg-surface)',
+        border: '1px solid var(--color-border)',
+        transition: 'all 150ms ease',
+        textDecoration: 'none',
+        minHeight: '56px',
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'flex-start',
+        textAlign: 'left',
       }}
-      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.opacity = '0.85'; (e.currentTarget as HTMLElement).style.transform = 'translateX(2px)'; }}
-      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.opacity = '1'; (e.currentTarget as HTMLElement).style.transform = 'translateX(0)'; }}
+      onMouseEnter={(e) => {
+        const el = e.currentTarget as HTMLElement;
+        el.style.background = 'var(--color-accent-light)';
+        el.style.borderColor = 'var(--color-accent)';
+        el.style.transform = 'translateY(-2px)';
+        el.style.boxShadow = 'var(--shadow-md)';
+      }}
+      onMouseLeave={(e) => {
+        const el = e.currentTarget as HTMLElement;
+        el.style.background = 'var(--color-bg-surface)';
+        el.style.borderColor = 'var(--color-border)';
+        el.style.transform = 'translateY(0)';
+        el.style.boxShadow = 'var(--shadow-card)';
+      }}
     >
-      <span>{label}</span>
-      <span className="flex items-center gap-1">
-        <Icon className="h-4 w-4" />
-        <ArrowUpRight className="h-3 w-3" />
-      </span>
+      <div
+        className="flex items-center justify-center flex-shrink-0"
+        style={{
+          width: '36px',
+          height: '36px',
+          borderRadius: '6px',
+          background: 'var(--color-accent)',
+          color: 'white'
+        }}
+      >
+        <Icon style={{ width: '18px', height: '18px' }} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-primary)', margin: 0 }}>
+          {label}
+        </p>
+        {description && (
+          <p style={{ fontSize: '11px', color: 'var(--color-text-muted)', lineHeight: 1.2, margin: 0, marginTop: '2px' }}>
+            {description}
+          </p>
+        )}
+      </div>
+      <ArrowUpRight
+        className="opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+        style={{ width: '14px', height: '14px', color: 'var(--color-text-muted)', flexShrink: 0 }}
+      />
     </Link>
   );
 };
 
+/* ─── Status Badge ──────────────────────────────────────────────────────────── */
+const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
+  const config: Record<string, { cls: string; icon: React.ReactNode }> = {
+    pending: { cls: 'badge-warning', icon: <Clock style={{ width: 10, height: 10 }} /> },
+    in_progress: { cls: 'badge-info', icon: <Clock style={{ width: 10, height: 10 }} /> },
+    completed: { cls: 'badge-success', icon: <CheckCircle style={{ width: 10, height: 10 }} /> },
+    received: { cls: 'badge-success', icon: <CheckCircle style={{ width: 10, height: 10 }} /> },
+    cancelled: { cls: 'badge-danger', icon: <XCircle style={{ width: 10, height: 10 }} /> },
+    paid: { cls: 'badge-success', icon: <CheckCircle style={{ width: 10, height: 10 }} /> },
+    pending_payment: { cls: 'badge-warning', icon: <Clock style={{ width: 10, height: 10 }} /> },
+  };
+  const { cls, icon } = config[status] || { cls: 'badge-info', icon: null };
+  return (
+    <span
+      className={`badge ${cls} inline-flex items-center`}
+      style={{ gap: 3, fontSize: '11px', fontWeight: 600, padding: '3px 10px', borderRadius: '9999px' }}
+    >
+      {icon}
+      {status.replace('_', ' ')}
+    </span>
+  );
+};
+
+/* ─── Section Header ─────────────────────────────────────────────────────────── */
+const SectionHeader: React.FC<{ icon: React.ElementType; title: string; linkTo?: string; linkText?: string }> = ({
+  icon: Icon,
+  title,
+  linkTo,
+  linkText = 'View all'
+}) => (
+  <div style={{
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '12px 20px 8px 20px',
+    marginBottom: 0,
+  }}>
+    <div className="flex items-center" style={{ gap: '8px' }}>
+      <Icon style={{ width: '16px', height: '16px', color: 'var(--color-accent-text)' }} />
+      <h3 style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-secondary)', margin: 0, textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+        {title}
+      </h3>
+    </div>
+    {linkTo && (
+      <Link
+        to={linkTo}
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '4px',
+          fontSize: '11px',
+          fontWeight: 500,
+          color: 'var(--color-accent-text)',
+          textDecoration: 'none',
+          padding: '4px 8px',
+          borderRadius: '6px',
+          transition: 'background 150ms ease',
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = 'var(--color-accent-light)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = 'transparent';
+        }}
+      >
+        {linkText}
+        <ArrowUpRight style={{ width: 10, height: 10 }} />
+      </Link>
+    )}
+  </div>
+);
+
 /* ─── DashboardHome ──────────────────────────────────────────────────────────── */
 export const DashboardHome: React.FC = () => {
-  const { currentUser, products, transactions } = useAppStore();
+  const {
+    currentUser,
+    products,
+    transactions,
+    suppliers,
+    purchaseOrders,
+    labTransactions,
+  } = useAppStore();
 
   const userFirstName = React.useMemo(() => {
     if (!currentUser?.name) return 'Guest';
     return currentUser.name.split(' ')[0];
   }, [currentUser]);
 
+  // Calculate stats
   const stats = React.useMemo(() => {
     const today = new Date().toDateString();
     const todaySales = transactions
@@ -115,163 +297,472 @@ export const DashboardHome: React.FC = () => {
       .reduce((sum, t) => sum + t.total, 0);
 
     const lowStockCount = products.filter((p) => p.quantity < 20).length;
+    const outOfStockCount = products.filter((p) => p.quantity === 0).length;
+    const totalPurchaseOrders = purchaseOrders.length;
+    const pendingPOs = purchaseOrders.filter(po => po.status === 'pending').length;
+    const completedLabTests = labTransactions?.filter(t => t.status === 'completed').length || 0;
 
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdaySales = transactions
+      .filter((t) => new Date(t.createdAt).toDateString() === yesterday.toDateString())
+      .reduce((sum, t) => sum + t.total, 0);
+
+    const salesTrend = yesterdaySales > 0
+      ? ((todaySales - yesterdaySales) / yesterdaySales * 100)
+      : 0;
+
+    return {
+      todaySales,
+      yesterdaySales,
+      salesTrend,
+      lowStockCount,
+      outOfStockCount,
+      totalPurchaseOrders,
+      pendingPOs,
+      completedLabTests,
+      totalProducts: products.length,
+      totalTransactions: transactions.length,
+      totalRevenue: transactions.reduce((sum, t) => sum + t.total, 0),
+    };
+  }, [products, transactions, purchaseOrders, labTransactions]);
+
+  // ── Chart Data ──────────────────────────────────────────────────────────────
+
+  const dailySalesData = useMemo(() => {
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    return days.map((day) => {
+      const dayTransactions = transactions.filter((t) => {
+        const txDate = new Date(t.createdAt);
+        return txDate.toLocaleString('en', { weekday: 'short' }) === day;
+      });
+      return {
+        day,
+        sales: dayTransactions.reduce((sum, t) => sum + t.total, 0),
+        count: dayTransactions.length,
+      };
+    });
+  }, [transactions]);
+
+  const paymentDistribution = useMemo(() => {
+    const methods: Record<string, number> = {};
+    transactions.forEach((t) => {
+      const method = t.paymentMethod || 'cash';
+      methods[method] = (methods[method] || 0) + t.total;
+    });
+    return Object.entries(methods).map(([name, value]) => ({
+      name: name === 'mtn' ? 'MTN MoMo' : name === 'vodafone' ? 'Vodafone' : name === 'airteltigo' ? 'AirtelTigo' : name.charAt(0).toUpperCase() + name.slice(1),
+      value: Math.round(value),
+    }));
+  }, [transactions]);
+
+  const CHART_COLORS = [
+    'var(--color-success)',
+    'var(--color-warning)',
+    'var(--color-danger)',
+    'var(--color-accent)',
+    'var(--color-role-lab)',
+    'var(--color-text-muted)',
+  ];
+
+  const stockDistribution = useMemo(() => {
+    const inStock = products.filter(p => p.quantity > 50).length;
+    const lowStock = products.filter(p => p.quantity > 0 && p.quantity <= 20).length;
+    const outOfStock = products.filter(p => p.quantity === 0).length;
     return [
-      {
-        label: "Today's Sales",
-        value: `GHS ${todaySales.toFixed(2)}`,
-        icon: DollarSign,
-        variant: 'success' as const,
-        change: '+12% vs yesterday',
-      },
-      {
-        label: 'Low Stock Items',
-        value: lowStockCount.toString(),
-        icon: AlertTriangle,
-        variant: 'warning' as const,
-        change: lowStockCount > 0 ? 'Needs attention' : 'All stocked up',
-      },
-      {
-        label: 'Total Products',
-        value: products.length.toString(),
-        icon: Package,
-        variant: 'accent' as const,
-        change: 'Active SKUs',
-      },
-      {
-        label: 'Total Transactions',
-        value: transactions.length.toString(),
-        icon: ShoppingCart,
-        variant: 'info' as const,
-        change: 'All time',
-      },
+      { name: 'In Stock', value: inStock, color: 'var(--color-success)' },
+      { name: 'Low Stock', value: lowStock, color: 'var(--color-warning)' },
+      { name: 'Out of Stock', value: outOfStock, color: 'var(--color-danger)' },
     ];
-  }, [products, transactions]);
+  }, [products]);
 
   const recentTransactions = transactions.slice(0, 5);
+  const recentPurchaseOrders = purchaseOrders.slice(0, 3);
+  const recentLabTests = labTransactions?.slice(0, 3) || [];
+
   const role = currentUser?.role;
 
-  return (
-    <div className="space-y-6">
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good morning';
+    if (hour < 17) return 'Good afternoon';
+    return 'Good evening';
+  };
 
-      {/* ── Welcome banner ───────────────────────────────────────────── */}
-      <div
-        className="rounded-2xl p-6 shadow-lg"
-        style={{ background: 'var(--gradient-brand)' }}
-      >
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-bold" style={{ color: 'var(--color-text-inverse)' }}>
-              Welcome back, {userFirstName}! 👋
-            </h1>
-            <p className="text-sm mt-1" style={{ color: 'rgba(255,255,255,0.65)' }}>
-              Here's what's happening with your pharmacy today.
+  const CustomTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+      return (
+        <div
+          style={{
+            padding: '8px 12px',
+            borderRadius: '8px',
+            boxShadow: 'var(--shadow-lg)',
+            background: 'var(--color-bg-elevated)',
+            border: '1px solid var(--color-border)',
+          }}
+        >
+          {label && (
+            <p style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-primary)', margin: '0 0 2px 0' }}>{label}</p>
+          )}
+          {payload.map((p: any) => (
+            <p key={p.name} style={{ fontSize: '11px', color: 'var(--color-text-secondary)', margin: '2px 0' }}>
+              {p.name}: {typeof p.value === 'number' ? `GHS ${p.value.toFixed(2)}` : p.value}
             </p>
-          </div>
-          <div
-            className="hidden md:flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium"
-            style={{
-              background: 'rgba(255,255,255,0.10)',
-              border: '1px solid rgba(255,255,255,0.15)',
-              color: 'var(--color-text-inverse)',
-              backdropFilter: 'blur(8px)',
-            }}
-          >
-            <Zap className="h-4 w-4" style={{ color: '#FBBF24' }} />
-            Live Dashboard
-          </div>
+          ))}
+        </div>
+      );
+    }
+    return null;
+  };
+
+  // Get quick actions based on role
+  const getQuickActions = () => {
+    const actions = [];
+
+    if (role === 'admin' || role === 'cashier') {
+      actions.push({
+        to: '/dashboard/pos',
+        label: 'New Sale',
+        icon: ShoppingCart,
+        description: 'Process transaction'
+      });
+    }
+
+    if (role === 'admin' || role === 'officer') {
+      actions.push({
+        to: '/dashboard/products',
+        label: 'Add Product',
+        icon: PlusCircle,
+        description: 'Update inventory'
+      });
+      actions.push({
+        to: '/dashboard/inventory',
+        label: 'View Stock',
+        icon: Eye,
+        description: 'Check levels'
+      });
+      actions.push({
+        to: '/dashboard/purchase-orders',
+        label: 'Purchase Order',
+        icon: Truck,
+        description: 'Order from supplier'
+      });
+    }
+
+    if (role === 'admin' || role === 'lab') {
+      actions.push({
+        to: '/dashboard/lab',
+        label: 'Lab Tests',
+        icon: FlaskConical,
+        description: 'Manage tests'
+      });
+    }
+
+    if (role === 'admin') {
+      actions.push({
+        to: '/dashboard/users',
+        label: 'Staff',
+        icon: Users,
+        description: 'Manage accounts'
+      });
+    }
+
+    return actions;
+  };
+
+  const quickActions = getQuickActions();
+
+  return (
+    <div className="w-full" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      {/* ── Welcome header ──────────────────────────────────────────── */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        flexWrap: 'wrap',
+        gap: '12px',
+        padding: '8px 4px',
+      }}>
+        <div>
+          <h1 style={{
+            fontSize: '20px',
+            fontWeight: 700,
+            color: 'var(--color-text-primary)',
+            letterSpacing: '-0.01em',
+            margin: 0,
+            marginBottom: '4px',
+          }}>
+            {getGreeting()}, {userFirstName}
+          </h1>
+          <p style={{
+            fontSize: '13px',
+            color: 'var(--color-text-secondary)',
+            margin: 0,
+          }}>
+            Here's your pharmacy overview for today
+          </p>
+        </div>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', flexShrink: 0 }}>
+          <span style={{
+            padding: '4px 12px',
+            borderRadius: '9999px',
+            background: 'var(--color-bg-subtle)',
+            fontSize: '11px',
+            color: 'var(--color-text-secondary)',
+            border: '1px solid var(--color-border)',
+            whiteSpace: 'nowrap',
+          }}>
+            {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+          </span>
         </div>
       </div>
 
       {/* ── Stat cards ───────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {stats.map((s) => (
-          <StatCard key={s.label} {...s} />
-        ))}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+        gap: '12px',
+        padding: 0,
+      }}>
+        <StatCard
+          label="Today's Sales"
+          value={`GHS ${stats.todaySales.toFixed(2)}`}
+          icon={DollarSign}
+          trend={stats.salesTrend > 0 ? 'up' : stats.salesTrend < 0 ? 'down' : 'neutral'}
+          trendValue={stats.salesTrend !== 0 ? `${stats.salesTrend > 0 ? '+' : ''}${stats.salesTrend.toFixed(1)}%` : undefined}
+        />
+        <StatCard
+          label="Total Revenue"
+          value={`GHS ${stats.totalRevenue.toFixed(2)}`}
+          icon={Receipt}
+          subtitle={`${stats.totalTransactions} transactions`}
+        />
+        <StatCard
+          label="Inventory"
+          value={stats.totalProducts.toString()}
+          icon={Package}
+          subtitle={`${stats.lowStockCount} low, ${stats.outOfStockCount} out`}
+          trend={stats.lowStockCount > 0 ? 'down' : 'up'}
+          trendValue={stats.lowStockCount > 0 ? `${stats.lowStockCount} need attention` : 'All stocked'}
+        />
+        <StatCard
+          label="Pending Orders"
+          value={stats.pendingPOs.toString()}
+          icon={FileText}
+          subtitle={`${stats.totalPurchaseOrders} total`}
+          trend={stats.pendingPOs > 0 ? 'neutral' : 'up'}
+        />
       </div>
 
-      {/* ── Quick actions + Recent transactions ──────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-
-        {/* Quick Actions */}
-        <div className="card p-4 theme-transition">
-          <h3
-            className="text-sm font-semibold mb-3"
-            style={{ color: 'var(--color-text-primary)' }}
-          >
-            Quick Actions
-          </h3>
-          <div className="space-y-2">
-            {(role === 'admin' || role === 'cashier') && (
-              <QuickAction to="/dashboard/pos" label="Start New Sale" icon={ShoppingCart} variant="accent" />
-            )}
-            {(role === 'admin' || role === 'officer') && (
-              <>
-                <QuickAction to="/dashboard/products" label="Manage Products" icon={Package} variant="success" />
-                <QuickAction to="/dashboard/inventory" label="View Inventory" icon={TrendingUp} variant="info" />
-              </>
-            )}
+      {/* ── Charts Section ─────────────────────────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3" style={{ gap: '12px' }}>
+        {/* Daily Sales Chart */}
+        <div className="card" style={{ padding: 0, overflow: 'hidden', background: 'var(--color-bg-surface)', border: '1px solid var(--color-border)', borderRadius: '10px' }}>
+          <SectionHeader icon={BarChart3} title="Daily Sales (7 Days)" linkTo="/dashboard/analytics" />
+          <div style={{ padding: '4px 20px 16px 20px' }}>
+            <ResponsiveContainer width="100%" height={180}>
+              <AreaChart data={dailySalesData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+                <XAxis dataKey="day" stroke="var(--color-text-muted)" fontSize={10} />
+                <YAxis stroke="var(--color-text-muted)" fontSize={10} />
+                <Tooltip content={<CustomTooltip />} />
+                <Area
+                  type="monotone"
+                  dataKey="sales"
+                  name="Sales"
+                  stroke="var(--color-accent)"
+                  fill="var(--color-accent-light)"
+                  fillOpacity={0.3}
+                  strokeWidth={2}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
           </div>
         </div>
 
-        {/* Recent Transactions */}
-        <div className="card p-4 theme-transition">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-              Recent Transactions
-            </h3>
-            <Link
-              to="/dashboard/analytics"
-              className="text-xs font-medium transition-opacity hover:opacity-75"
-              style={{ color: 'var(--color-accent-text)' }}
-            >
-              View all
-            </Link>
+        {/* Payment Methods Pie Chart */}
+        <div className="card" style={{ padding: 0, overflow: 'hidden', background: 'var(--color-bg-surface)', border: '1px solid var(--color-border)', borderRadius: '10px' }}>
+          <SectionHeader icon={PieChartIcon} title="Payment Methods" />
+          <div style={{ padding: '4px 20px 16px 20px' }}>
+            {paymentDistribution.length === 0 ? (
+              <div className="text-center" style={{ padding: '16px 0' }}>
+                <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', margin: 0 }}>No payment data yet</p>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={180}>
+                <PieChart>
+                  <Pie
+                    data={paymentDistribution}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={45}
+                    outerRadius={65}
+                    paddingAngle={2}
+                    dataKey="value"
+                  >
+                    {paymentDistribution.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip content={<CustomTooltip />} />
+                  <Legend wrapperStyle={{ fontSize: '10px', color: 'var(--color-text-secondary)', paddingTop: '8px' }} />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
           </div>
+        </div>
+      </div>
 
-          <div className="space-y-2">
+      {/* ── Quick Actions & Stock Distribution ──────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3" style={{ gap: '12px' }}>
+        {/* Quick Actions */}
+        <div className="lg:col-span-2 card" style={{ padding: 0, overflow: 'hidden', background: 'var(--color-bg-surface)', border: '1px solid var(--color-border)', borderRadius: '10px' }}>
+          <SectionHeader icon={Zap} title="Quick Actions" />
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+            gap: '10px',
+            padding: '4px 20px 20px 20px',
+          }}>
+            {quickActions.map((action) => (
+              <QuickAction
+                key={action.to}
+                to={action.to}
+                label={action.label}
+                icon={action.icon}
+                description={action.description}
+              />
+            ))}
+          </div>
+          {quickActions.length === 0 && (
+            <div className="text-center" style={{ padding: '16px 0' }}>
+              <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', margin: 0 }}>No actions available</p>
+            </div>
+          )}
+        </div>
+
+        {/* Stock Distribution */}
+        <div className="card" style={{ padding: 0, overflow: 'hidden', background: 'var(--color-bg-surface)', border: '1px solid var(--color-border)', borderRadius: '10px' }}>
+          <SectionHeader icon={Package} title="Stock Distribution" />
+          <div style={{ padding: '4px 20px 20px 20px' }}>
+            {products.length === 0 ? (
+              <div className="text-center" style={{ padding: '16px 0' }}>
+                <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', margin: 0 }}>No products data yet</p>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={160}>
+                <BarChart data={stockDistribution} layout="vertical">
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" horizontal={false} />
+                  <XAxis type="number" stroke="var(--color-text-muted)" fontSize={10} allowDecimals={false} />
+                  <YAxis dataKey="name" type="category" stroke="var(--color-text-muted)" fontSize={10} width={65} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Bar dataKey="value" name="Products" radius={[0, 4, 4, 0]}>
+                    {stockDistribution.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Recent Activity ────────────────────────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2" style={{ gap: '12px' }}>
+        {/* Recent Transactions */}
+        <div className="card" style={{ padding: 0, overflow: 'hidden', background: 'var(--color-bg-surface)', border: '1px solid var(--color-border)', borderRadius: '10px' }}>
+          <SectionHeader icon={Receipt} title="Recent Transactions" linkTo="/dashboard/sales" />
+
+          <div style={{
+            padding: '4px 20px 20px 20px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '6px',
+          }}>
             {recentTransactions.length === 0 ? (
-              <div className="text-center py-8">
+              <div className="text-center" style={{ padding: '16px 0' }}>
                 <div
-                  className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3"
-                  style={{ background: 'var(--color-bg-subtle)' }}
+                  className="flex items-center justify-center mx-auto"
+                  style={{ width: 36, height: 36, borderRadius: '9999px', background: 'var(--color-bg-subtle)', marginBottom: '8px' }}
                 >
-                  <Receipt className="h-5 w-5" style={{ color: 'var(--color-text-muted)' }} />
+                  <Receipt style={{ width: 16, height: 16, color: 'var(--color-text-muted)' }} />
                 </div>
-                <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-                  No transactions yet
-                </p>
+                <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', margin: 0 }}>No transactions yet</p>
               </div>
             ) : (
               recentTransactions.map((tx) => (
                 <div
                   key={tx.id ?? tx._id}
-                  className="flex items-center justify-between p-2.5 rounded-xl transition-colors cursor-default"
-                  style={{ background: 'var(--color-bg-subtle)' }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '10px 12px',
+                    borderRadius: '8px',
+                    background: 'var(--color-bg-subtle)',
+                    transition: 'background 150ms ease',
+                    cursor: 'default',
+                    gap: '12px',
+                  }}
                   onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--color-accent-light)')}
                   onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--color-bg-subtle)')}
                 >
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate" style={{ color: 'var(--color-text-primary)' }}>
+                  <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '2px',
+                    flex: 1,
+                    minWidth: 0,
+                  }}>
+                    <p style={{
+                      fontSize: '11px',
+                      fontFamily: 'var(--font-mono)',
+                      color: 'var(--color-text-secondary)',
+                      letterSpacing: '-0.01em',
+                      margin: 0,
+                    }}>
                       {tx.transactionNumber}
                     </p>
-                    <p className="text-xs truncate" style={{ color: 'var(--color-text-muted)' }}>
-                      {new Date(tx.createdAt).toLocaleDateString()}
-                    </p>
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      flexWrap: 'wrap',
+                    }}>
+                      <p style={{
+                        fontSize: '11px',
+                        color: 'var(--color-text-muted)',
+                        margin: 0,
+                      }}>
+                        {new Date(tx.createdAt).toLocaleString()}
+                      </p>
+                    </div>
                   </div>
-                  <div className="text-right flex-shrink-0 ml-3">
-                    <p className="text-sm font-bold" style={{ color: 'var(--color-text-primary)' }}>
+                  <div className="text-right flex-shrink-0" style={{ marginLeft: '8px' }}>
+                    <p style={{
+                      fontSize: '13px',
+                      fontWeight: 700,
+                      color: 'var(--color-text-primary)',
+                      margin: 0,
+                      marginBottom: '2px',
+                      fontVariantNumeric: 'tabular-nums',
+                    }}>
                       GHS {tx.total.toFixed(2)}
                     </p>
                     <span
-                      className="text-xs px-2 py-0.5 rounded-full capitalize"
+                      className="capitalize"
                       style={{
+                        fontSize: '10px',
+                        padding: '2px 8px',
+                        borderRadius: '9999px',
                         background: 'var(--color-bg-surface)',
                         color: 'var(--color-text-secondary)',
                         border: '1px solid var(--color-border)',
+                        display: 'inline-block',
                       }}
                     >
-                      {tx.paymentMethod}
+                      {tx.paymentMethod || 'Cash'}
                     </span>
                   </div>
                 </div>
@@ -280,6 +771,131 @@ export const DashboardHome: React.FC = () => {
           </div>
         </div>
 
+        {/* Recent Activity - Lab Tests & Purchase Orders */}
+        <div className="card" style={{ padding: 0, overflow: 'hidden', background: 'var(--color-bg-surface)', border: '1px solid var(--color-border)', borderRadius: '10px' }}>
+          <SectionHeader icon={List} title="Recent Activity" linkTo="/dashboard/analytics" />
+
+          <div style={{
+            padding: '4px 20px 20px 20px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '6px',
+          }}>
+            {/* Lab Tests Section */}
+            {recentLabTests.length > 0 && (
+              <>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '4px 6px',
+                  marginBottom: '2px',
+                }}>
+                  <FlaskConical style={{ width: 12, height: 12, color: 'var(--color-text-secondary)' }} />
+                  <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+                    Lab Tests
+                  </span>
+                </div>
+                {recentLabTests.map((test) => (
+                  <div
+                    key={test.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '10px 12px',
+                      borderRadius: '8px',
+                      background: 'var(--color-bg-subtle)',
+                      transition: 'background 150ms ease',
+                      cursor: 'default',
+                      gap: '12px',
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--color-accent-light)')}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--color-bg-subtle)')}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="truncate" style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-primary)', margin: 0 }}>
+                        {test.patientName}
+                      </p>
+                      <p style={{ fontSize: '11px', color: 'var(--color-text-muted)', margin: 0, marginTop: '2px' }}>
+                        {test.transactionNumber}
+                      </p>
+                    </div>
+                    <div className="flex-shrink-0" style={{ marginLeft: '8px' }}>
+                      <StatusBadge status={test.status} />
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
+
+            {/* Purchase Orders Section */}
+            {recentPurchaseOrders.length > 0 && (
+              <>
+                {recentLabTests.length > 0 && (
+                  <div style={{ height: '1px', background: 'var(--color-border)', margin: '8px 0' }} />
+                )}
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '4px 6px',
+                  marginBottom: '2px',
+                }}>
+                  <Truck style={{ width: 12, height: 12, color: 'var(--color-text-secondary)' }} />
+                  <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+                    Purchase Orders
+                  </span>
+                </div>
+                {recentPurchaseOrders.map((po) => (
+                  <div
+                    key={po.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '10px 12px',
+                      borderRadius: '8px',
+                      background: 'var(--color-bg-subtle)',
+                      transition: 'background 150ms ease',
+                      cursor: 'default',
+                      gap: '12px',
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--color-accent-light)')}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--color-bg-subtle)')}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="truncate" style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-primary)', margin: 0 }}>
+                        {po.orderNumber}
+                      </p>
+                      <p style={{ fontSize: '11px', color: 'var(--color-text-muted)', margin: 0, marginTop: '2px' }}>
+                        {po.supplierName || 'Supplier'}
+                      </p>
+                    </div>
+                    <div className="text-right flex-shrink-0" style={{ marginLeft: '8px' }}>
+                      <p style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-accent-text)', margin: 0, marginBottom: '2px', fontVariantNumeric: 'tabular-nums' }}>
+                        GHS {po.totalAmount.toFixed(2)}
+                      </p>
+                      <StatusBadge status={po.status} />
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
+
+            {recentLabTests.length === 0 && recentPurchaseOrders.length === 0 && (
+              <div className="text-center" style={{ padding: '16px 0' }}>
+                <div
+                  className="flex items-center justify-center mx-auto"
+                  style={{ width: 36, height: 36, borderRadius: '9999px', background: 'var(--color-bg-subtle)', marginBottom: '8px' }}
+                >
+                  <Box style={{ width: 16, height: 16, color: 'var(--color-text-muted)' }} />
+                </div>
+                <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', margin: 0 }}>No recent activity</p>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );

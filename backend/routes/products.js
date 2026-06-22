@@ -8,7 +8,10 @@ const router = express.Router();
 // Get all products
 router.get('/', auth, async (req, res) => {
   try {
-    const products = await Product.findAll({ order: [['createdAt', 'DESC']] });
+    const products = await Product.findAll({
+      where: { deletedAt: null }, // Exclude soft-deleted
+      order: [['createdAt', 'DESC']]
+    });
     res.json(products);
   } catch (err) {
     console.error('Error fetching products:', err);
@@ -23,6 +26,7 @@ router.get('/search/:query', auth, async (req, res) => {
     const { query } = req.params;
     const products = await Product.findAll({
       where: {
+        deletedAt: null, // Exclude soft-deleted
         [Op.or]: [
           { barcode: { [Op.iLike]: `%${query}%` } },
           { name: { [Op.iLike]: `%${query}%` } },
@@ -76,11 +80,34 @@ router.delete('/:id', auth, adminAuth, async (req, res) => {
   try {
     const product = await Product.findByPk(req.params.id);
     if (!product) return res.status(404).json({ msg: 'Product not found' });
-    await product.destroy();
-    res.json({ msg: 'Product deleted' });
+
+    // Check if product has transactions
+    const Transaction = require('../models/Transaction');
+    const transactions = await Transaction.findAll({
+      where: {
+        items: {
+          [Op.contains]: [{ productId: product.id }]
+        }
+      },
+      limit: 1 // We just need to check if any exist
+    });
+
+    if (transactions.length > 0) {
+      // Instead of preventing deletion, we soft delete
+      // This preserves transaction history
+      await product.destroy(); // This will set deletedAt (soft delete)
+      return res.json({
+        msg: 'Product archived successfully. It has existing transactions.',
+        archived: true
+      });
+    }
+
+    // If no transactions, hard delete
+    await product.destroy({ force: true }); // Force hard delete
+    res.json({ msg: 'Product deleted permanently' });
   } catch (err) {
+    console.error('Delete product error:', err);
     res.status(500).json({ msg: 'Server error' });
   }
 });
-
 module.exports = router;

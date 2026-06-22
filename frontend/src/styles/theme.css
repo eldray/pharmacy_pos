@@ -1,221 +1,317 @@
 /* src/styles/theme.css
    Single source of truth for all design tokens.
-   Every color in the app must come from one of these variables.
-   Never use hardcoded Tailwind color classes (bg-slate-900, text-purple-500, etc.)
-   in component files — use the semantic variables below instead.
+   Palette direction: Clinical pharmacy — cool grays for cleanliness,
+   teal/cyan for trustworthiness, muted green for health/growth.
+   Never use hardcoded Tailwind color classes in component files.
 */
 
-/* ─── LIGHT THEME (clinical white / medical professional) ─────────────────── */
+/* ─── LIGHT THEME (clinical, clean) ───────────────────────────────────────── */
 :root,
 [data-theme="light"] {
 
-    /* Surface layers */
-    --color-bg-base: #F8F9FC;
-    /* page background — cool clinical white    */
+    /* Surface layers — cool grays, not warm cream */
+    --color-bg-base: #F1F5F9;
+    /* cool light gray — sterile, clean              */
     --color-bg-surface: #FFFFFF;
-    /* card / panel surface                     */
+    /* card / panel surface                          */
     --color-bg-elevated: #FFFFFF;
-    /* modals, dropdowns                        */
-    --color-bg-subtle: #F1F3F9;
-    /* input fills, table zebra, muted areas    */
-    --color-bg-overlay: rgba(15, 23, 42, 0.45);
-    /* modal backdrop             */
+    /* modals, dropdowns                             */
+    --color-bg-subtle: #E2E8F0;
+    /* input fills, table zebra, muted areas         */
+    --color-bg-overlay: rgba(15, 23, 42, 0.50);
+    /* modal backdrop                                */
 
-    /* Sidebar */
+    /* Sidebar — dark teal-gray, professional */
     --color-sidebar-bg: #0F172A;
-    /* always dark — medical equipment feel   */
-    --color-sidebar-border: rgba(255, 255, 255, 0.08);
-    --color-sidebar-text: rgba(255, 255, 255, 0.70);
-    --color-sidebar-text-active: #FFFFFF;
-    --color-sidebar-item-active: rgba(255, 255, 255, 0.12);
-    --color-sidebar-item-hover: rgba(255, 255, 255, 0.07);
-    --color-sidebar-badge-bg: rgba(255, 255, 255, 0.10);
-
-    /* Navbar */
-    --color-navbar-bg: #FFFFFF;
-    --color-navbar-border: #E4E7EF;
-    --color-navbar-text: #1E293B;
-
-    /* Brand / accent — purple */
-    --color-accent: #7C3AED;
-    /* purple-600                               */
-    --color-accent-hover: #6D28D9;
-    /* purple-700                               */
-    --color-accent-light: #EDE9FE;
-    /* purple-100                               */
-    --color-accent-text: #7C3AED;
-    --color-accent-fg: #FFFFFF;
-    /* text on accent bg                        */
-
-    /* Gradient — brand header, login, sidebar header strip */
-    --gradient-brand: linear-gradient(135deg, #1E1B4B 0%, #4C1D95 50%, #1E1B4B 100%);
-    --gradient-accent: linear-gradient(135deg, #7C3AED 0%, #6366F1 100%);
-    --gradient-card-accent: linear-gradient(135deg, #7C3AED22 0%, #6366F111 100%);
-
-    /* Typography */
-    --color-text-primary: #0F172A;
-    /* headings, labels                         */
-    --color-text-secondary: #475569;
-    /* subtext, descriptions                    */
-    --color-text-muted: #94A3B8;
-    /* placeholders, disabled                   */
-    --color-text-inverse: #FFFFFF;
-    /* text on dark backgrounds                 */
-
-    /* Borders */
-    --color-border: #E4E7EF;
-    --color-border-strong: #CBD5E1;
-    --color-border-focus: #7C3AED;
-
-    /* Semantic — status colors */
-    --color-success: #059669;
-    --color-success-light: #D1FAE5;
-    --color-success-text: #065F46;
-
-    --color-warning: #D97706;
-    --color-warning-light: #FEF3C7;
-    --color-warning-text: #92400E;
-
-    --color-danger: #DC2626;
-    --color-danger-light: #FEE2E2;
-    --color-danger-text: #991B1B;
-
-    --color-info: #0284C7;
-    --color-info-light: #E0F2FE;
-    --color-info-text: #0C4A6E;
-
-    /* Role badge colors */
-    --color-role-admin: #7C3AED;
-    --color-role-admin-bg: #EDE9FE;
-    --color-role-cashier: #059669;
-    --color-role-cashier-bg: #D1FAE5;
-    --color-role-officer: #0284C7;
-    --color-role-officer-bg: #E0F2FE;
-    --color-role-lab: #6366F1;
-    --color-role-lab-bg: #EEF2FF;
-
-    /* Input */
-    --color-input-bg: #FFFFFF;
-    --color-input-border: #D1D5DB;
-    --color-input-border-focus: #7C3AED;
-    --color-input-text: #0F172A;
-    --color-input-placeholder: #94A3B8;
-    --color-input-ring: rgba(124, 58, 237, 0.25);
-
-    /* Shadows */
-    --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
-    --shadow-md: 0 4px 12px rgba(15, 23, 42, 0.08);
-    --shadow-lg: 0 8px 24px rgba(15, 23, 42, 0.10);
-    --shadow-xl: 0 16px 40px rgba(15, 23, 42, 0.12);
-    --shadow-card: 0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
-
-    /* Radii */
-    --radius-sm: 6px;
-    --radius-md: 10px;
-    --radius-lg: 14px;
-    --radius-xl: 20px;
-    --radius-full: 9999px;
-
-    /* Transitions */
-    --transition-fast: 150ms ease;
-    --transition-normal: 200ms ease;
-    --transition-slow: 300ms ease;
-}
-
-/* ─── DARK THEME (deep navy / professional) ───────────────────────────────── */
-[data-theme="dark"] {
-
-    /* Surface layers — navy depth scale */
-    --color-bg-base: #0B1120;
-    /* deepest navy — page background           */
-    --color-bg-surface: #111827;
-    /* cards, panels                            */
-    --color-bg-elevated: #1A2336;
-    /* modals, dropdowns                        */
-    --color-bg-subtle: #1E2A40;
-    /* inputs, zebra rows, muted zones          */
-    --color-bg-overlay: rgba(0, 0, 0, 0.60);
-
-    /* Sidebar — slightly lighter than page bg to create depth */
-    --color-sidebar-bg: #0D1526;
     --color-sidebar-border: rgba(255, 255, 255, 0.06);
-    --color-sidebar-text: rgba(255, 255, 255, 0.60);
-    --color-sidebar-text-active: #FFFFFF;
-    --color-sidebar-item-active: rgba(124, 58, 237, 0.25);
+    --color-sidebar-text: rgba(248, 250, 252, 0.60);
+    --color-sidebar-text-active: #F8FAFC;
+    --color-sidebar-item-active: rgba(14, 116, 144, 0.20);
     --color-sidebar-item-hover: rgba(255, 255, 255, 0.05);
     --color-sidebar-badge-bg: rgba(255, 255, 255, 0.08);
 
     /* Navbar */
-    --color-navbar-bg: #111827;
-    --color-navbar-border: rgba(255, 255, 255, 0.07);
-    --color-navbar-text: #F1F5F9;
+    --color-navbar-bg: #FFFFFF;
+    --color-navbar-border: #E2E8F0;
+    --color-navbar-text: #0F172A;
 
-    /* Brand / accent — purple stays, slightly brighter on dark */
-    --color-accent: #8B5CF6;
-    /* purple-500 — more visible on dark        */
-    --color-accent-hover: #7C3AED;
-    --color-accent-light: rgba(139, 92, 246, 0.15);
-    --color-accent-text: #A78BFA;
+    /* Primary accent — clinical teal */
+    --color-accent: #0E7490;
+    /* teal-700: trustworthy, clinical              */
+    --color-accent-hover: #0C5E73;
+    --color-accent-light: #E0F7FA;
+    --color-accent-text: #0C5E73;
     --color-accent-fg: #FFFFFF;
 
-    --gradient-brand: linear-gradient(135deg, #0D1526 0%, #1E1B4B 50%, #0D1526 100%);
-    --gradient-accent: linear-gradient(135deg, #7C3AED 0%, #6366F1 100%);
-    --gradient-card-accent: linear-gradient(135deg, #7C3AED22 0%, #6366F111 100%);
+    /* Secondary accent — health green */
+    --color-accent2: #15803D;
+    /* green-700: health, growth, safety            */
+    --color-accent2-hover: #166534;
+    --color-accent2-light: #DCFCE7;
+    --color-accent2-text: #15803D;
+
+    /* Gradients */
+    --gradient-brand: linear-gradient(135deg, #0F172A 0%, #134E4A 50%, #0F172A 100%);
+    --gradient-accent: linear-gradient(135deg, #0E7490 0%, #06B6D4 100%);
+    --gradient-card-accent: linear-gradient(135deg, #0E749011 0%, #15803D08 100%);
+
+    /* Typography — slate scale, high contrast */
+    --color-text-primary: #0F172A;
+    /* headings, labels — near-black                 */
+    --color-text-secondary: #475569;
+    /* subtext, descriptions — medium gray           */
+    --color-text-muted: #94A3B8;
+    /* placeholders, disabled — light gray           */
+    --color-text-inverse: #F8FAFC;
+    /* text on dark backgrounds                      */
+
+    /* Borders — cool grays */
+    --color-border: #E2E8F0;
+    --color-border-strong: #CBD5E1;
+    --color-border-focus: #0E7490;
+
+    /* Semantic — status colors (clinical) */
+    --color-success: #16A34A;
+    /* green-600: safe, available, completed        */
+    --color-success-light: #DCFCE7;
+    --color-success-text: #15803D;
+
+    --color-warning: #D97706;
+    /* amber-600: caution, low stock, pending       */
+    --color-warning-light: #FEF3C7;
+    --color-warning-text: #92400E;
+
+    --color-danger: #DC2626;
+    /* red-600: error, expired, contraindicated      */
+    --color-danger-light: #FEE2E2;
+    --color-danger-text: #991B1B;
+
+    --color-info: #0284C7;
+    /* sky-600: informational, neutral               */
+    --color-info-light: #E0F2FE;
+    --color-info-text: #075985;
+
+    /* Role badge colors */
+    --color-role-admin: #0E7490;
+    --color-role-admin-bg: #E0F7FA;
+    --color-role-cashier: #16A34A;
+    --color-role-cashier-bg: #DCFCE7;
+    --color-role-officer: #0284C7;
+    --color-role-officer-bg: #E0F2FE;
+    --color-role-lab: #7C3AED;
+    /* violet for lab — distinct from clinical teal */
+    --color-role-lab-bg: #EDE9FE;
+
+    /* Input */
+    --color-input-bg: #FFFFFF;
+    --color-input-border: #CBD5E1;
+    --color-input-border-focus: #0E7490;
+    --color-input-text: #0F172A;
+    --color-input-placeholder: #94A3B8;
+    --color-input-ring: rgba(14, 116, 144, 0.20);
+
+    /* Shadows — cool-toned */
+    --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
+    --shadow-md: 0 4px 12px rgba(15, 23, 42, 0.06);
+    --shadow-lg: 0 8px 24px rgba(15, 23, 42, 0.08);
+    --shadow-xl: 0 16px 40px rgba(15, 23, 42, 0.10);
+    --shadow-card: 0 1px 3px rgba(15, 23, 42, 0.05), 0 1px 2px rgba(15, 23, 42, 0.03);
+
+    /* Radii */
+    --radius-xs: 4px;
+    --radius-sm: 6px;
+    --radius-md: 8px;
+    --radius-lg: 10px;
+    --radius-xl: 14px;
+    --radius-2xl: 20px;
+    --radius-full: 9999px;
+
+    /* Transitions */
+    --transition-instant: 100ms ease;
+    --transition-fast: 150ms ease;
+    --transition-normal: 200ms ease;
+    --transition-slow: 300ms ease;
+
+    /* Typography scale */
+    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --font-mono: 'JetBrains Mono', 'SF Mono', 'Cascadia Code', monospace;
+    --text-xs: 0.6875rem;
+    --text-sm: 0.75rem;
+    --text-base: 0.8125rem;
+    --text-md: 0.875rem;
+    --text-lg: 1rem;
+    --text-xl: 1.125rem;
+    --text-2xl: 1.25rem;
+    --text-3xl: 1.5rem;
+    --leading-tight: 1.25;
+    --leading-normal: 1.5;
+    --tracking-tight: -0.01em;
+    --tracking-normal: 0;
+    --tracking-wide: 0.02em;
+
+    /* ─── SPACING SCALE (INCREASED FOR BETTER PADDING) ─── */
+    --space-0: 0;
+    --space-0.5: 2px;
+    --space-1: 4px;
+    --space-1.5: 6px;
+    --space-2: 8px;
+    --space-2.5: 10px;
+    --space-3: 12px;
+    /* ← INCREASED from 10px */
+    --space-3.5: 14px;
+    /* ← NEW */
+    --space-4: 16px;
+    /* ← INCREASED from 12px */
+    --space-4.5: 18px;
+    /* ← NEW */
+    --space-5: 20px;
+    /* ← INCREASED from 16px */
+    --space-6: 24px;
+    /* ← INCREASED from 20px */
+    --space-7: 28px;
+    /* ← NEW */
+    --space-8: 32px;
+    /* ← INCREASED from 24px */
+    --space-10: 40px;
+    /* ← INCREASED from 32px */
+    --space-12: 48px;
+    /* ← INCREASED from 40px */
+    --space-16: 64px;
+    /* ← NEW */
+
+    /* Layout dimensions */
+    --sidebar-width: 240px;
+    /* ← INCREASED from 232px */
+    --navbar-height: 56px;
+    /* ← INCREASED from 52px */
+    --content-max-width: 1440px;
+
+    /* Z-index layers */
+    --z-base: 0;
+    --z-dropdown: 30;
+    --z-sticky: 35;
+    --z-overlay: 40;
+    --z-sidebar: 50;
+    --z-modal: 60;
+    --z-toast: 70;
+
+    /* Component sizing */
+    --input-height: 38px;
+    /* ← INCREASED from 32px */
+    --input-height-sm: 32px;
+    /* ← INCREASED from 28px */
+    --btn-height: 36px;
+    /* ← INCREASED from 32px */
+    --btn-height-sm: 32px;
+    /* ← INCREASED from 28px */
+    --btn-height-lg: 42px;
+    /* ← INCREASED from 36px */
+    --icon-sm: 14px;
+    --icon-md: 16px;
+    --icon-lg: 18px;
+    --icon-xl: 20px;
+}
+
+/* ─── DARK THEME (dark blue-gray, not harsh black) ────────────────────────── */
+[data-theme="dark"] {
+
+    /* Surface layers — blue-gray, not pure black */
+    --color-bg-base: #0F172A;
+    /* slate-900: dark but not harsh              */
+    --color-bg-surface: #1E293B;
+    /* slate-800                                   */
+    --color-bg-elevated: #334155;
+    /* slate-700                                   */
+    --color-bg-subtle: #1E293B;
+    --color-bg-overlay: rgba(0, 0, 0, 0.60);
+
+    /* Sidebar — one notch darker than base */
+    --color-sidebar-bg: #0B1120;
+    --color-sidebar-border: rgba(255, 255, 255, 0.06);
+    --color-sidebar-text: rgba(248, 250, 252, 0.55);
+    --color-sidebar-text-active: #F8FAFC;
+    --color-sidebar-item-active: rgba(6, 182, 212, 0.15);
+    --color-sidebar-item-hover: rgba(255, 255, 255, 0.04);
+    --color-sidebar-badge-bg: rgba(255, 255, 255, 0.06);
+
+    /* Navbar */
+    --color-navbar-bg: #1E293B;
+    --color-navbar-border: rgba(255, 255, 255, 0.06);
+    --color-navbar-text: #F8FAFC;
+
+    /* Primary accent — brighter cyan for dark bg */
+    --color-accent: #22D3EE;
+    /* cyan-400: visible but not harsh              */
+    --color-accent-hover: #06B6D4;
+    --color-accent-light: rgba(34, 211, 238, 0.12);
+    --color-accent-text: #67E8F9;
+    --color-accent-fg: #0C4A6E;
+
+    /* Secondary accent */
+    --color-accent2: #4ADE80;
+    /* green-400                                   */
+    --color-accent2-hover: #22C55E;
+    --color-accent2-light: rgba(74, 222, 128, 0.12);
+    --color-accent2-text: #86EFAC;
+
+    --gradient-brand: linear-gradient(135deg, #0B1120 0%, #134E4A 50%, #0B1120 100%);
+    --gradient-accent: linear-gradient(135deg, #0E7490 0%, #22D3EE 100%);
+    --gradient-card-accent: linear-gradient(135deg, #22D3EE11 0%, #4ADE8008 100%);
 
     /* Typography */
-    --color-text-primary: #F1F5F9;
+    --color-text-primary: #F8FAFC;
     --color-text-secondary: #94A3B8;
-    --color-text-muted: #475569;
+    --color-text-muted: #64748B;
     --color-text-inverse: #0F172A;
 
     /* Borders */
     --color-border: rgba(255, 255, 255, 0.08);
     --color-border-strong: rgba(255, 255, 255, 0.15);
-    --color-border-focus: #8B5CF6;
+    --color-border-focus: #22D3EE;
 
-    /* Semantic */
-    --color-success: #10B981;
-    --color-success-light: rgba(16, 185, 129, 0.15);
-    --color-success-text: #6EE7B7;
+    /* Semantic — brighter for dark bg */
+    --color-success: #4ADE80;
+    --color-success-light: rgba(74, 222, 128, 0.12);
+    --color-success-text: #86EFAC;
 
-    --color-warning: #F59E0B;
-    --color-warning-light: rgba(245, 158, 11, 0.15);
-    --color-warning-text: #FCD34D;
+    --color-warning: #FBBF24;
+    --color-warning-light: rgba(251, 191, 36, 0.12);
+    --color-warning-text: #FDE68A;
 
-    --color-danger: #EF4444;
-    --color-danger-light: rgba(239, 68, 68, 0.15);
+    --color-danger: #F87171;
+    --color-danger-light: rgba(248, 113, 113, 0.12);
     --color-danger-text: #FCA5A5;
 
     --color-info: #38BDF8;
-    --color-info-light: rgba(56, 189, 248, 0.15);
+    --color-info-light: rgba(56, 189, 248, 0.12);
     --color-info-text: #7DD3FC;
 
-    /* Role badges — desaturated for dark bg */
-    --color-role-admin: #A78BFA;
-    --color-role-admin-bg: rgba(139, 92, 246, 0.15);
-    --color-role-cashier: #34D399;
-    --color-role-cashier-bg: rgba(16, 185, 129, 0.15);
-    --color-role-officer: #38BDF8;
-    --color-role-officer-bg: rgba(56, 189, 248, 0.15);
-    --color-role-lab: #818CF8;
-    --color-role-lab-bg: rgba(99, 102, 241, 0.15);
+    /* Role badges */
+    --color-role-admin: #67E8F9;
+    --color-role-admin-bg: rgba(34, 211, 238, 0.12);
+    --color-role-cashier: #86EFAC;
+    --color-role-cashier-bg: rgba(74, 222, 128, 0.12);
+    --color-role-officer: #7DD3FC;
+    --color-role-officer-bg: rgba(56, 189, 248, 0.12);
+    --color-role-lab: #C4B5FD;
+    --color-role-lab-bg: rgba(124, 58, 237, 0.12);
 
     /* Input */
-    --color-input-bg: #1E2A40;
+    --color-input-bg: #1E293B;
     --color-input-border: rgba(255, 255, 255, 0.10);
-    --color-input-border-focus: #8B5CF6;
-    --color-input-text: #F1F5F9;
-    --color-input-placeholder: #475569;
-    --color-input-ring: rgba(139, 92, 246, 0.30);
+    --color-input-border-focus: #22D3EE;
+    --color-input-text: #F8FAFC;
+    --color-input-placeholder: #64748B;
+    --color-input-ring: rgba(34, 211, 238, 0.25);
 
     /* Shadows — more opaque on dark */
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.20);
-    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.30);
-    --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.40);
-    --shadow-xl: 0 16px 40px rgba(0, 0, 0, 0.50);
-    --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.25), 0 1px 2px rgba(0, 0, 0, 0.20);
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.25);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.35);
+    --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.45);
+    --shadow-xl: 0 16px 40px rgba(0, 0, 0, 0.55);
+    --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.30), 0 1px 2px rgba(0, 0, 0, 0.20);
 
-    /* Radii + transitions inherit from :root */
+    /* All spacing, sizing, and other tokens inherit from :root */
 }
 
 /* ─── BASE RESETS ─────────────────────────────────────────────────────────── */
@@ -228,18 +324,31 @@
 html {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    font-size: 16px;
 }
 
 body {
+    margin: 0;
+    font-family: var(--font-sans);
+    font-size: var(--text-base);
+    line-height: var(--leading-normal);
+    letter-spacing: var(--tracking-normal);
     background-color: var(--color-bg-base);
     color: var(--color-text-primary);
-    transition: background-color var(--transition-slow), color var(--transition-slow);
+    transition:
+        background-color var(--transition-slow),
+        color var(--transition-slow);
+}
+
+.tabular-nums,
+[data-tabular] {
+    font-variant-numeric: tabular-nums;
 }
 
 /* ─── SCROLLBAR ───────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+    width: 5px;
+    height: 5px;
 }
 
 ::-webkit-scrollbar-track {
@@ -297,6 +406,35 @@ body {
     color: var(--color-accent-text);
 }
 
+/* Text size */
+.text-xs {
+    font-size: var(--text-xs);
+}
+
+.text-sm {
+    font-size: var(--text-sm);
+}
+
+.text-base {
+    font-size: var(--text-base);
+}
+
+.text-md {
+    font-size: var(--text-md);
+}
+
+.text-lg {
+    font-size: var(--text-lg);
+}
+
+.text-xl {
+    font-size: var(--text-xl);
+}
+
+.text-2xl {
+    font-size: var(--text-2xl);
+}
+
 /* Border */
 .border-theme {
     border-color: var(--color-border);
@@ -323,13 +461,20 @@ body {
     box-shadow: var(--shadow-card);
 }
 
-/* Input base */
+/* Input base - UPDATED with larger padding */
 .input-base {
+    font-family: var(--font-sans);
+    font-size: var(--text-base);
     background-color: var(--color-input-bg);
     border: 1px solid var(--color-input-border);
     border-radius: var(--radius-md);
     color: var(--color-input-text);
-    transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+    height: var(--input-height);
+    padding: 0 var(--space-3.5);
+    /* ← INCREASED from var(--space-2.5) */
+    transition:
+        border-color var(--transition-fast),
+        box-shadow var(--transition-fast);
 }
 
 .input-base::placeholder {
@@ -338,17 +483,53 @@ body {
 
 .input-base:focus {
     border-color: var(--color-input-border-focus);
-    box-shadow: 0 0 0 3px var(--color-input-ring);
+    box-shadow: 0 0 0 2px var(--color-input-ring);
     outline: none;
 }
 
-/* Button — accent */
+/* Select base - UPDATED with larger padding */
+.select-base {
+    font-family: var(--font-sans);
+    font-size: var(--text-base);
+    background-color: var(--color-input-bg);
+    border: 1px solid var(--color-input-border);
+    border-radius: var(--radius-md);
+    color: var(--color-input-text);
+    height: var(--input-height);
+    padding: 0 var(--space-3.5);
+    /* ← INCREASED from var(--space-2.5) */
+    appearance: none;
+    cursor: pointer;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%2394A3B8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    transition:
+        border-color var(--transition-fast),
+        box-shadow var(--transition-fast);
+}
+
+.select-base:focus {
+    border-color: var(--color-input-border-focus);
+    box-shadow: 0 0 0 2px var(--color-input-ring);
+    outline: none;
+}
+
+/* Button — accent - UPDATED with larger padding */
 .btn-accent {
+    font-family: var(--font-sans);
+    font-size: var(--text-base);
+    font-weight: 600;
+    height: var(--btn-height);
+    padding: 0 var(--space-4.5);
+    /* ← INCREASED from var(--space-4) */
     background: var(--gradient-accent);
     color: var(--color-accent-fg);
+    border: none;
     border-radius: var(--radius-md);
-    font-weight: 600;
-    transition: opacity var(--transition-fast), transform var(--transition-fast);
+    cursor: pointer;
+    transition:
+        opacity var(--transition-fast),
+        transform var(--transition-instant);
 }
 
 .btn-accent:hover {
@@ -367,14 +548,22 @@ body {
     transform: none;
 }
 
-/* Button — ghost */
+/* Button — ghost - UPDATED with larger padding */
 .btn-ghost {
+    font-family: var(--font-sans);
+    font-size: var(--text-base);
+    font-weight: 500;
+    height: var(--btn-height);
+    padding: 0 var(--space-4.5);
+    /* ← INCREASED from var(--space-4) */
     background: transparent;
     color: var(--color-text-secondary);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
-    font-weight: 500;
-    transition: background-color var(--transition-fast), color var(--transition-fast);
+    cursor: pointer;
+    transition:
+        background-color var(--transition-fast),
+        color var(--transition-fast);
 }
 
 .btn-ghost:hover {
@@ -382,46 +571,106 @@ body {
     color: var(--color-text-primary);
 }
 
-/* Status badges */
+/* Button — success - UPDATED with larger padding */
+.btn-success {
+    font-family: var(--font-sans);
+    font-size: var(--text-base);
+    font-weight: 600;
+    height: var(--btn-height-lg);
+    padding: 0 var(--space-5);
+    /* ← INCREASED from var(--space-4) */
+    background: var(--color-success);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-lg);
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(22, 163, 74, 0.25);
+    transition:
+        opacity var(--transition-fast),
+        transform var(--transition-instant);
+}
+
+.btn-success:hover {
+    opacity: 0.92;
+    transform: translateY(-1px);
+}
+
+.btn-success:active {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.btn-success:disabled {
+    background: var(--color-bg-subtle);
+    color: var(--color-text-muted);
+    box-shadow: none;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* Status badges - UPDATED with larger padding */
 .badge-success {
     background-color: var(--color-success-light);
     color: var(--color-success-text);
+    padding: 2px 10px;
+    /* ← INCREASED from 2px 6px */
 }
 
 .badge-warning {
     background-color: var(--color-warning-light);
     color: var(--color-warning-text);
+    padding: 2px 10px;
+    /* ← INCREASED from 2px 6px */
 }
 
 .badge-danger {
     background-color: var(--color-danger-light);
     color: var(--color-danger-text);
+    padding: 2px 10px;
+    /* ← INCREASED from 2px 6px */
 }
 
 .badge-info {
     background-color: var(--color-info-light);
     color: var(--color-info-text);
+    padding: 2px 10px;
+    /* ← INCREASED from 2px 6px */
 }
 
-/* Role badges */
+.badge-secondary {
+    background-color: var(--color-accent2-light);
+    color: var(--color-accent2-text);
+    padding: 2px 10px;
+    /* ← INCREASED from 2px 6px */
+}
+
+/* Role badges - UPDATED with larger padding */
 .badge-admin {
     background-color: var(--color-role-admin-bg);
     color: var(--color-role-admin);
+    padding: 2px 12px;
+    /* ← INCREASED */
 }
 
 .badge-cashier {
     background-color: var(--color-role-cashier-bg);
     color: var(--color-role-cashier);
+    padding: 2px 12px;
+    /* ← INCREASED */
 }
 
 .badge-officer {
     background-color: var(--color-role-officer-bg);
     color: var(--color-role-officer);
+    padding: 2px 12px;
+    /* ← INCREASED */
 }
 
 .badge-lab {
     background-color: var(--color-role-lab-bg);
     color: var(--color-role-lab);
+    padding: 2px 12px;
+    /* ← INCREASED */
 }
 
 /* Divider */
@@ -436,4 +685,66 @@ body {
         border-color var(--transition-slow),
         color var(--transition-slow),
         box-shadow var(--transition-slow);
+}
+
+/* Layout utility classes */
+.layout-sidebar {
+    width: var(--sidebar-width);
+}
+
+.layout-navbar {
+    height: var(--navbar-height);
+}
+
+.layout-content {
+    margin-left: var(--sidebar-width);
+    padding-top: var(--navbar-height);
+}
+
+/* ─── DROPDOWN ANIMATION ──────────────────────────────────────────────────── */
+@keyframes dropdownFadeIn {
+    from {
+        opacity: 0;
+        transform: scale(0.95) translateY(-4px);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+.dropdown-animate {
+    animation: dropdownFadeIn 0.15s ease;
+    transform-origin: top right;
+}
+
+/* ─── RESPONSIVE FIXES ────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+    :root {
+        --sidebar-width: 0px;
+        --navbar-height: 52px;
+        --input-height: 36px;
+        --btn-height: 34px;
+        --btn-height-lg: 40px;
+        --space-3: 10px;
+        --space-4: 14px;
+        --space-5: 18px;
+        --space-6: 22px;
+        --space-8: 28px;
+    }
+}
+
+@media (max-width: 480px) {
+    :root {
+        --input-height: 34px;
+        --btn-height: 32px;
+        --btn-height-lg: 38px;
+        --space-2: 6px;
+        --space-2.5: 8px;
+        --space-3: 8px;
+        --space-4: 12px;
+        --space-5: 16px;
+        --space-6: 20px;
+    }
 }

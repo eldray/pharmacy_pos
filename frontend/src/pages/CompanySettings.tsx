@@ -1,526 +1,545 @@
 // src/pages/CompanySettings.tsx
 import React, { useState, useEffect } from 'react';
 import {
-  Save,
-  Building,
-  Mail,
-  Phone,
-  MapPin,
-  Receipt,
-  Shield,
-  Users,
-  Plus,
-  Edit2,
-  Trash2,
-  User,
-  Search,
-  Eye,
-  EyeOff,
-  FlaskConical
+  Save, Building, Mail, Phone, MapPin, Receipt,
+  X, CheckCircle, Settings, Globe, Clock,
+  User, Award, Shield, Calendar
 } from 'lucide-react';
 import { useAppStore } from '../store';
-import { User as UserType, UserRole } from '../types';
-import { Card } from '../components/ui/Card';
+
+/* ── Tabular number wrapper ─────────────────────────────────────────── */
+const Num: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <span style={{ fontVariantNumeric: 'tabular-nums' }}>{children}</span>
+);
+
+/* ── Shared field helpers ─────────────────────────────────────────────── */
+const fieldStyle: React.CSSProperties = {
+  background: 'var(--color-input-bg)',
+  border: '1px solid var(--color-input-border)',
+  borderRadius: 'var(--radius-md)',
+  color: 'var(--color-input-text)',
+  outline: 'none',
+  fontSize: '0.8125rem',
+  padding: '7px 10px',
+  width: '100%',
+  transition: 'border-color 100ms ease, box-shadow 100ms ease',
+};
+
+const onF = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+  e.currentTarget.style.borderColor = 'var(--color-input-border-focus)';
+  e.currentTarget.style.boxShadow = '0 0 0 2px var(--color-input-ring)';
+};
+
+const onB = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+  e.currentTarget.style.borderColor = 'var(--color-input-border)';
+  e.currentTarget.style.boxShadow = 'none';
+};
+
+const labelStyle: React.CSSProperties = {
+  display: 'block',
+  fontSize: '0.7rem',
+  fontWeight: 500,
+  marginBottom: 6,
+  color: 'var(--color-text-muted)',
+};
+
+/* ─── Company Details Card ─────────────────────────────────────────────── */
+const DetailCard: React.FC<{
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+}> = ({ icon, label, value }) => (
+  <div
+    className="flex items-center gap-3 p-3 rounded-xl transition-colors"
+    style={{ background: 'var(--color-bg-subtle)' }}
+  >
+    <div
+      className="flex items-center justify-center flex-shrink-0"
+      style={{
+        width: 32,
+        height: 32,
+        borderRadius: 'var(--radius-sm)',
+        background: 'var(--color-accent-light)',
+        color: 'var(--color-accent-text)',
+      }}
+    >
+      {icon}
+    </div>
+    <div className="flex-1 min-w-0">
+      <p className="text-[0.6rem] font-medium uppercase tracking-wide" style={{ color: 'var(--color-text-muted)' }}>
+        {label}
+      </p>
+      <p className="text-[0.82rem] font-medium truncate" style={{ color: 'var(--color-text-primary)' }}>
+        {value || 'Not set'}
+      </p>
+    </div>
+  </div>
+);
 
 export const CompanySettings: React.FC = () => {
-  const { currentUser, company, updateCompany, fetchUsers, users, addUser, updateUser } = useAppStore();
-  const [activeTab, setActiveTab] = useState('company');
-  const [showUserModal, setShowUserModal] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [editingUser, setEditingUser] = useState<UserType | null>(null);
-  const [showPassword, setShowPassword] = useState(false);
+  const { company, updateCompany } = useAppStore();
+  const [activeTab, setActiveTab] = useState<'company' | 'address' | 'receipt'>('company');
   const [isLoading, setIsLoading] = useState(false);
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // Company Settings Form Data
-  const [companyFormData, setCompanyFormData] = useState({
+  const [formData, setFormData] = useState({
     name: '',
     logo: '',
-    address: {
-      street: '',
-      city: '',
-      state: '',
-      zipCode: '',
-      country: ''
-    },
-    contact: {
-      phone: '',
-      email: '',
-      website: ''
-    },
     taxId: '',
-    receiptSettings: {
-      header: '',
-      footer: '',
-      taxRate: 15,
-      includeTaxId: false
-    }
-  });
-
-  // User Management Form Data
-  const [userFormData, setUserFormData] = useState({
-    name: '',
-    email: '',
-    password: '',
-    role: 'cashier' as UserRole,
+    address: { street: '', city: '', state: '', zipCode: '', country: 'Ghana' },
+    contact: { phone: '', email: '', website: '' },
+    receiptSettings: { header: '', footer: '', taxRate: 15, includeTaxId: false },
   });
 
   useEffect(() => {
     if (company) {
-      setCompanyFormData({
+      setFormData({
         name: company.name || '',
         logo: company.logo || '',
+        taxId: company.taxId || '',
         address: {
           street: company.address?.street || '',
           city: company.address?.city || '',
           state: company.address?.state || '',
           zipCode: company.address?.zipCode || '',
-          country: company.address?.country || 'Ghana'
+          country: company.address?.country || 'Ghana',
         },
         contact: {
           phone: company.contact?.phone || '',
           email: company.contact?.email || '',
-          website: company.contact?.website || ''
+          website: company.contact?.website || '',
         },
-        taxId: company.taxId || '',
         receiptSettings: {
-          header: company.receiptSettings?.header || 'Thank you for your business!',
-          footer: company.receiptSettings?.footer || 'We hope to see you again soon!',
+          header: company.receiptSettings?.header || '',
+          footer: company.receiptSettings?.footer || '',
           taxRate: company.receiptSettings?.taxRate || 15,
-          includeTaxId: company.receiptSettings?.includeTaxId || false
-        }
+          includeTaxId: company.receiptSettings?.includeTaxId || false,
+        },
       });
     }
-    fetchUsers();
-  }, [company, fetchUsers]);
+  }, [company]);
 
-  // Filter users for search
-  const filteredUsers = users.filter(user =>
-    user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    user.role.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  // Company Settings Handlers
-  const handleCompanySubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-
+    setMessage(null);
     try {
-      await updateCompany(companyFormData);
-      alert('Company settings updated successfully!');
-    } catch (error) {
-      alert('Failed to update company settings');
+      await updateCompany(formData);
+      setMessage({ type: 'success', text: 'Settings saved successfully' });
+      setTimeout(() => setMessage(null), 3000);
+    } catch {
+      setMessage({ type: 'error', text: 'Failed to update settings' });
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleCompanyInputChange = (path: string, value: any) => {
-    setCompanyFormData(prev => {
+  const handleChange = (path: string, value: any) => {
+    setFormData((prev) => {
       const keys = path.split('.');
       const lastKey = keys.pop()!;
-      const target = keys.reduce((obj, key) => obj[key], prev as any);
+      const target = keys.reduce((obj: any, key) => obj[key], prev);
       target[lastKey] = value;
       return { ...prev };
     });
   };
 
-  // User Management Handlers
-  const openNewUserModal = () => {
-    setEditingUser(null);
-    setUserFormData({
-      name: '',
-      email: '',
-      password: '',
-      role: 'cashier',
-    });
-    setShowUserModal(true);
-  };
-
-  const openEditModal = (user: UserType) => {
-    setEditingUser(user);
-    setUserFormData({
-      name: user.name,
-      email: user.email,
-      password: '',
-      role: user.role,
-    });
-    setShowUserModal(true);
-  };
-
-  const handleUserSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!userFormData.name || !userFormData.email || !userFormData.role) {
-      alert('Please fill in all required fields');
-      return;
-    }
-
-    if (!editingUser && !userFormData.password) {
-      alert('Please enter a password for new user');
-      return;
-    }
-
-    let success = false;
-    if (editingUser) {
-      const updates: any = {
-        name: userFormData.name,
-        email: userFormData.email,
-        role: userFormData.role,
-      };
-      if (userFormData.password) {
-        updates.password = userFormData.password;
-      }
-      success = !!(await updateUser(editingUser.id, updates));
-    } else {
-      success = !!(await addUser(userFormData));
-    }
-
-    if (success) {
-      setShowUserModal(false);
-      fetchUsers();
-    } else {
-      alert('Failed to save user');
-    }
-  };
-
-  const handleDeleteUser = async (id: string) => {
-    if (window.confirm('Are you sure you want to delete this user?')) {
-      // Implement delete functionality
-      alert('Delete functionality to be implemented');
-    }
-  };
-
-  const getRoleBadge = (role: UserRole) => {
-    const roleConfig = {
-      admin: { color: 'bg-gradient-to-r from-purple-500 to-pink-600 text-white', label: 'Admin' },
-      cashier: { color: 'bg-gradient-to-r from-blue-500 to-cyan-600 text-white', label: 'Cashier' },
-      officer: { color: 'bg-gradient-to-r from-orange-500 to-red-600 text-white', label: 'Officer' },
-      lab: { color: 'bg-gradient-to-r from-green-500 to-emerald-600 text-white', label: 'Lab' },
-    };
-    const config = roleConfig[role];
-    if (!config) {
-      return (
-        <span className="px-3 py-1 text-xs font-bold rounded-full bg-gray-500 text-white shadow-lg">
-          {role}
-        </span>
-      );
-    }
-    return (
-      <span className={`px-3 py-1 text-xs font-bold rounded-full ${config.color} shadow-lg`}>
-        {config.label}
-      </span>
-    );
-  };
-
   const tabs = [
-    { id: 'company', label: 'Company Info', icon: Building },
-    { id: 'contact', label: 'Contact', icon: Mail },
-    { id: 'address', label: 'Address', icon: MapPin },
-    { id: 'receipt', label: 'Receipt Settings', icon: Receipt },
+    { id: 'company' as const, label: 'Company Information', icon: <Building className="h-3.5 w-3.5" /> },
+    { id: 'address' as const, label: 'Address', icon: <MapPin className="h-3.5 w-3.5" /> },
+    { id: 'receipt' as const, label: 'Receipt Settings', icon: <Receipt className="h-3.5 w-3.5" /> },
   ];
 
   return (
-    <div className="space-y-6">
-      {/* Page Header */}
-      <div className="bg-gradient-to-r from-slate-900 via-purple-900 to-slate-900 rounded-2xl shadow-xl p-6 text-white">
-        <h1 className="text-2xl font-bold mb-2">System Settings</h1>
-        <p className="text-white/80">Manage your pharmacy information, receipt settings, and users</p>
+    <div className="p-4 md:p-6 max-w-4xl mx-auto">
+      {/* ── Header - Clean & Simple ────────────────────────────────── */}
+      <div className="mb-5">
+        <h1 className="text-base font-bold" style={{ color: 'var(--color-text-primary)' }}>
+          Company Settings
+        </h1>
+        <p className="text-[0.72rem] mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
+          Manage your company information and system preferences
+        </p>
       </div>
 
-      <Card className="p-6 backdrop-blur-sm bg-white/80 border-2 border-gray-100">
-        {/* Tab Navigation */}
-        <div className="border-b border-gray-200/50 mb-6">
-          <nav className="-mb-px flex space-x-8 overflow-x-auto">
-            {tabs.map((tab) => {
-              const Icon = tab.icon;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center gap-2 py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap transition-all duration-200 ${activeTab === tab.id
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                    }`}
-                >
-                  <Icon className="h-4 w-4" />
-                  {tab.label}
-                </button>
-              );
-            })}
-          </nav>
+      {/* ── Message ────────────────────────────────────────────────── */}
+      {message && (
+        <div
+          className="flex items-center gap-2 p-3 rounded-[10px] text-[0.78rem] font-medium mb-5"
+          style={{
+            background: message.type === 'success' ? 'var(--color-success-light)' : 'var(--color-danger-light)',
+            color: message.type === 'success' ? 'var(--color-success-text)' : 'var(--color-danger-text)',
+            border: `1px solid ${message.type === 'success' ? 'var(--color-success)' : 'var(--color-danger)'}`,
+          }}
+        >
+          {message.type === 'success' ? <CheckCircle className="h-4 w-4 flex-shrink-0" /> : <X className="h-4 w-4 flex-shrink-0" />}
+          <span className="flex-1">{message.text}</span>
         </div>
+      )}
 
-        {/* Company Information Tab */}
+      {/* ── Tabs ────────────────────────────────────────────────────── */}
+      <div className="flex gap-0 mb-5" style={{ borderBottom: '1px solid var(--color-border)' }}>
+        {tabs.map(({ id, label, icon }) => (
+          <button
+            key={id}
+            onClick={() => { setActiveTab(id); setMessage(null); }}
+            className="flex items-center gap-1.5 px-4 py-2.5 text-[0.8rem] font-medium transition-colors duration-100 cursor-pointer"
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: activeTab === id ? 'var(--color-accent-text)' : 'var(--color-text-muted)',
+              boxShadow: activeTab === id ? 'inset 0 -2px 0 var(--color-accent)' : 'inset 0 -2px 0 transparent',
+            }}
+            onMouseEnter={(e) => {
+              if (activeTab !== id) {
+                (e.currentTarget as HTMLElement).style.color = 'var(--color-text-primary)';
+                (e.currentTarget as HTMLElement).style.boxShadow = 'inset 0 -2px 0 var(--color-border-strong)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (activeTab !== id) {
+                (e.currentTarget as HTMLElement).style.color = 'var(--color-text-muted)';
+                (e.currentTarget as HTMLElement).style.boxShadow = 'inset 0 -2px 0 transparent';
+              }
+            }}
+          >
+            {icon}
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Tab Content ─────────────────────────────────────────────── */}
+      <form onSubmit={handleSubmit}>
+        {/* ── Company Information Tab ──────────────────────────────────── */}
         {activeTab === 'company' && (
-          <form onSubmit={handleCompanySubmit}>
-            <div className="space-y-6">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Company Information</h3>
-                <div className="grid grid-cols-1 gap-6">
+          <div
+            className="rounded-[12px] overflow-hidden"
+            style={{
+              background: 'var(--color-bg-surface)',
+              border: '1px solid var(--color-border)',
+              boxShadow: 'var(--shadow-card)',
+            }}
+          >
+            <div className="p-5 space-y-5">
+              {/* Company Details Preview Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <DetailCard
+                  icon={<Building className="h-4 w-4" />}
+                  label="Company Name"
+                  value={formData.name || 'Not set'}
+                />
+                <DetailCard
+                  icon={<Shield className="h-4 w-4" />}
+                  label="Tax ID"
+                  value={formData.taxId || 'Not set'}
+                />
+                <DetailCard
+                  icon={<Mail className="h-4 w-4" />}
+                  label="Email"
+                  value={formData.contact.email || 'Not set'}
+                />
+                <DetailCard
+                  icon={<Phone className="h-4 w-4" />}
+                  label="Phone"
+                  value={formData.contact.phone || 'Not set'}
+                />
+                <DetailCard
+                  icon={<Globe className="h-4 w-4" />}
+                  label="Website"
+                  value={formData.contact.website || 'Not set'}
+                />
+                <DetailCard
+                  icon={<Clock className="h-4 w-4" />}
+                  label="Tax Rate"
+                  value={`${formData.receiptSettings.taxRate}%`}
+                />
+              </div>
+
+              {/* Edit Section */}
+              <div className="pt-4" style={{ borderTop: '1px solid var(--color-border)' }}>
+                <p className="text-[0.72rem] font-medium mb-4" style={{ color: 'var(--color-text-secondary)' }}>
+                  Edit Company Information
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Company Name *
-                    </label>
+                    <label style={labelStyle}>Company Name *</label>
                     <input
                       type="text"
-                      value={companyFormData.name}
-                      onChange={(e) => handleCompanyInputChange('name', e.target.value)}
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-white/50 backdrop-blur-sm"
+                      value={formData.name}
+                      onChange={(e) => handleChange('name', e.target.value)}
+                      style={fieldStyle}
+                      onFocus={onF}
+                      onBlur={onB}
                       required
                     />
                   </div>
-
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Tax ID
-                    </label>
+                    <label style={labelStyle}>Tax ID</label>
                     <input
                       type="text"
-                      value={companyFormData.taxId}
-                      onChange={(e) => handleCompanyInputChange('taxId', e.target.value)}
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-white/50 backdrop-blur-sm"
+                      value={formData.taxId}
+                      onChange={(e) => handleChange('taxId', e.target.value)}
+                      style={fieldStyle}
+                      onFocus={onF}
+                      onBlur={onB}
                     />
                   </div>
-                </div>
-              </div>
-
-              <div className="flex justify-end pt-6 border-t border-gray-200">
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white font-semibold rounded-xl transition-all duration-200 shadow-lg disabled:opacity-50"
-                >
-                  <Save className="h-5 w-5" />
-                  {isLoading ? 'Saving...' : 'Save Settings'}
-                </button>
-              </div>
-            </div>
-          </form>
-        )}
-
-        {/* Contact Information Tab */}
-        {activeTab === 'contact' && (
-          <form onSubmit={handleCompanySubmit}>
-            <div className="space-y-6">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Contact Information</h3>
-                <div className="grid grid-cols-1 gap-6">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Phone Number
-                    </label>
-                    <input
-                      type="tel"
-                      value={companyFormData.contact.phone}
-                      onChange={(e) => handleCompanyInputChange('contact.phone', e.target.value)}
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-white/50 backdrop-blur-sm"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Email Address
-                    </label>
+                    <label style={labelStyle}>Email</label>
                     <input
                       type="email"
-                      value={companyFormData.contact.email}
-                      onChange={(e) => handleCompanyInputChange('contact.email', e.target.value)}
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-white/50 backdrop-blur-sm"
+                      value={formData.contact.email}
+                      onChange={(e) => handleChange('contact.email', e.target.value)}
+                      style={fieldStyle}
+                      onFocus={onF}
+                      onBlur={onB}
                     />
                   </div>
-
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Website
-                    </label>
+                    <label style={labelStyle}>Phone</label>
+                    <input
+                      type="tel"
+                      value={formData.contact.phone}
+                      onChange={(e) => handleChange('contact.phone', e.target.value)}
+                      style={fieldStyle}
+                      onFocus={onF}
+                      onBlur={onB}
+                      placeholder="+233..."
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label style={labelStyle}>Website</label>
                     <input
                       type="url"
-                      value={companyFormData.contact.website}
-                      onChange={(e) => handleCompanyInputChange('contact.website', e.target.value)}
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-white/50 backdrop-blur-sm"
+                      value={formData.contact.website}
+                      onChange={(e) => handleChange('contact.website', e.target.value)}
+                      style={fieldStyle}
+                      onFocus={onF}
+                      onBlur={onB}
+                      placeholder="https://"
                     />
                   </div>
                 </div>
               </div>
-
-              <div className="flex justify-end pt-6 border-t border-gray-200">
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white font-semibold rounded-xl transition-all duration-200 shadow-lg disabled:opacity-50"
-                >
-                  <Save className="h-5 w-5" />
-                  {isLoading ? 'Saving...' : 'Save Settings'}
-                </button>
-              </div>
             </div>
-          </form>
+          </div>
         )}
 
-        {/* Address Tab */}
+        {/* ── Address Tab ────────────────────────────────────────────────── */}
         {activeTab === 'address' && (
-          <form onSubmit={handleCompanySubmit}>
-            <div className="space-y-6">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Address Information</h3>
-                <div className="grid grid-cols-1 gap-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Street Address
-                    </label>
+          <div
+            className="rounded-[12px] overflow-hidden"
+            style={{
+              background: 'var(--color-bg-surface)',
+              border: '1px solid var(--color-border)',
+              boxShadow: 'var(--shadow-card)',
+            }}
+          >
+            <div className="p-5 space-y-5">
+              {/* Address Preview */}
+              <div className="grid grid-cols-1 gap-3">
+                <DetailCard
+                  icon={<MapPin className="h-4 w-4" />}
+                  label="Full Address"
+                  value={
+                    formData.address.street || formData.address.city || formData.address.country
+                      ? `${formData.address.street || ''}${formData.address.street && formData.address.city ? ', ' : ''}${formData.address.city || ''}${formData.address.city && formData.address.state ? ', ' : ''}${formData.address.state || ''}${formData.address.state && formData.address.country ? ', ' : ''}${formData.address.country || ''}`
+                      : 'Not set'
+                  }
+                />
+              </div>
+
+              {/* Edit Section */}
+              <div className="pt-4" style={{ borderTop: '1px solid var(--color-border)' }}>
+                <p className="text-[0.72rem] font-medium mb-4" style={{ color: 'var(--color-text-secondary)' }}>
+                  Edit Address
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="sm:col-span-2">
+                    <label style={labelStyle}>Street</label>
                     <input
                       type="text"
-                      value={companyFormData.address.street}
-                      onChange={(e) => handleCompanyInputChange('address.street', e.target.value)}
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-white/50 backdrop-blur-sm"
+                      value={formData.address.street}
+                      onChange={(e) => handleChange('address.street', e.target.value)}
+                      style={fieldStyle}
+                      onFocus={onF}
+                      onBlur={onB}
+                      placeholder="123 Main Street"
                     />
                   </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        City
-                      </label>
-                      <input
-                        type="text"
-                        value={companyFormData.address.city}
-                        onChange={(e) => handleCompanyInputChange('address.city', e.target.value)}
-                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-white/50 backdrop-blur-sm"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        State/Region
-                      </label>
-                      <input
-                        type="text"
-                        value={companyFormData.address.state}
-                        onChange={(e) => handleCompanyInputChange('address.state', e.target.value)}
-                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-white/50 backdrop-blur-sm"
-                      />
-                    </div>
+                  <div>
+                    <label style={labelStyle}>City</label>
+                    <input
+                      type="text"
+                      value={formData.address.city}
+                      onChange={(e) => handleChange('address.city', e.target.value)}
+                      style={fieldStyle}
+                      onFocus={onF}
+                      onBlur={onB}
+                      placeholder="Accra"
+                    />
                   </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        ZIP Code
-                      </label>
-                      <input
-                        type="text"
-                        value={companyFormData.address.zipCode}
-                        onChange={(e) => handleCompanyInputChange('address.zipCode', e.target.value)}
-                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-white/50 backdrop-blur-sm"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Country
-                      </label>
-                      <input
-                        type="text"
-                        value={companyFormData.address.country}
-                        onChange={(e) => handleCompanyInputChange('address.country', e.target.value)}
-                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-white/50 backdrop-blur-sm"
-                      />
-                    </div>
+                  <div>
+                    <label style={labelStyle}>State/Region</label>
+                    <input
+                      type="text"
+                      value={formData.address.state}
+                      onChange={(e) => handleChange('address.state', e.target.value)}
+                      style={fieldStyle}
+                      onFocus={onF}
+                      onBlur={onB}
+                      placeholder="Greater Accra"
+                    />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>ZIP Code</label>
+                    <input
+                      type="text"
+                      value={formData.address.zipCode}
+                      onChange={(e) => handleChange('address.zipCode', e.target.value)}
+                      style={fieldStyle}
+                      onFocus={onF}
+                      onBlur={onB}
+                      placeholder="00000"
+                    />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Country</label>
+                    <input
+                      type="text"
+                      value={formData.address.country}
+                      onChange={(e) => handleChange('address.country', e.target.value)}
+                      style={fieldStyle}
+                      onFocus={onF}
+                      onBlur={onB}
+                      placeholder="Ghana"
+                    />
                   </div>
                 </div>
               </div>
-
-              <div className="flex justify-end pt-6 border-t border-gray-200">
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white font-semibold rounded-xl transition-all duration-200 shadow-lg disabled:opacity-50"
-                >
-                  <Save className="h-5 w-5" />
-                  {isLoading ? 'Saving...' : 'Save Settings'}
-                </button>
-              </div>
             </div>
-          </form>
+          </div>
         )}
 
-        {/* Receipt Settings Tab */}
+        {/* ── Receipt Settings Tab ──────────────────────────────────────── */}
         {activeTab === 'receipt' && (
-          <form onSubmit={handleCompanySubmit}>
-            <div className="space-y-6">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Receipt Settings</h3>
-                <div className="grid grid-cols-1 gap-6">
+          <div
+            className="rounded-[12px] overflow-hidden"
+            style={{
+              background: 'var(--color-bg-surface)',
+              border: '1px solid var(--color-border)',
+              boxShadow: 'var(--shadow-card)',
+            }}
+          >
+            <div className="p-5 space-y-5">
+              {/* Receipt Preview */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <DetailCard
+                  icon={<Receipt className="h-4 w-4" />}
+                  label="Receipt Header"
+                  value={formData.receiptSettings.header || 'Not set'}
+                />
+                <DetailCard
+                  icon={<Receipt className="h-4 w-4" />}
+                  label="Receipt Footer"
+                  value={formData.receiptSettings.footer || 'Not set'}
+                />
+                <DetailCard
+                  icon={<Award className="h-4 w-4" />}
+                  label="Tax Rate"
+                  value={`${formData.receiptSettings.taxRate}%`}
+                />
+                <DetailCard
+                  icon={<Shield className="h-4 w-4" />}
+                  label="Include Tax ID"
+                  value={formData.receiptSettings.includeTaxId ? 'Yes' : 'No'}
+                />
+              </div>
+
+              {/* Edit Section */}
+              <div className="pt-4" style={{ borderTop: '1px solid var(--color-border)' }}>
+                <p className="text-[0.72rem] font-medium mb-4" style={{ color: 'var(--color-text-secondary)' }}>
+                  Edit Receipt Settings
+                </p>
+                <div className="grid grid-cols-1 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Receipt Header Message
-                    </label>
+                    <label style={labelStyle}>Receipt Header</label>
                     <input
                       type="text"
-                      value={companyFormData.receiptSettings.header}
-                      onChange={(e) => handleCompanyInputChange('receiptSettings.header', e.target.value)}
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-white/50 backdrop-blur-sm"
+                      value={formData.receiptSettings.header}
+                      onChange={(e) => handleChange('receiptSettings.header', e.target.value)}
+                      style={fieldStyle}
+                      onFocus={onF}
+                      onBlur={onB}
+                      placeholder="Thank you for shopping with us"
                     />
                   </div>
-
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Receipt Footer Message
-                    </label>
+                    <label style={labelStyle}>Receipt Footer</label>
                     <input
                       type="text"
-                      value={companyFormData.receiptSettings.footer}
-                      onChange={(e) => handleCompanyInputChange('receiptSettings.footer', e.target.value)}
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-white/50 backdrop-blur-sm"
+                      value={formData.receiptSettings.footer}
+                      onChange={(e) => handleChange('receiptSettings.footer', e.target.value)}
+                      style={fieldStyle}
+                      onFocus={onF}
+                      onBlur={onB}
+                      placeholder="Visit us again!"
                     />
                   </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Tax Rate (%)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      max="100"
-                      value={companyFormData.receiptSettings.taxRate}
-                      onChange={(e) => handleCompanyInputChange('receiptSettings.taxRate', parseFloat(e.target.value))}
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-white/50 backdrop-blur-sm"
-                    />
-                  </div>
-
-                  <div className="flex items-center">
-                    <input
-                      type="checkbox"
-                      id="includeTaxId"
-                      checked={companyFormData.receiptSettings.includeTaxId}
-                      onChange={(e) => handleCompanyInputChange('receiptSettings.includeTaxId', e.target.checked)}
-                      className="h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded-xl"
-                    />
-                    <label htmlFor="includeTaxId" className="ml-3 block text-sm font-medium text-gray-700">
-                      Include Tax ID on receipts
-                    </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label style={labelStyle}>Tax Rate (%)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        max="100"
+                        value={formData.receiptSettings.taxRate}
+                        onChange={(e) => handleChange('receiptSettings.taxRate', parseFloat(e.target.value))}
+                        style={fieldStyle}
+                        onFocus={onF}
+                        onBlur={onB}
+                      />
+                    </div>
+                    <div className="flex items-end pb-1">
+                      <label className="flex items-center gap-2 cursor-pointer" style={labelStyle}>
+                        <input
+                          type="checkbox"
+                          id="includeTaxId"
+                          checked={formData.receiptSettings.includeTaxId}
+                          onChange={(e) => handleChange('receiptSettings.includeTaxId', e.target.checked)}
+                          style={{ accentColor: 'var(--color-accent)', width: 16, height: 16 }}
+                        />
+                        <span style={{ color: 'var(--color-text-secondary)', fontSize: '0.78rem' }}>
+                          Include Tax ID on receipts
+                        </span>
+                      </label>
+                    </div>
                   </div>
                 </div>
               </div>
-
-              <div className="flex justify-end pt-6 border-t border-gray-200">
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white font-semibold rounded-xl transition-all duration-200 shadow-lg disabled:opacity-50"
-                >
-                  <Save className="h-5 w-5" />
-                  {isLoading ? 'Saving...' : 'Save Settings'}
-                </button>
-              </div>
             </div>
-          </form>
+          </div>
         )}
 
-      </Card>
+        {/* ── Save Button ────────────────────────────────────────────────── */}
+        <div className="flex justify-end pt-4 mt-4" style={{ borderTop: '1px solid var(--color-border)' }}>
+          <button type="submit" disabled={isLoading} className="btn-accent flex items-center justify-center gap-2" style={{ minWidth: 120 }}>
+            {isLoading ? (
+              <>
+                <div className="w-3.5 h-3.5 border-2 rounded-full animate-spin" style={{ borderColor: 'rgba(255,255,255,0.3)', borderTopColor: '#fff' }} />
+                Saving…
+              </>
+            ) : (
+              <>
+                <Save className="h-3.5 w-3.5" />
+                Save Settings
+              </>
+            )}
+          </button>
+        </div>
+      </form>
     </div>
   );
 };

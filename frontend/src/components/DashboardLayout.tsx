@@ -48,8 +48,11 @@ export const DashboardLayout: React.FC = () => {
         userRole={currentUser.role}
       />
 
-      {/* Main content — offset by sidebar width on lg+ */}
-      <div className="lg:ml-64">
+      {/* Main content — offset by sidebar width on lg+ (matches --sidebar-width token) */}
+      <div
+        className="layout-content-shell"
+        style={{ minHeight: '100vh' }}
+      >
         {/* Fixed Navbar */}
         <Navbar
           onMenuClick={() => setSidebarOpen(true)}
@@ -60,10 +63,19 @@ export const DashboardLayout: React.FC = () => {
 
         {/* Scrollable page content */}
         <main
-          className="min-h-screen pt-16"
-          style={{ background: 'var(--color-bg-base)' }}
+          className="theme-transition"
+          style={{
+            background: 'var(--color-bg-base)',
+            paddingTop: 'var(--navbar-height)',
+            minHeight: '100vh',
+          }}
         >
-          <div className="p-5 lg:p-6">
+          <div
+            className="w-full"
+            style={{
+              padding: 'var(--space-4) var(--space-5)',
+            }}
+          >
             <Routes>
               <Route index element={<DashboardHome />} />
               <Route path="pos" element={<POSInterface />} />
@@ -88,6 +100,20 @@ export const DashboardLayout: React.FC = () => {
           </div>
         </main>
       </div>
+
+      {/* Scoped layout rule: content shell offsets by the actual sidebar width
+          token on large screens, and sits flush on mobile where the sidebar
+          becomes an off-canvas drawer. Keep this in sync with Sidebar.tsx. */}
+      <style>{`
+        .layout-content-shell {
+          margin-left: 0;
+        }
+        @media (min-width: 1024px) {
+          .layout-content-shell {
+            margin-left: var(--sidebar-width);
+          }
+        }
+      `}</style>
     </div>
   );
 };

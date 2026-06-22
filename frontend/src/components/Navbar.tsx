@@ -1,6 +1,6 @@
 // src/components/Navbar.tsx
-import React from 'react';
-import { Menu, Bell, User, LogOut, Store } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Menu, Bell, User, LogOut, Store, ChevronDown } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { ThemeToggle } from './ui/ThemeToggle';
 
@@ -17,157 +17,489 @@ export const Navbar: React.FC<NavbarProps> = ({
   user,
   companyName = 'PharmacyPOS',
 }) => {
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const notifRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (notifRef.current && !notifRef.current.contains(e.target as Node))
+        setShowNotifications(false);
+      if (menuRef.current && !menuRef.current.contains(e.target as Node))
+        setShowUserMenu(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const initials = user.name
+    .split(' ')
+    .map((w) => w[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
+
+  const closeAll = () => {
+    setShowNotifications(false);
+    setShowUserMenu(false);
+  };
+
   return (
-    <header className="fixed top-0 right-0 left-0 lg:left-64 h-16 z-30 bg-white/80 dark:bg-gray-900/80 border-b border-gray-200 dark:border-gray-800 backdrop-blur-xl theme-transition">
-      <div className="flex items-center justify-between h-full px-5">
+    <header
+      className="fixed top-0 right-0 left-0 theme-transition navbar-shell"
+      style={{
+        height: 'var(--navbar-height)',
+        zIndex: 'var(--z-sticky)',
+        background: 'var(--color-navbar-bg)',
+        borderBottom: '1px solid var(--color-navbar-border)',
+      }}
+    >
+      <div className="flex items-center justify-between h-full" style={{ padding: '0 20px' }}>
 
         {/* Left */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center" style={{ gap: '12px' }}>
           <button
             onClick={onMenuClick}
-            className="p-2 rounded-xl lg:hidden text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-800 transition-colors"
+            className="lg:hidden flex items-center justify-center"
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: '6px',
+              background: 'transparent',
+              border: 'none',
+              color: 'var(--color-text-secondary)',
+              cursor: 'pointer',
+              padding: 4,
+            }}
+            onMouseEnter={(e) =>
+            ((e.currentTarget as HTMLElement).style.background =
+              'var(--color-bg-subtle)')
+            }
+            onMouseLeave={(e) =>
+              ((e.currentTarget as HTMLElement).style.background = 'transparent')
+            }
           >
-            <Menu className="h-5 w-5" />
+            <Menu style={{ width: 18, height: 18 }} />
           </button>
 
-          <div className="hidden md:flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-r from-purple-600 to-indigo-600 flex items-center justify-center shadow-sm">
-              <Store className="h-4 w-4 text-white" />
-            </div>
+          <div className="hidden sm:flex items-center" style={{ gap: '10px' }}>
+            <Store
+              style={{ width: 18, height: 18, color: 'var(--color-accent)', flexShrink: 0 }}
+            />
             <div>
-              <h1 className="text-sm font-bold text-gray-900 dark:text-white leading-none">
+              <h1
+                style={{ fontSize: '14px', fontWeight: 700, lineHeight: 1, color: 'var(--color-text-primary)' }}
+              >
                 {companyName}
               </h1>
-              <p className="text-xs mt-0.5 text-gray-500 dark:text-gray-400">
-                Management System
+              <p
+                style={{ fontSize: '11px', marginTop: 2, color: 'var(--color-text-muted)' }}
+              >
+                Pharmacy Management
               </p>
             </div>
           </div>
         </div>
 
         {/* Right */}
-        <div className="flex items-center gap-2">
-          <ThemeToggle />
+        <div className="flex items-center" style={{ gap: '10px' }}>
 
-          {/* Notifications */}
-          <div className="relative group">
-            <button className="relative p-2 rounded-xl text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-800 transition-colors">
-              <Bell className="h-5 w-5" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500 border-2 border-white dark:border-gray-900" />
-            </button>
-
-            {/* Notification Dropdown */}
-            <div className="absolute top-full right-0 mt-2 w-80 rounded-xl shadow-xl p-4 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800">
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-sm font-semibold text-gray-900 dark:text-white">
-                  Notifications
-                </p>
-                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300">
-                  3 new
-                </span>
-              </div>
-
-              <div className="space-y-2">
-                <div className="p-3 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800">
-                  <p className="text-sm font-medium text-gray-900 dark:text-white">
-                    Low Stock Alert
-                  </p>
-                  <p className="text-xs mt-0.5 text-gray-600 dark:text-gray-400">
-                    5 products are running low
-                  </p>
-                  <p className="text-xs mt-1.5 text-gray-500 dark:text-gray-500">
-                    2 min ago
-                  </p>
-                </div>
-
-                <div className="p-3 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
-                  <p className="text-sm font-medium text-gray-900 dark:text-white">
-                    New Sale Completed
-                  </p>
-                  <p className="text-xs mt-0.5 text-gray-600 dark:text-gray-400">
-                    Transaction #TRX-0012
-                  </p>
-                  <p className="text-xs mt-1.5 text-gray-500 dark:text-gray-500">
-                    5 min ago
-                  </p>
-                </div>
-              </div>
-
-              <button className="w-full mt-3 text-xs font-medium py-2 rounded-lg bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors">
-                View All Notifications
-              </button>
-            </div>
+          {/* Theme toggle */}
+          <div className="flex items-center justify-center" style={{ width: 36, height: 36 }}>
+            <ThemeToggle />
           </div>
 
-          <div className="h-8 w-px mx-1 bg-gray-200 dark:bg-gray-700" />
+          {/* Notifications */}
+          <div className="relative" ref={notifRef}>
+            <button
+              onClick={() => {
+                setShowNotifications(!showNotifications);
+                setShowUserMenu(false);
+              }}
+              className="relative flex items-center justify-center"
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: '6px',
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--color-text-secondary)',
+                cursor: 'pointer',
+                padding: 4,
+              }}
+              onMouseEnter={(e) =>
+              ((e.currentTarget as HTMLElement).style.background =
+                'var(--color-bg-subtle)')
+              }
+              onMouseLeave={(e) =>
+                ((e.currentTarget as HTMLElement).style.background = 'transparent')
+              }
+            >
+              <Bell style={{ width: 16, height: 16 }} />
+              <span
+                className="absolute -top-0.5 -right-0.5 flex items-center justify-center"
+                style={{
+                  width: 18,
+                  height: 18,
+                  borderRadius: '9999px',
+                  fontSize: '8px',
+                  fontWeight: 700,
+                  background: 'var(--color-danger)',
+                  color: '#fff',
+                  border: '2px solid var(--color-navbar-bg)',
+                }}
+              >
+                3
+              </span>
+            </button>
 
-          {/* User menu */}
-          <div className="flex items-center gap-2.5">
-            <div className="hidden sm:block text-right">
-              <p className="text-sm font-semibold text-gray-900 dark:text-white leading-none">
-                {user.name}
-              </p>
-              <p className="text-xs mt-0.5 capitalize text-gray-500 dark:text-gray-400">
-                {user.role}
-              </p>
-            </div>
-
-            <div className="relative group">
-              <button className="w-9 h-9 rounded-full flex items-center justify-center shadow-sm bg-gradient-to-r from-purple-600 to-indigo-600">
-                <User className="h-4 w-4 text-white" />
-              </button>
-
-              {/* User Dropdown */}
-              <div className="absolute top-full right-0 mt-2 w-56 rounded-xl shadow-xl p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800">
-                <div className="flex items-center gap-3 pb-3 mb-3 border-b border-gray-200 dark:border-gray-700">
-                  <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 bg-gradient-to-r from-purple-600 to-indigo-600">
-                    <User className="h-4 w-4 text-white" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold truncate text-gray-900 dark:text-white">
-                      {user.name}
-                    </p>
-                    <p className="text-xs capitalize truncate text-gray-500 dark:text-gray-400">
-                      {user.role}
-                    </p>
-                  </div>
+            {/* Notifications Dropdown */}
+            {showNotifications && (
+              <div
+                className="absolute top-full right-0 overflow-hidden"
+                style={{
+                  marginTop: '8px',
+                  width: 340,
+                  borderRadius: '12px',
+                  zIndex: 30,
+                  background: 'var(--color-bg-elevated)',
+                  border: '1px solid var(--color-border)',
+                  boxShadow: 'var(--shadow-xl)',
+                  transformOrigin: 'top right',
+                  animation: 'dropdownFadeIn 0.15s ease',
+                }}
+              >
+                <div
+                  className="flex items-center justify-between"
+                  style={{ padding: '14px 18px', borderBottom: '1px solid var(--color-border)' }}
+                >
+                  <span
+                    style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-text-primary)' }}
+                  >
+                    Notifications
+                  </span>
+                  <span
+                    style={{
+                      fontSize: '10px',
+                      padding: '2px 10px',
+                      borderRadius: '9999px',
+                      fontWeight: 600,
+                      background: 'var(--color-accent-light)',
+                      color: 'var(--color-accent-text)',
+                    }}
+                  >
+                    3 new
+                  </span>
                 </div>
 
-                <div className="space-y-0.5">
-                  <Link
-                    to="/dashboard/profile"
-                    className="block px-3 py-2 text-sm rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white transition-colors"
-                  >
-                    Profile Settings
-                  </Link>
-                  <Link
-                    to="#"
-                    className="block px-3 py-2 text-sm rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white transition-colors"
-                  >
-                    Account Preferences
-                  </Link>
-                  <Link
-                    to="#"
-                    className="block px-3 py-2 text-sm rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white transition-colors"
-                  >
-                    Help & Support
-                  </Link>
+                <div className="max-h-[280px] overflow-y-auto" style={{ padding: '4px 0' }}>
+                  {[
+                    {
+                      dot: 'var(--color-warning)',
+                      title: 'Low Stock Alert',
+                      desc: '5 products are running low',
+                      time: '2 min ago',
+                    },
+                    {
+                      dot: 'var(--color-info)',
+                      title: 'New Order Received',
+                      desc: 'Marshall Blakeley · GHS 245.00',
+                      time: '5 min ago',
+                    },
+                    {
+                      dot: 'var(--color-success)',
+                      title: 'Transaction Completed',
+                      desc: 'POS Sale #2204 · GHS 89.50',
+                      time: '12 min ago',
+                    },
+                  ].map((n, i) => (
+                    <div
+                      key={i}
+                      className="flex transition-colors duration-100 cursor-pointer"
+                      style={{
+                        gap: '12px',
+                        padding: '12px 18px',
+                        borderBottom: i < 2 ? '1px solid var(--color-border)' : 'none',
+                      }}
+                      onMouseEnter={(e) =>
+                      ((e.currentTarget as HTMLElement).style.background =
+                        'var(--color-bg-subtle)')
+                      }
+                      onMouseLeave={(e) =>
+                      ((e.currentTarget as HTMLElement).style.background =
+                        'transparent')
+                      }
+                    >
+                      <span
+                        className="flex-shrink-0"
+                        style={{ width: 8, height: 8, borderRadius: '9999px', marginTop: 5, background: n.dot }}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p
+                          className="truncate"
+                          style={{ fontSize: '13px', fontWeight: 500, color: 'var(--color-text-primary)' }}
+                        >
+                          {n.title}
+                        </p>
+                        <p
+                          className="truncate"
+                          style={{ fontSize: '12px', color: 'var(--color-text-secondary)' }}
+                        >
+                          {n.desc}
+                        </p>
+                        <span
+                          style={{ fontSize: '10px', color: 'var(--color-text-muted)' }}
+                        >
+                          {n.time}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
                 </div>
 
-                <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700">
+                <div
+                  style={{ padding: '12px 18px', borderTop: '1px solid var(--color-border)' }}
+                >
                   <button
-                    onClick={onLogout}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-lg text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                    className="w-full transition-colors duration-100 cursor-pointer"
+                    style={{
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      padding: '10px 0',
+                      borderRadius: '6px',
+                      background: 'var(--color-bg-subtle)',
+                      color: 'var(--color-accent-text)',
+                      border: 'none',
+                    }}
+                    onMouseEnter={(e) =>
+                    ((e.currentTarget as HTMLElement).style.background =
+                      'var(--color-accent-light)')
+                    }
+                    onMouseLeave={(e) =>
+                    ((e.currentTarget as HTMLElement).style.background =
+                      'var(--color-bg-subtle)')
+                    }
                   >
-                    <LogOut className="h-4 w-4" />
-                    Sign Out
+                    View all notifications
                   </button>
                 </div>
               </div>
-            </div>
+            )}
+          </div>
+
+          {/* Divider */}
+          <div
+            className="hidden sm:block"
+            style={{ width: 1, height: 28, background: 'var(--color-border)', margin: '0 4px' }}
+          />
+
+          {/* User menu */}
+          <div className="relative" ref={menuRef}>
+            <button
+              onClick={() => {
+                setShowUserMenu(!showUserMenu);
+                setShowNotifications(false);
+              }}
+              className="flex items-center transition-colors duration-100 cursor-pointer"
+              style={{
+                gap: '8px',
+                padding: '6px 10px 6px 6px',
+                borderRadius: '6px',
+                background: showUserMenu
+                  ? 'var(--color-bg-subtle)'
+                  : 'transparent',
+                border: 'none',
+                color: 'var(--color-text-primary)',
+              }}
+              onMouseEnter={(e) => {
+                if (!showUserMenu)
+                  (e.currentTarget as HTMLElement).style.background =
+                    'var(--color-bg-subtle)';
+              }}
+              onMouseLeave={(e) => {
+                if (!showUserMenu)
+                  (e.currentTarget as HTMLElement).style.background =
+                    'transparent';
+              }}
+            >
+              <div
+                className="flex items-center justify-center flex-shrink-0"
+                style={{
+                  width: 34,
+                  height: 34,
+                  borderRadius: '6px',
+                  background: 'var(--color-accent-light)',
+                  color: 'var(--color-accent-text)',
+                  fontWeight: 700,
+                  fontSize: '12px',
+                  letterSpacing: '0.3px',
+                }}
+              >
+                {initials}
+              </div>
+              <div className="hidden sm:block text-left">
+                <p
+                  style={{ fontSize: '13px', fontWeight: 600, lineHeight: 1, color: 'var(--color-text-primary)' }}
+                >
+                  {user.name}
+                </p>
+                <p
+                  className="capitalize"
+                  style={{ fontSize: '10px', marginTop: 2, color: 'var(--color-text-muted)' }}
+                >
+                  {user.role}
+                </p>
+              </div>
+              <ChevronDown
+                className="hidden sm:block"
+                style={{
+                  width: 14,
+                  height: 14,
+                  color: 'var(--color-text-muted)',
+                  transform: showUserMenu
+                    ? 'rotate(180deg)'
+                    : 'rotate(0deg)',
+                  transition: 'transform 0.2s ease',
+                }}
+              />
+            </button>
+
+            {/* ─── USER MENU DROPDOWN - FIXED WITH HARD-CODED VALUES ────────── */}
+            {showUserMenu && (
+              <div
+                className="absolute top-full right-0 overflow-hidden"
+                style={{
+                  marginTop: '8px',
+                  width: '280px',
+                  borderRadius: '12px',
+                  zIndex: 30,
+                  background: 'var(--color-bg-elevated)',
+                  border: '1px solid var(--color-border)',
+                  boxShadow: '0 16px 40px rgba(0,0,0,0.12)',
+                  transformOrigin: 'top right',
+                  animation: 'dropdownFadeIn 0.15s ease',
+                }}
+              >
+                {/* User info section - INCREASED PADDING */}
+                <div
+                  style={{
+                    padding: '20px 24px 16px 24px',
+                    borderBottom: '1px solid var(--color-border)',
+                  }}
+                >
+                  <p
+                    className="truncate"
+                    style={{
+                      fontSize: '15px',
+                      fontWeight: 600,
+                      color: 'var(--color-text-primary)',
+                      marginBottom: '6px',
+                    }}
+                  >
+                    {user.name}
+                  </p>
+                  <p
+                    className="truncate"
+                    style={{
+                      fontSize: '13px',
+                      color: 'var(--color-text-muted)',
+                    }}
+                  >
+                    {user.email || user.role}
+                  </p>
+                </div>
+
+                {/* Menu items - INCREASED PADDING */}
+                <div style={{ padding: '8px 0' }}>
+                  {[
+                    { to: '/dashboard/profile', icon: User, label: 'Profile Settings' },
+                    { to: '#', icon: Store, label: 'Preferences' },
+                    { to: '#', icon: Bell, label: 'Help & Support' },
+                  ].map(({ to, icon: Icon, label }) => (
+                    <Link
+                      key={label}
+                      to={to}
+                      onClick={closeAll}
+                      className="flex items-center transition-colors duration-100"
+                      style={{
+                        gap: '14px',
+                        padding: '12px 24px',
+                        fontSize: '14px',
+                        color: 'var(--color-text-secondary)',
+                        textDecoration: 'none',
+                      }}
+                      onMouseEnter={(e) => {
+                        const el = e.currentTarget as HTMLElement;
+                        el.style.background = 'var(--color-bg-subtle)';
+                        el.style.color = 'var(--color-text-primary)';
+                      }}
+                      onMouseLeave={(e) => {
+                        const el = e.currentTarget as HTMLElement;
+                        el.style.background = 'transparent';
+                        el.style.color = 'var(--color-text-secondary)';
+                      }}
+                    >
+                      <Icon style={{ width: 18, height: 18 }} />
+                      {label}
+                    </Link>
+                  ))}
+                </div>
+
+                {/* Sign out - INCREASED PADDING */}
+                <div style={{ borderTop: '1px solid var(--color-border)' }}>
+                  <button
+                    onClick={() => {
+                      closeAll();
+                      onLogout();
+                    }}
+                    className="w-full flex items-center transition-colors duration-100 cursor-pointer"
+                    style={{
+                      gap: '14px',
+                      padding: '12px 24px',
+                      fontSize: '14px',
+                      color: 'var(--color-danger)',
+                      background: 'transparent',
+                      border: 'none',
+                    }}
+                    onMouseEnter={(e) =>
+                    ((e.currentTarget as HTMLElement).style.background =
+                      'var(--color-danger-light)')
+                    }
+                    onMouseLeave={(e) =>
+                    ((e.currentTarget as HTMLElement).style.background =
+                      'transparent')
+                    }
+                  >
+                    <LogOut style={{ width: 18, height: 18 }} />
+                    Sign out
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
+
+      {/* Dropdown animation keyframes */}
+      <style>{`
+        @keyframes dropdownFadeIn {
+          from {
+            opacity: 0;
+            transform: scale(0.95) translateY(-4px);
+          }
+          to {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+          }
+        }
+
+        @media (min-width: 1024px) {
+          .navbar-shell {
+            left: var(--sidebar-width);
+          }
+        }
+      `}</style>
     </header>
   );
 };
