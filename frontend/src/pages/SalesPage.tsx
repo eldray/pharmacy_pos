@@ -1,5 +1,5 @@
 // src/pages/SalesPage.tsx
-import React, { useMemo, useState } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   TrendingUp,
   DollarSign,
@@ -18,9 +18,10 @@ import {
   ChevronDown
 } from 'lucide-react';
 import { useAppStore } from '../store';
+import { useReactToPrint } from 'react-to-print';
 import { Card } from '../components/ui/Card';
 import { Transaction } from '../types';
-import { ReceiptModal } from '../components/ReceiptModal';
+import { ReceiptModal, ReceiptContent } from '../components/ReceiptModal';
 
 export const SalesPage: React.FC = () => {
   const [dateRange, setDateRange] = useState('today');
@@ -55,6 +56,45 @@ export const SalesPage: React.FC = () => {
   };
 
   const { currentUser, transactions, products } = useAppStore();
+
+  // ─── Print Ref ───────────────────────────────────────────────────────────
+  const printRef = useRef<HTMLDivElement>(null);
+
+  // ─── Print Handler using react-to-print ─────────────────────────────────
+  const handlePrint = useReactToPrint({
+    content: () => printRef.current,
+    documentTitle: `Receipt-${selectedTransaction?.transactionNumber || 'Unknown'}`,
+    pageStyle: `
+      @page {
+        size: A4;
+        margin: 10mm;
+      }
+      @media print {
+        body {
+          background: white !important;
+          margin: 0 !important;
+          padding: 0 !important;
+        }
+        .no-print {
+          display: none !important;
+        }
+        .print-content {
+          display: block !important;
+        }
+        .fixed.inset-0 {
+          display: none !important;
+        }
+      }
+    `,
+    onBeforeGetContent: () => {
+      // Close the modal before printing
+      setShowReceiptModal(false);
+      return Promise.resolve();
+    },
+    onAfterPrint: () => {
+      console.log('Print completed');
+    }
+  });
 
   // Filter transactions by date range
   const filteredTransactions = useMemo(() => {
@@ -109,7 +149,6 @@ export const SalesPage: React.FC = () => {
       0
     );
 
-    // Payment method breakdown with revenue (excluding cash)
     const paymentBreakdown = searchedTransactions.reduce((acc, t) => {
       if (t.paymentMethod === 'cash') return acc;
 
@@ -121,7 +160,6 @@ export const SalesPage: React.FC = () => {
       return acc;
     }, {} as Record<string, { count: number; revenue: number }>);
 
-    // Cash transactions summary
     const cashTransactions = searchedTransactions.filter(t => t.paymentMethod === 'cash');
     const cashRevenue = cashTransactions.reduce((sum, t) => sum + t.total, 0);
     const cashCount = cashTransactions.length;
@@ -152,6 +190,18 @@ export const SalesPage: React.FC = () => {
         (t.discount || 0).toFixed(2),
         t.total.toFixed(2),
       ]),
+      [
+        'TOTAL',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        metrics.totalRevenue.toFixed(2)
+      ]
     ];
 
     const csvContent = csvData.map((row) => row.join(',')).join('\n');
@@ -167,10 +217,6 @@ export const SalesPage: React.FC = () => {
   const viewTransactionReceipt = (transaction: Transaction) => {
     setSelectedTransaction(transaction);
     setShowReceiptModal(true);
-  };
-
-  const handlePrintReceipt = () => {
-    window.print();
   };
 
   const getPaymentMethodIcon = (method: string) => {
@@ -225,14 +271,13 @@ export const SalesPage: React.FC = () => {
 
   return (
     <div className="space-y-6 pb-6">
-      {/* Header - Clean & Simple (matching AnalyticsPage) */}
+      {/* Header */}
       <div className="mb-5">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
           <div>
             <h1 className="text-base font-bold" style={{ color: 'var(--color-text-primary)' }}>Sales Management</h1>
             <p className="text-[0.72rem] mt-0.5" style={{ color: 'var(--color-text-muted)' }}>Track and manage all sales transactions</p>
 
-            {/* Compact Metrics Row - Clean style */}
             <div className="flex flex-wrap items-center gap-4 mt-3">
               <div className="flex items-center gap-2">
                 <DollarSign className="h-3.5 w-3.5" style={{ color: 'var(--color-success-text)' }} />
@@ -277,10 +322,9 @@ export const SalesPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Search and Date Range - Clean style */}
+      {/* Search and Date Range */}
       <Card className="p-4">
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-          {/* Search */}
           <div className="relative flex-1 max-w-xs min-w-0">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted" />
             <input
@@ -295,7 +339,6 @@ export const SalesPage: React.FC = () => {
             />
           </div>
 
-          {/* Date Range */}
           <div className="flex items-center gap-3 flex-1 min-w-0 flex-wrap">
             <div className="flex items-center gap-2 shrink-0">
               <Calendar className="h-4 w-4 text-muted" />
@@ -307,16 +350,14 @@ export const SalesPage: React.FC = () => {
                 <button
                   key={range}
                   onClick={() => handleDateRangeChange(range)}
-                  className={`px-2.5 py-1.5 rounded-lg text-[0.72rem] font-semibold transition-all duration-200 whitespace-nowrap ${dateRange === range
-                      ? 'btn-accent'
-                      : 'btn-ghost'
-                    }`}
+                  className={`px-2.5 py-1.5 rounded-lg text-[0.72rem] font-semibold transition-all duration-200 whitespace-nowrap ${
+                    dateRange === range ? 'btn-accent' : 'btn-ghost'
+                  }`}
                 >
                   {range.charAt(0).toUpperCase() + range.slice(1)}
                 </button>
               ))}
 
-              {/* Custom Date - Inline when active */}
               {dateRange === 'custom' ? (
                 <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg" style={{ background: 'var(--color-accent-light)', border: '1px solid var(--color-accent)' }}>
                   <div className="flex items-center gap-1.5">
@@ -369,7 +410,7 @@ export const SalesPage: React.FC = () => {
         </div>
       </Card>
 
-      {/* Payment Method Breakdown - Clean cards */}
+      {/* Payment Method Breakdown */}
       {Object.keys(metrics.paymentBreakdown).length > 0 && (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
           {Object.entries(metrics.paymentBreakdown).map(([method, data]) => {
@@ -396,7 +437,7 @@ export const SalesPage: React.FC = () => {
         </div>
       )}
 
-      {/* Transaction History - Clean table */}
+      {/* Transaction History */}
       <Card>
         <div className="px-4 py-3 border-b border-theme">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
@@ -453,91 +494,153 @@ export const SalesPage: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                searchedTransactions.map((transaction) => {
-                  const PaymentIcon = getPaymentMethodIcon(transaction.paymentMethod);
-                  const color = getPaymentMethodColor(transaction.paymentMethod);
-                  return (
-                    <tr key={transaction.id} className="hover:bg-subtle transition-colors group">
-                      <td className="px-3 py-3 text-sm font-semibold text-primary whitespace-nowrap group-hover:text-accent transition-colors">
-                        {transaction.transactionNumber}
-                      </td>
-                      <td className="px-3 py-3 text-sm text-secondary whitespace-nowrap">
-                        <div className="flex flex-col">
-                          <span>{new Date(transaction.createdAt).toLocaleDateString()}</span>
-                          <span className="text-xs text-secondary">
-                            {new Date(transaction.createdAt).toLocaleTimeString()}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-3 py-3 text-sm text-secondary whitespace-nowrap">
-                        <div className="flex items-center gap-1">
-                          <User className="h-3 w-3 text-muted" />
-                          <span className="truncate max-w-[80px]">{transaction.cashierName}</span>
-                        </div>
-                      </td>
-                      <td className="px-3 py-3 text-sm text-secondary">
-                        <div className="max-w-[100px]">
-                          <div className="whitespace-nowrap overflow-hidden text-ellipsis font-medium text-primary">
-                            {transaction.customerName || (
-                              <span className="text-secondary">Walk-in</span>
+                <>
+                  {searchedTransactions.map((transaction) => {
+                    const PaymentIcon = getPaymentMethodIcon(transaction.paymentMethod);
+                    const color = getPaymentMethodColor(transaction.paymentMethod);
+                    return (
+                      <tr key={transaction.id} className="hover:bg-subtle transition-colors group">
+                        <td className="px-3 py-3 text-sm font-semibold text-primary whitespace-nowrap group-hover:text-accent transition-colors">
+                          {transaction.transactionNumber}
+                        </td>
+                        <td className="px-3 py-3 text-sm text-secondary whitespace-nowrap">
+                          <div className="flex flex-col">
+                            <span>{new Date(transaction.createdAt).toLocaleDateString()}</span>
+                            <span className="text-xs text-secondary">
+                              {new Date(transaction.createdAt).toLocaleTimeString()}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-3 py-3 text-sm text-secondary whitespace-nowrap">
+                          <div className="flex items-center gap-1">
+                            <User className="h-3 w-3 text-muted" />
+                            <span className="truncate max-w-[80px]">{transaction.cashierName}</span>
+                          </div>
+                        </td>
+                        <td className="px-3 py-3 text-sm text-secondary">
+                          <div className="max-w-[100px]">
+                            <div className="whitespace-nowrap overflow-hidden text-ellipsis font-medium text-primary">
+                              {transaction.customerName || (
+                                <span className="text-secondary">Walk-in</span>
+                              )}
+                            </div>
+                            {transaction.customerPhone && (
+                              <div className="text-xs text-secondary whitespace-nowrap overflow-hidden text-ellipsis">
+                                {transaction.customerPhone}
+                              </div>
                             )}
                           </div>
-                          {transaction.customerPhone && (
-                            <div className="text-xs text-secondary whitespace-nowrap overflow-hidden text-ellipsis">
-                              {transaction.customerPhone}
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-3 py-3 text-sm text-secondary whitespace-nowrap">
-                        <div className="flex items-center gap-1">
-                          <Package className="h-3 w-3 text-muted" />
-                          <span className="font-semibold text-primary tabular-nums">
-                            {transaction.items.reduce((sum, item) => sum + item.quantity, 0)}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-3 py-3 whitespace-nowrap">
-                        <div className="flex items-center gap-1">
-                          <div className="p-1.5 rounded-lg" style={{ background: color, color: 'var(--color-accent-fg)' }}>
-                            <PaymentIcon className="h-3 w-3" />
+                        </td>
+                        <td className="px-3 py-3 text-sm text-secondary whitespace-nowrap">
+                          <div className="flex items-center gap-1">
+                            <Package className="h-3 w-3 text-muted" />
+                            <span className="font-semibold text-primary tabular-nums">
+                              {transaction.items.reduce((sum, item) => sum + item.quantity, 0)}
+                            </span>
                           </div>
-                          <span className="text-sm font-semibold text-secondary capitalize truncate max-w-[60px]">
-                            {formatPaymentMethod(transaction.paymentMethod)}
-                          </span>
-                        </div>
+                        </td>
+                        <td className="px-3 py-3 whitespace-nowrap">
+                          <div className="flex items-center gap-1">
+                            <div className="p-1.5 rounded-lg" style={{ background: color, color: 'var(--color-accent-fg)' }}>
+                              <PaymentIcon className="h-3 w-3" />
+                            </div>
+                            <span className="text-sm font-semibold text-secondary capitalize truncate max-w-[60px]">
+                              {formatPaymentMethod(transaction.paymentMethod)}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-3 py-3 text-sm font-bold text-primary text-right whitespace-nowrap tabular-nums">
+                          GHS {transaction.total.toFixed(2)}
+                        </td>
+                        <td className="px-3 py-3 whitespace-nowrap">
+                          <button
+                            onClick={() => viewTransactionReceipt(transaction)}
+                            className="btn-accent flex items-center gap-1 px-3 py-1.5 text-sm"
+                          >
+                            <Eye className="h-3 w-3" />
+                            View
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+
+                  {/* TOTAL ROW */}
+                  {searchedTransactions.length > 0 && (
+                    <tr 
+                      className="border-t-2 border-theme-strong"
+                      style={{ background: 'var(--color-bg-subtle)' }}
+                    >
+                      <td colSpan={6} className="px-3 py-3 text-right">
+                        <span className="text-sm font-bold" style={{ color: 'var(--color-text-primary)' }}>
+                          TOTAL SALES
+                        </span>
                       </td>
-                      <td className="px-3 py-3 text-sm font-bold text-primary text-right whitespace-nowrap tabular-nums">
-                        GHS {transaction.total.toFixed(2)}
+                      <td className="px-3 py-3 text-right">
+                        <span className="text-base font-bold" style={{ color: 'var(--color-accent-text)' }}>
+                          GHS {metrics.totalRevenue.toFixed(2)}
+                        </span>
                       </td>
-                      <td className="px-3 py-3 whitespace-nowrap">
-                        <button
-                          onClick={() => viewTransactionReceipt(transaction)}
-                          className="btn-accent flex items-center gap-1 px-3 py-1.5 text-sm"
-                        >
-                          <Eye className="h-3 w-3" />
-                          View
-                        </button>
-                      </td>
+                      <td className="px-3 py-3"></td>
                     </tr>
-                  );
-                })
+                  )}
+                </>
               )}
             </tbody>
           </table>
         </div>
       </Card>
 
-      {/* Receipt Modal */}
+      {/* ─── RECEIPT MODAL ─────────────────────────────────────────────────── */}
       {showReceiptModal && selectedTransaction && (
         <ReceiptModal
           transaction={selectedTransaction}
           customerName={selectedTransaction.customerName || undefined}
           customerPhone={selectedTransaction.customerPhone || undefined}
           onClose={() => setShowReceiptModal(false)}
-          onPrint={handlePrintReceipt}
+          onPrint={handlePrint}
         />
       )}
+
+      {/* ─── PRINT CONTENT (Hidden with CSS, but rendered) ────────────────── */}
+      <style>{`
+        .print-content-hidden {
+          position: absolute;
+          left: -9999px;
+          top: -9999px;
+          width: 1px;
+          height: 1px;
+          overflow: hidden;
+          opacity: 0;
+          pointer-events: none;
+        }
+        @media print {
+          .print-content-hidden {
+            position: relative !important;
+            left: auto !important;
+            top: auto !important;
+            width: 100% !important;
+            height: auto !important;
+            overflow: visible !important;
+            opacity: 1 !important;
+            pointer-events: auto !important;
+          }
+        }
+      `}</style>
+
+// ─── HIDDEN PRINT CONTENT ──────────────────────────────────────────────────
+{/* Use ReceiptContent here, not ReceiptModal - no modal wrapper! */}
+<div style={{ display: 'none' }}>
+  <div ref={printRef}>
+    {selectedTransaction && (
+      <ReceiptContent
+        transaction={selectedTransaction}
+        customerName={selectedTransaction.customerName || undefined}
+        customerPhone={selectedTransaction.customerPhone || undefined}
+      />
+    )}
+  </div>
+</div>
     </div>
   );
 };

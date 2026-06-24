@@ -20,8 +20,8 @@ export interface Product {
   category: string;
   unitPrice: number;
   quantity: number;
-  batchNumber: string;
-  expiryDate: string; // ISO date string
+  batchNumber?: string;
+  expiryDate?: string; // ISO date string
   supplier?: string;
   createdAt: string;
   updatedAt: string;

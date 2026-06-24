@@ -29,7 +29,12 @@ const InventoryLog = sequelize.define('InventoryLog', {
   userName: DataTypes.STRING,
   notes: DataTypes.TEXT
 }, {
-  tableName: 'inventory_logs'
+  tableName: 'inventory_logs',
+  indexes: [
+    { fields: ['productId'] },
+    { fields: ['userId'] },
+    { fields: ['createdAt'] },
+  ]
 });
 
 // NO ASSOCIATIONS HERE - They are handled in models/index.js

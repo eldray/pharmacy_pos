@@ -1,0 +1,50 @@
+/* ── PRINT STYLES ────────────────────────────────────────────────────────── */
+@media print {
+    /* Hide everything except print content */
+    body * {
+        visibility: hidden !important;
+    }
+    
+    /* Show only print content */
+    .print-content,
+    .print-content * {
+        visibility: visible !important;
+    }
+    
+    /* Reset backgrounds and shadows for print */
+    .print-content,
+    .print-content * {
+        background: white !important !important;
+        box-shadow: none !important;
+        border-color: #ddd !important;
+    }
+    
+    /* Force white background */
+    body,
+    html {
+        background: white !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    
+    /* Hide print controls */
+    .no-print,
+    .no-print * {
+        display: none !important;
+        visibility: hidden !important;
+    }
+    
+    /* Page breaks */
+    .page-break {
+        page-break-after: always !important;
+    }
+    
+    .page-break-inside {
+        page-break-inside: avoid !important;
+    }
+    
+    /* Remove modal overlays */
+    .fixed.inset-0 {
+        display: none !important;
+    }
+}

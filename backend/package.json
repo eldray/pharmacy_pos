@@ -9,7 +9,10 @@
     "init-db": "node init-db.js",
     "reset": "node reset-db.js",
     "seed": "node seed.js",
+    "import:products": "node import-products.js",
     "migrate": "node migrate.js",
+    "migrate:status": "node migrate.js status",
+    "backup": "node backup-db.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {

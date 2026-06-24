@@ -100,7 +100,13 @@ const LabTransaction = sequelize.define('LabTransaction', {
     }
 }, {
     tableName: 'lab_transactions',
-    timestamps: true
+    timestamps: true,
+    indexes: [
+        { fields: ['requestedBy'] },
+        { fields: ['status'] },
+        { fields: ['paymentStatus'] },
+        { fields: ['createdAt'] },
+    ]
 });
 
 module.exports = LabTransaction;

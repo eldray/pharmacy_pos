@@ -1,5 +1,5 @@
 // src/components/DashboardHome.tsx
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   ShoppingCart, Package, DollarSign,
   Receipt, TrendingUp, AlertTriangle,
@@ -7,7 +7,7 @@ import {
   FlaskConical, Clock, CheckCircle,
   XCircle, FileText, Box,
   TrendingDown, BarChart3, PieChart as PieChartIcon,
-  PlusCircle, Eye, List
+  PlusCircle, Eye, List, Calendar
 } from 'lucide-react';
 import { useAppStore } from '../store';
 import { Link } from 'react-router-dom';
@@ -16,6 +16,39 @@ import {
   Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell,
   AreaChart, Area
 } from 'recharts';
+
+/* ─── Date Filter Button ───────────────────────────────────────────────────── */
+const DateFilterBtn: React.FC<{ 
+  label: string; 
+  value: string; 
+  active: boolean; 
+  onClick: () => void 
+}> = ({ label, value, active, onClick }) => (
+  <button
+    onClick={onClick}
+    className="px-2.5 py-1 rounded-lg text-[0.65rem] font-semibold transition-all duration-200 whitespace-nowrap"
+    style={{
+      background: active ? 'var(--color-accent)' : 'var(--color-bg-subtle)',
+      color: active ? 'var(--color-accent-fg)' : 'var(--color-text-secondary)',
+      border: active ? 'none' : '1px solid var(--color-border)',
+      cursor: 'pointer',
+    }}
+    onMouseEnter={(e) => {
+      if (!active) {
+        (e.currentTarget as HTMLElement).style.background = 'var(--color-border)';
+        (e.currentTarget as HTMLElement).style.color = 'var(--color-text-primary)';
+      }
+    }}
+    onMouseLeave={(e) => {
+      if (!active) {
+        (e.currentTarget as HTMLElement).style.background = 'var(--color-bg-subtle)';
+        (e.currentTarget as HTMLElement).style.color = 'var(--color-text-secondary)';
+      }
+    }}
+  >
+    {label}
+  </button>
+);
 
 /* ─── Stat Card ─────────────────────────────────────────────────────────────── */
 interface StatCardProps {
@@ -39,21 +72,22 @@ const StatCard: React.FC<StatCardProps> = ({
 
   return (
     <div
-      className="card theme-transition stat-card"
+      className="card theme-transition"
       style={{
-        padding: 'var(--space-4) var(--space-5)',
+        padding: '16px 20px',
         background: 'var(--color-bg-surface)',
-        borderRadius: 'var(--radius-lg)',
-        transition: 'transform var(--transition-fast), box-shadow var(--transition-fast)',
+        borderRadius: '10px',
+        transition: 'transform 150ms ease, box-shadow 150ms ease',
         cursor: 'default',
         border: '1px solid var(--color-border)',
         minHeight: '80px',
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'center',
+        boxShadow: 'var(--shadow-card)',
       }}
       onMouseEnter={(e) => {
-        (e.currentTarget as HTMLElement).style.transform = 'translateY(-1px)';
+        (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)';
         (e.currentTarget as HTMLElement).style.boxShadow = 'var(--shadow-md)';
       }}
       onMouseLeave={(e) => {
@@ -61,41 +95,42 @@ const StatCard: React.FC<StatCardProps> = ({
         (e.currentTarget as HTMLElement).style.boxShadow = 'var(--shadow-card)';
       }}
     >
-      <div className="flex items-start justify-between" style={{ gap: 'var(--space-3)' }}>
+      <div className="flex items-start justify-between" style={{ gap: '12px' }}>
         <div className="flex-1 min-w-0">
           <p style={{
-            fontSize: 'var(--text-xs)',
+            fontSize: '11px',
             fontWeight: 600,
             color: 'var(--color-text-secondary)',
-            letterSpacing: 'var(--tracking-wide)',
+            letterSpacing: '0.02em',
             textTransform: 'uppercase',
             margin: 0,
-            marginBottom: 'var(--space-1)',
+            marginBottom: '4px',
           }}>
             {label}
           </p>
           <p style={{
-            fontSize: 'var(--text-2xl)',
+            fontSize: '22px',
             fontWeight: 700,
             color: 'var(--color-text-primary)',
             margin: 0,
             lineHeight: 1.2,
-            letterSpacing: 'var(--tracking-tight)'
+            letterSpacing: '-0.01em',
+            fontVariantNumeric: 'tabular-nums',
           }}>
             {value}
           </p>
           {(subtitle || trendValue) && (
-            <div className="flex items-center" style={{ gap: 'var(--space-1.5)', marginTop: 'var(--space-1)' }}>
+            <div className="flex items-center" style={{ gap: '6px', marginTop: '4px' }}>
               {TrendIcon && (
                 <TrendIcon style={{
-                  width: 'var(--icon-sm)',
-                  height: 'var(--icon-sm)',
+                  width: '14px',
+                  height: '14px',
                   color: trend === 'up' ? 'var(--color-success)' : 'var(--color-danger)'
                 }} />
               )}
               {trendValue && (
                 <span style={{
-                  fontSize: 'var(--text-xs)',
+                  fontSize: '11px',
                   fontWeight: 500,
                   color: trend === 'up' ? 'var(--color-success-text)' : 'var(--color-danger-text)'
                 }}>
@@ -103,7 +138,7 @@ const StatCard: React.FC<StatCardProps> = ({
                 </span>
               )}
               {subtitle && !trendValue && (
-                <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
+                <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
                   {subtitle}
                 </span>
               )}
@@ -115,12 +150,12 @@ const StatCard: React.FC<StatCardProps> = ({
           style={{
             width: '40px',
             height: '40px',
-            borderRadius: 'var(--radius-md)',
+            borderRadius: '8px',
             background: 'var(--color-bg-subtle)',
             color: 'var(--color-accent-text)'
           }}
         >
-          <Icon style={{ width: 'var(--icon-md)', height: 'var(--icon-md)' }} />
+          <Icon style={{ width: '18px', height: '18px' }} />
         </div>
       </div>
     </div>
@@ -139,20 +174,20 @@ const QuickAction: React.FC<QuickActionProps> = ({ to, label, icon: Icon, descri
   return (
     <Link
       to={to}
-      className="flex items-center group quick-action-btn"
+      className="flex items-center group"
       style={{
-        gap: 'var(--space-2.5)',
-        padding: 'var(--space-3) var(--space-3)',
-        borderRadius: 'var(--radius-md)',
+        gap: '10px',
+        padding: '12px 14px',
+        borderRadius: '8px',
         background: 'var(--color-bg-surface)',
         border: '1px solid var(--color-border)',
-        transition: 'all var(--transition-fast)',
+        transition: 'all 150ms ease',
         textDecoration: 'none',
-        minHeight: '64px',
-        flexDirection: 'column',
+        minHeight: '56px',
+        flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'center',
-        textAlign: 'center',
+        justifyContent: 'flex-start',
+        textAlign: 'left',
       }}
       onMouseEnter={(e) => {
         const el = e.currentTarget as HTMLElement;
@@ -172,25 +207,29 @@ const QuickAction: React.FC<QuickActionProps> = ({ to, label, icon: Icon, descri
       <div
         className="flex items-center justify-center flex-shrink-0"
         style={{
-          width: '32px',
-          height: '32px',
-          borderRadius: 'var(--radius-sm)',
+          width: '36px',
+          height: '36px',
+          borderRadius: '6px',
           background: 'var(--color-accent)',
           color: 'white'
         }}
       >
-        <Icon style={{ width: 'var(--icon-md)', height: 'var(--icon-md)' }} />
+        <Icon style={{ width: '18px', height: '18px' }} />
       </div>
       <div className="flex-1 min-w-0">
-        <p style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--color-text-primary)', margin: 0 }}>
+        <p style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-primary)', margin: 0 }}>
           {label}
         </p>
         {description && (
-          <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', lineHeight: 1.2, margin: 0, marginTop: 'var(--space-0.5)' }}>
+          <p style={{ fontSize: '11px', color: 'var(--color-text-muted)', lineHeight: 1.2, margin: 0, marginTop: '2px' }}>
             {description}
           </p>
         )}
       </div>
+      <ArrowUpRight
+        className="opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+        style={{ width: '14px', height: '14px', color: 'var(--color-text-muted)', flexShrink: 0 }}
+      />
     </Link>
   );
 };
@@ -210,7 +249,7 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
   return (
     <span
       className={`badge ${cls} inline-flex items-center`}
-      style={{ gap: 3, fontSize: 'var(--text-xs)', fontWeight: 600, padding: '2px 8px', borderRadius: 'var(--radius-full)' }}
+      style={{ gap: 3, fontSize: '11px', fontWeight: 600, padding: '3px 10px', borderRadius: '9999px' }}
     >
       {icon}
       {status.replace('_', ' ')}
@@ -225,34 +264,33 @@ const SectionHeader: React.FC<{ icon: React.ElementType; title: string; linkTo?:
   linkTo,
   linkText = 'View all'
 }) => (
-  <div className="section-header-with-link" style={{
+  <div style={{
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 'var(--space-3) var(--space-5) var(--space-2)',
+    padding: '12px 20px 8px 20px',
     marginBottom: 0,
   }}>
-    <div className="flex items-center" style={{ gap: 'var(--space-2)' }}>
-      <Icon style={{ width: 'var(--icon-sm)', height: 'var(--icon-sm)', color: 'var(--color-accent-text)' }} />
-      <h3 style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--color-text-secondary)', margin: 0, textTransform: 'uppercase', letterSpacing: 'var(--tracking-wide)' }}>
+    <div className="flex items-center" style={{ gap: '8px' }}>
+      <Icon style={{ width: '16px', height: '16px', color: 'var(--color-accent-text)' }} />
+      <h3 style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-secondary)', margin: 0, textTransform: 'uppercase', letterSpacing: '0.02em' }}>
         {title}
       </h3>
     </div>
     {linkTo && (
       <Link
         to={linkTo}
-        className="view-all-link"
         style={{
           display: 'inline-flex',
           alignItems: 'center',
-          gap: 'var(--space-1)',
-          fontSize: 'var(--text-xs)',
+          gap: '4px',
+          fontSize: '11px',
           fontWeight: 500,
           color: 'var(--color-accent-text)',
           textDecoration: 'none',
-          padding: 'var(--space-1) var(--space-2)',
-          borderRadius: 'var(--radius-sm)',
-          transition: 'background var(--transition-fast)',
+          padding: '4px 8px',
+          borderRadius: '6px',
+          transition: 'background 150ms ease',
         }}
         onMouseEnter={(e) => {
           e.currentTarget.style.background = 'var(--color-accent-light)';
@@ -270,6 +308,8 @@ const SectionHeader: React.FC<{ icon: React.ElementType; title: string; linkTo?:
 
 /* ─── DashboardHome ──────────────────────────────────────────────────────────── */
 export const DashboardHome: React.FC = () => {
+  const [dateFilter, setDateFilter] = useState<'today' | 'week' | 'month' | 'all'>('today');
+
   const {
     currentUser,
     products,
@@ -284,10 +324,73 @@ export const DashboardHome: React.FC = () => {
     return currentUser.name.split(' ')[0];
   }, [currentUser]);
 
-  // Calculate stats
+  // ─── Filter transactions by date ──────────────────────────────────────────
+  const filteredTransactions = useMemo(() => {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    switch (dateFilter) {
+      case 'today':
+        return transactions.filter(t => {
+          const txDate = new Date(t.createdAt);
+          return txDate >= today;
+        });
+      case 'week':
+        const weekStart = new Date(today);
+        weekStart.setDate(today.getDate() - 7);
+        return transactions.filter(t => {
+          const txDate = new Date(t.createdAt);
+          return txDate >= weekStart;
+        });
+      case 'month':
+        const monthStart = new Date(today);
+        monthStart.setMonth(today.getMonth() - 1);
+        return transactions.filter(t => {
+          const txDate = new Date(t.createdAt);
+          return txDate >= monthStart;
+        });
+      default:
+        return transactions;
+    }
+  }, [transactions, dateFilter]);
+
+  // ─── Filter lab transactions by date ──────────────────────────────────────
+  const filteredLabTransactions = useMemo(() => {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    switch (dateFilter) {
+      case 'today':
+        return labTransactions?.filter(t => {
+          const txDate = new Date(t.createdAt);
+          return txDate >= today;
+        }) || [];
+      case 'week':
+        const weekStart = new Date(today);
+        weekStart.setDate(today.getDate() - 7);
+        return labTransactions?.filter(t => {
+          const txDate = new Date(t.createdAt);
+          return txDate >= weekStart;
+        }) || [];
+      case 'month':
+        const monthStart = new Date(today);
+        monthStart.setMonth(today.getMonth() - 1);
+        return labTransactions?.filter(t => {
+          const txDate = new Date(t.createdAt);
+          return txDate >= monthStart;
+        }) || [];
+      default:
+        return labTransactions || [];
+    }
+  }, [labTransactions, dateFilter]);
+
+  // Calculate stats using filtered transactions
   const stats = React.useMemo(() => {
+    const totalRevenue = filteredTransactions.reduce((sum, t) => sum + t.total, 0);
+    const totalTransactions = filteredTransactions.length;
+    
     const today = new Date().toDateString();
-    const todaySales = transactions
+    const todaySales = filteredTransactions
       .filter((t) => new Date(t.createdAt).toDateString() === today)
       .reduce((sum, t) => sum + t.total, 0);
 
@@ -295,11 +398,11 @@ export const DashboardHome: React.FC = () => {
     const outOfStockCount = products.filter((p) => p.quantity === 0).length;
     const totalPurchaseOrders = purchaseOrders.length;
     const pendingPOs = purchaseOrders.filter(po => po.status === 'pending').length;
-    const completedLabTests = labTransactions?.filter(t => t.status === 'completed').length || 0;
+    const completedLabTests = filteredLabTransactions?.filter(t => t.status === 'completed').length || 0;
 
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
-    const yesterdaySales = transactions
+    const yesterdaySales = filteredTransactions
       .filter((t) => new Date(t.createdAt).toDateString() === yesterday.toDateString())
       .reduce((sum, t) => sum + t.total, 0);
 
@@ -317,17 +420,17 @@ export const DashboardHome: React.FC = () => {
       pendingPOs,
       completedLabTests,
       totalProducts: products.length,
-      totalTransactions: transactions.length,
-      totalRevenue: transactions.reduce((sum, t) => sum + t.total, 0),
+      totalTransactions,
+      totalRevenue,
     };
-  }, [products, transactions, purchaseOrders, labTransactions]);
+  }, [products, filteredTransactions, purchaseOrders, filteredLabTransactions]);
 
   // ── Chart Data ──────────────────────────────────────────────────────────────
 
   const dailySalesData = useMemo(() => {
     const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     return days.map((day) => {
-      const dayTransactions = transactions.filter((t) => {
+      const dayTransactions = filteredTransactions.filter((t) => {
         const txDate = new Date(t.createdAt);
         return txDate.toLocaleString('en', { weekday: 'short' }) === day;
       });
@@ -337,11 +440,11 @@ export const DashboardHome: React.FC = () => {
         count: dayTransactions.length,
       };
     });
-  }, [transactions]);
+  }, [filteredTransactions]);
 
   const paymentDistribution = useMemo(() => {
     const methods: Record<string, number> = {};
-    transactions.forEach((t) => {
+    filteredTransactions.forEach((t) => {
       const method = t.paymentMethod || 'cash';
       methods[method] = (methods[method] || 0) + t.total;
     });
@@ -349,7 +452,7 @@ export const DashboardHome: React.FC = () => {
       name: name === 'mtn' ? 'MTN MoMo' : name === 'vodafone' ? 'Vodafone' : name === 'airteltigo' ? 'AirtelTigo' : name.charAt(0).toUpperCase() + name.slice(1),
       value: Math.round(value),
     }));
-  }, [transactions]);
+  }, [filteredTransactions]);
 
   const CHART_COLORS = [
     'var(--color-success)',
@@ -371,9 +474,9 @@ export const DashboardHome: React.FC = () => {
     ];
   }, [products]);
 
-  const recentTransactions = transactions.slice(0, 5);
+  const recentTransactions = filteredTransactions.slice(0, 5);
   const recentPurchaseOrders = purchaseOrders.slice(0, 3);
-  const recentLabTests = labTransactions?.slice(0, 3) || [];
+  const recentLabTests = filteredLabTransactions.slice(0, 3);
 
   const role = currentUser?.role;
 
@@ -389,18 +492,18 @@ export const DashboardHome: React.FC = () => {
       return (
         <div
           style={{
-            padding: 'var(--space-2) var(--space-3)',
-            borderRadius: 'var(--radius-md)',
+            padding: '8px 12px',
+            borderRadius: '8px',
             boxShadow: 'var(--shadow-lg)',
             background: 'var(--color-bg-elevated)',
             border: '1px solid var(--color-border)',
           }}
         >
           {label && (
-            <p style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--color-text-primary)', margin: '0 0 var(--space-0.5) 0' }}>{label}</p>
+            <p style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-primary)', margin: '0 0 2px 0' }}>{label}</p>
           )}
           {payload.map((p: any) => (
-            <p key={p.name} style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)', margin: 'var(--space-0.5) 0' }}>
+            <p key={p.name} style={{ fontSize: '11px', color: 'var(--color-text-secondary)', margin: '2px 0' }}>
               {p.name}: {typeof p.value === 'number' ? `GHS ${p.value.toFixed(2)}` : p.value}
             </p>
           ))}
@@ -467,42 +570,51 @@ export const DashboardHome: React.FC = () => {
 
   const quickActions = getQuickActions();
 
+  const getDateFilterLabel = () => {
+    switch (dateFilter) {
+      case 'today': return 'Today';
+      case 'week': return 'This Week';
+      case 'month': return 'This Month';
+      default: return 'All Time';
+    }
+  };
+
   return (
-    <div className="w-full" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+    <div className="w-full" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
       {/* ── Welcome header ──────────────────────────────────────────── */}
       <div style={{
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'flex-start',
         flexWrap: 'wrap',
-        gap: 'var(--space-3)',
-        padding: 'var(--space-2) var(--space-1)',
+        gap: '12px',
+        padding: '8px 4px',
       }}>
         <div>
           <h1 style={{
-            fontSize: 'var(--text-2xl)',
+            fontSize: '20px',
             fontWeight: 700,
             color: 'var(--color-text-primary)',
-            letterSpacing: 'var(--tracking-tight)',
+            letterSpacing: '-0.01em',
             margin: 0,
-            marginBottom: 'var(--space-1)',
+            marginBottom: '4px',
           }}>
             {getGreeting()}, {userFirstName}
           </h1>
           <p style={{
-            fontSize: 'var(--text-sm)',
+            fontSize: '13px',
             color: 'var(--color-text-secondary)',
             margin: 0,
           }}>
             Here's your pharmacy overview for today
           </p>
         </div>
-        <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap', flexShrink: 0 }}>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', flexShrink: 0 }}>
           <span style={{
-            padding: 'var(--space-1) var(--space-3)',
-            borderRadius: 'var(--radius-full)',
+            padding: '4px 12px',
+            borderRadius: '9999px',
             background: 'var(--color-bg-subtle)',
-            fontSize: 'var(--text-xs)',
+            fontSize: '11px',
             color: 'var(--color-text-secondary)',
             border: '1px solid var(--color-border)',
             whiteSpace: 'nowrap',
@@ -512,11 +624,59 @@ export const DashboardHome: React.FC = () => {
         </div>
       </div>
 
+      {/* ── Date Filter ──────────────────────────────────────────────── */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        padding: '0 4px',
+        flexWrap: 'wrap',
+      }}>
+        <Calendar style={{ width: '14px', height: '14px', color: 'var(--color-text-muted)' }} />
+        <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--color-text-secondary)' }}>Show:</span>
+        <div style={{ display: 'flex', gap: '4px' }}>
+          <DateFilterBtn 
+            label="Today" 
+            value="today" 
+            active={dateFilter === 'today'} 
+            onClick={() => setDateFilter('today')} 
+          />
+          <DateFilterBtn 
+            label="Week" 
+            value="week" 
+            active={dateFilter === 'week'} 
+            onClick={() => setDateFilter('week')} 
+          />
+          <DateFilterBtn 
+            label="Month" 
+            value="month" 
+            active={dateFilter === 'month'} 
+            onClick={() => setDateFilter('month')} 
+          />
+          <DateFilterBtn 
+            label="All" 
+            value="all" 
+            active={dateFilter === 'all'} 
+            onClick={() => setDateFilter('all')} 
+          />
+        </div>
+        <span style={{
+          fontSize: '10px',
+          padding: '2px 10px',
+          borderRadius: '9999px',
+          background: 'var(--color-accent-light)',
+          color: 'var(--color-accent-text)',
+          fontWeight: 500,
+        }}>
+          {stats.totalTransactions} transactions
+        </span>
+      </div>
+
       {/* ── Stat cards ───────────────────────────────────────────────── */}
-      <div className="metrics-grid" style={{
+      <div style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-        gap: 'var(--space-4)',
+        gap: '12px',
         padding: 0,
       }}>
         <StatCard
@@ -550,11 +710,11 @@ export const DashboardHome: React.FC = () => {
       </div>
 
       {/* ── Charts Section ─────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3" style={{ gap: 'var(--space-4)' }}>
+      <div className="grid grid-cols-1 lg:grid-cols-3" style={{ gap: '12px' }}>
         {/* Daily Sales Chart */}
-        <div className="card lg:col-span-2" style={{ padding: 0, overflow: 'hidden' }}>
-          <SectionHeader icon={BarChart3} title="Daily Sales (7 Days)" linkTo="/dashboard/analytics" />
-          <div style={{ padding: 'var(--space-1) var(--space-5) var(--space-4)' }}>
+        <div className="card" style={{ padding: 0, overflow: 'hidden', background: 'var(--color-bg-surface)', border: '1px solid var(--color-border)', borderRadius: '10px' }}>
+          <SectionHeader icon={BarChart3} title={`Daily Sales (${getDateFilterLabel()})`} linkTo="/dashboard/analytics" />
+          <div style={{ padding: '4px 20px 16px 20px' }}>
             <ResponsiveContainer width="100%" height={180}>
               <AreaChart data={dailySalesData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
@@ -576,12 +736,12 @@ export const DashboardHome: React.FC = () => {
         </div>
 
         {/* Payment Methods Pie Chart */}
-        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="card" style={{ padding: 0, overflow: 'hidden', background: 'var(--color-bg-surface)', border: '1px solid var(--color-border)', borderRadius: '10px' }}>
           <SectionHeader icon={PieChartIcon} title="Payment Methods" />
-          <div style={{ padding: 'var(--space-1) var(--space-5) var(--space-4)' }}>
+          <div style={{ padding: '4px 20px 16px 20px' }}>
             {paymentDistribution.length === 0 ? (
-              <div className="text-center" style={{ padding: 'var(--space-4) 0' }}>
-                <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)', margin: 0 }}>No payment data yet</p>
+              <div className="text-center" style={{ padding: '16px 0' }}>
+                <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', margin: 0 }}>No payment data yet</p>
               </div>
             ) : (
               <ResponsiveContainer width="100%" height={180}>
@@ -600,7 +760,7 @@ export const DashboardHome: React.FC = () => {
                     ))}
                   </Pie>
                   <Tooltip content={<CustomTooltip />} />
-                  <Legend wrapperStyle={{ fontSize: '10px', color: 'var(--color-text-secondary)', paddingTop: 'var(--space-2)' }} />
+                  <Legend wrapperStyle={{ fontSize: '10px', color: 'var(--color-text-secondary)', paddingTop: '8px' }} />
                 </PieChart>
               </ResponsiveContainer>
             )}
@@ -609,15 +769,15 @@ export const DashboardHome: React.FC = () => {
       </div>
 
       {/* ── Quick Actions & Stock Distribution ──────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3" style={{ gap: 'var(--space-4)' }}>
-        {/* Quick Actions - Now placed first and spans 2 columns */}
-        <div className="lg:col-span-2 card" style={{ padding: 0, overflow: 'hidden' }}>
+      <div className="grid grid-cols-1 lg:grid-cols-3" style={{ gap: '12px' }}>
+        {/* Quick Actions */}
+        <div className="lg:col-span-2 card" style={{ padding: 0, overflow: 'hidden', background: 'var(--color-bg-surface)', border: '1px solid var(--color-border)', borderRadius: '10px' }}>
           <SectionHeader icon={Zap} title="Quick Actions" />
-          <div className="quick-actions-grid" style={{
+          <div style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
-            gap: 'var(--space-2.5)',
-            padding: 'var(--space-1) var(--space-5) var(--space-5)',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+            gap: '10px',
+            padding: '4px 20px 20px 20px',
           }}>
             {quickActions.map((action) => (
               <QuickAction
@@ -630,19 +790,19 @@ export const DashboardHome: React.FC = () => {
             ))}
           </div>
           {quickActions.length === 0 && (
-            <div className="text-center" style={{ padding: 'var(--space-4) 0' }}>
-              <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)', margin: 0 }}>No actions available</p>
+            <div className="text-center" style={{ padding: '16px 0' }}>
+              <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', margin: 0 }}>No actions available</p>
             </div>
           )}
         </div>
 
         {/* Stock Distribution */}
-        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="card" style={{ padding: 0, overflow: 'hidden', background: 'var(--color-bg-surface)', border: '1px solid var(--color-border)', borderRadius: '10px' }}>
           <SectionHeader icon={Package} title="Stock Distribution" />
-          <div style={{ padding: 'var(--space-1) var(--space-5) var(--space-4)' }}>
+          <div style={{ padding: '4px 20px 20px 20px' }}>
             {products.length === 0 ? (
-              <div className="text-center" style={{ padding: 'var(--space-4) 0' }}>
-                <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)', margin: 0 }}>No products data yet</p>
+              <div className="text-center" style={{ padding: '16px 0' }}>
+                <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', margin: 0 }}>No products data yet</p>
               </div>
             ) : (
               <ResponsiveContainer width="100%" height={160}>
@@ -664,70 +824,69 @@ export const DashboardHome: React.FC = () => {
       </div>
 
       {/* ── Recent Activity ────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2" style={{ gap: 'var(--space-4)' }}>
+      <div className="grid grid-cols-1 lg:grid-cols-2" style={{ gap: '12px' }}>
         {/* Recent Transactions */}
-        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-          <SectionHeader icon={Receipt} title="Recent Transactions" linkTo="/dashboard/sales" />
+        <div className="card" style={{ padding: 0, overflow: 'hidden', background: 'var(--color-bg-surface)', border: '1px solid var(--color-border)', borderRadius: '10px' }}>
+          <SectionHeader icon={Receipt} title={`Recent Transactions (${getDateFilterLabel()})`} linkTo="/dashboard/sales" />
 
-          <div className="transactions-list" style={{
-            padding: 'var(--space-1) var(--space-5) var(--space-5)',
+          <div style={{
+            padding: '4px 20px 20px 20px',
             display: 'flex',
             flexDirection: 'column',
-            gap: 'var(--space-1.5)',
+            gap: '6px',
           }}>
             {recentTransactions.length === 0 ? (
-              <div className="text-center" style={{ padding: 'var(--space-4) 0' }}>
+              <div className="text-center" style={{ padding: '16px 0' }}>
                 <div
                   className="flex items-center justify-center mx-auto"
-                  style={{ width: 36, height: 36, borderRadius: 'var(--radius-full)', background: 'var(--color-bg-subtle)', marginBottom: 'var(--space-2)' }}
+                  style={{ width: 36, height: 36, borderRadius: '9999px', background: 'var(--color-bg-subtle)', marginBottom: '8px' }}
                 >
                   <Receipt style={{ width: 16, height: 16, color: 'var(--color-text-muted)' }} />
                 </div>
-                <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)', margin: 0 }}>No transactions yet</p>
+                <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', margin: 0 }}>No transactions in this period</p>
               </div>
             ) : (
               recentTransactions.map((tx) => (
                 <div
                   key={tx.id ?? tx._id}
-                  className="transaction-item"
                   style={{
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    padding: 'var(--space-2.5) var(--space-3)',
-                    borderRadius: 'var(--radius-md)',
+                    padding: '10px 12px',
+                    borderRadius: '8px',
                     background: 'var(--color-bg-subtle)',
-                    transition: 'background var(--transition-fast)',
+                    transition: 'background 150ms ease',
                     cursor: 'default',
-                    gap: 'var(--space-3)',
+                    gap: '12px',
                   }}
                   onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--color-accent-light)')}
                   onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--color-bg-subtle)')}
                 >
-                  <div className="txn-info" style={{
+                  <div style={{
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: 'var(--space-0.5)',
+                    gap: '2px',
                     flex: 1,
                     minWidth: 0,
                   }}>
-                    <p className="txn-id" style={{
-                      fontSize: 'var(--text-xs)',
+                    <p style={{
+                      fontSize: '11px',
                       fontFamily: 'var(--font-mono)',
                       color: 'var(--color-text-secondary)',
-                      letterSpacing: 'var(--tracking-tight)',
+                      letterSpacing: '-0.01em',
                       margin: 0,
                     }}>
                       {tx.transactionNumber}
                     </p>
-                    <div className="txn-details" style={{
+                    <div style={{
                       display: 'flex',
                       alignItems: 'center',
-                      gap: 'var(--space-2)',
+                      gap: '8px',
                       flexWrap: 'wrap',
                     }}>
                       <p style={{
-                        fontSize: 'var(--text-xs)',
+                        fontSize: '11px',
                         color: 'var(--color-text-muted)',
                         margin: 0,
                       }}>
@@ -735,22 +894,23 @@ export const DashboardHome: React.FC = () => {
                       </p>
                     </div>
                   </div>
-                  <div className="text-right flex-shrink-0" style={{ marginLeft: 'var(--space-2)' }}>
-                    <p className="txn-amount" style={{
-                      fontSize: 'var(--text-sm)',
+                  <div className="text-right flex-shrink-0" style={{ marginLeft: '8px' }}>
+                    <p style={{
+                      fontSize: '13px',
                       fontWeight: 700,
                       color: 'var(--color-text-primary)',
                       margin: 0,
-                      marginBottom: 'var(--space-0.5)',
+                      marginBottom: '2px',
+                      fontVariantNumeric: 'tabular-nums',
                     }}>
                       GHS {tx.total.toFixed(2)}
                     </p>
                     <span
-                      className="txn-meta capitalize"
+                      className="capitalize"
                       style={{
-                        fontSize: 'var(--text-xs)',
-                        padding: '1px 8px',
-                        borderRadius: 'var(--radius-full)',
+                        fontSize: '10px',
+                        padding: '2px 8px',
+                        borderRadius: '9999px',
                         background: 'var(--color-bg-surface)',
                         color: 'var(--color-text-secondary)',
                         border: '1px solid var(--color-border)',
@@ -767,14 +927,14 @@ export const DashboardHome: React.FC = () => {
         </div>
 
         {/* Recent Activity - Lab Tests & Purchase Orders */}
-        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-          <SectionHeader icon={List} title="Recent Activity" linkTo="/dashboard/analytics" />
+        <div className="card" style={{ padding: 0, overflow: 'hidden', background: 'var(--color-bg-surface)', border: '1px solid var(--color-border)', borderRadius: '10px' }}>
+          <SectionHeader icon={List} title={`Recent Activity (${getDateFilterLabel()})`} linkTo="/dashboard/analytics" />
 
-          <div className="activity-list" style={{
-            padding: 'var(--space-1) var(--space-5) var(--space-5)',
+          <div style={{
+            padding: '4px 20px 20px 20px',
             display: 'flex',
             flexDirection: 'column',
-            gap: 'var(--space-1.5)',
+            gap: '6px',
           }}>
             {/* Lab Tests Section */}
             {recentLabTests.length > 0 && (
@@ -782,42 +942,41 @@ export const DashboardHome: React.FC = () => {
                 <div style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 'var(--space-1.5)',
-                  padding: 'var(--space-1) var(--space-1.5)',
-                  marginBottom: 'var(--space-0.5)',
+                  gap: '6px',
+                  padding: '4px 6px',
+                  marginBottom: '2px',
                 }}>
                   <FlaskConical style={{ width: 12, height: 12, color: 'var(--color-text-secondary)' }} />
-                  <span style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wide)' }}>
+                  <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
                     Lab Tests
                   </span>
                 </div>
                 {recentLabTests.map((test) => (
                   <div
                     key={test.id}
-                    className="activity-item"
                     style={{
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
-                      padding: 'var(--space-2.5) var(--space-3)',
-                      borderRadius: 'var(--radius-md)',
+                      padding: '10px 12px',
+                      borderRadius: '8px',
                       background: 'var(--color-bg-subtle)',
-                      transition: 'background var(--transition-fast)',
+                      transition: 'background 150ms ease',
                       cursor: 'default',
-                      gap: 'var(--space-3)',
+                      gap: '12px',
                     }}
                     onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--color-accent-light)')}
                     onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--color-bg-subtle)')}
                   >
                     <div className="flex-1 min-w-0">
-                      <p className="truncate" style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--color-text-primary)', margin: 0 }}>
+                      <p className="truncate" style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-primary)', margin: 0 }}>
                         {test.patientName}
                       </p>
-                      <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', margin: 0, marginTop: 'var(--space-0.5)' }}>
+                      <p style={{ fontSize: '11px', color: 'var(--color-text-muted)', margin: 0, marginTop: '2px' }}>
                         {test.transactionNumber}
                       </p>
                     </div>
-                    <div className="flex-shrink-0" style={{ marginLeft: 'var(--space-2)' }}>
+                    <div className="flex-shrink-0" style={{ marginLeft: '8px' }}>
                       <StatusBadge status={test.status} />
                     </div>
                   </div>
@@ -829,48 +988,47 @@ export const DashboardHome: React.FC = () => {
             {recentPurchaseOrders.length > 0 && (
               <>
                 {recentLabTests.length > 0 && (
-                  <div style={{ height: '1px', background: 'var(--color-border)', margin: 'var(--space-2) 0' }} />
+                  <div style={{ height: '1px', background: 'var(--color-border)', margin: '8px 0' }} />
                 )}
                 <div style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 'var(--space-1.5)',
-                  padding: 'var(--space-1) var(--space-1.5)',
-                  marginBottom: 'var(--space-0.5)',
+                  gap: '6px',
+                  padding: '4px 6px',
+                  marginBottom: '2px',
                 }}>
                   <Truck style={{ width: 12, height: 12, color: 'var(--color-text-secondary)' }} />
-                  <span style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wide)' }}>
+                  <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
                     Purchase Orders
                   </span>
                 </div>
                 {recentPurchaseOrders.map((po) => (
                   <div
                     key={po.id}
-                    className="activity-item"
                     style={{
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
-                      padding: 'var(--space-2.5) var(--space-3)',
-                      borderRadius: 'var(--radius-md)',
+                      padding: '10px 12px',
+                      borderRadius: '8px',
                       background: 'var(--color-bg-subtle)',
-                      transition: 'background var(--transition-fast)',
+                      transition: 'background 150ms ease',
                       cursor: 'default',
-                      gap: 'var(--space-3)',
+                      gap: '12px',
                     }}
                     onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--color-accent-light)')}
                     onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--color-bg-subtle)')}
                   >
                     <div className="flex-1 min-w-0">
-                      <p className="truncate" style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--color-text-primary)', margin: 0 }}>
+                      <p className="truncate" style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-primary)', margin: 0 }}>
                         {po.orderNumber}
                       </p>
-                      <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', margin: 0, marginTop: 'var(--space-0.5)' }}>
+                      <p style={{ fontSize: '11px', color: 'var(--color-text-muted)', margin: 0, marginTop: '2px' }}>
                         {po.supplierName || 'Supplier'}
                       </p>
                     </div>
-                    <div className="text-right flex-shrink-0" style={{ marginLeft: 'var(--space-2)' }}>
-                      <p style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--color-accent-text)', margin: 0, marginBottom: 'var(--space-0.5)' }}>
+                    <div className="text-right flex-shrink-0" style={{ marginLeft: '8px' }}>
+                      <p style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-accent-text)', margin: 0, marginBottom: '2px', fontVariantNumeric: 'tabular-nums' }}>
                         GHS {po.totalAmount.toFixed(2)}
                       </p>
                       <StatusBadge status={po.status} />
@@ -881,14 +1039,14 @@ export const DashboardHome: React.FC = () => {
             )}
 
             {recentLabTests.length === 0 && recentPurchaseOrders.length === 0 && (
-              <div className="text-center" style={{ padding: 'var(--space-4) 0' }}>
+              <div className="text-center" style={{ padding: '16px 0' }}>
                 <div
                   className="flex items-center justify-center mx-auto"
-                  style={{ width: 36, height: 36, borderRadius: 'var(--radius-full)', background: 'var(--color-bg-subtle)', marginBottom: 'var(--space-2)' }}
+                  style={{ width: 36, height: 36, borderRadius: '9999px', background: 'var(--color-bg-subtle)', marginBottom: '8px' }}
                 >
                   <Box style={{ width: 16, height: 16, color: 'var(--color-text-muted)' }} />
                 </div>
-                <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)', margin: 0 }}>No recent activity</p>
+                <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', margin: 0 }}>No recent activity in this period</p>
               </div>
             )}
           </div>

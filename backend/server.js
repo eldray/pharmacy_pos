@@ -54,6 +54,11 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
+// ==================== RATE LIMITING ====================
+// General API limiter — generous enough for normal POS use, blocks abuse.
+const { rateLimit } = require('./middleware/rateLimit');
+app.use('/api', rateLimit({ windowMs: 15 * 60 * 1000, max: 1000 }));
+
 app.use((req, res, next) => {
   console.log(`${req.method} ${req.url} - ${new Date().toISOString()}`);
   next();
@@ -85,6 +90,7 @@ app.use('/api/transactions', require('./routes/transactions'));
 app.use('/api/inventory', require('./routes/inventory'));
 app.use('/api/lab-tests', require('./routes/labTests'));
 app.use('/api/lab-transactions', require('./routes/labTransactions'));
+app.use('/api/audit-logs', require('./routes/auditLogs'));
 
 // ==================== ERROR HANDLING ====================
 // ==================== SERVE FRONTEND (ELECTRON) ====================
@@ -110,14 +116,9 @@ if (process.env.ELECTRON === 'true') {
   });
 }
 
-app.use((err, req, res, next) => {
-  console.error('Server error:', err.stack);
-  res.status(500).json({
-    success: false,
-    message: 'Internal server error',
-    ...(process.env.NODE_ENV === 'development' && { error: err.message })
-  });
-});
+// Centralized error handler — standardizes every error to { success, message }.
+const { errorHandler } = require('./utils/errors');
+app.use(errorHandler);
 
 // ==================== DATABASE INITIALIZATION ====================
 async function createDatabaseIfNotExists() {
@@ -180,6 +181,12 @@ const startServer = async () => {
     // Change to sync({ alter: true }) ONLY during active development
     await sequelize.sync();
     console.log('✅ Schema synchronised');
+
+    // Apply any pending migrations (indexes on existing tables, incremental
+    // schema changes sync() can't make). Runs after sync so a fresh DB has its
+    // base tables first; migrations are written to be idempotent.
+    const { migrate } = require('./migrate');
+    await migrate('up');
 
     // ✅ FIXED: Import from models/index.js to load associations
     const { User } = require('./models');

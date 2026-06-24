@@ -37,14 +37,19 @@ export const Login: React.FC = () => {
       return;
     }
 
-    const result = await loginUser(email, password);
-    if (result) {
-      await initStore(result.user.role);
-      navigate('/dashboard');
-    } else {
-      setError('Invalid email or password');
+    try {
+      const result = await loginUser(email, password);
+      if (result) {
+        await initStore(result.user.role);
+        navigate('/dashboard');
+      } else {
+        setError('Invalid email or password');
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Invalid email or password');
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
   const quickLogin = async (demoEmail: string, demoPassword: string, role: string) => {
@@ -53,14 +58,19 @@ export const Login: React.FC = () => {
     setEmail(demoEmail);
     setPassword(demoPassword);
     await new Promise((r) => setTimeout(r, 300));
-    const result = await loginUser(demoEmail, demoPassword);
-    if (result) {
-      await initStore(result.user.role);
-      navigate('/dashboard');
-    } else {
-      setError('Quick login failed');
+    try {
+      const result = await loginUser(demoEmail, demoPassword);
+      if (result) {
+        await initStore(result.user.role);
+        navigate('/dashboard');
+      } else {
+        setError('Quick login failed');
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Quick login failed');
+    } finally {
+      setQuickLoginLoading(null);
     }
-    setQuickLoginLoading(null);
   };
 
   const getRoleIcon = (role: string) => {

@@ -29,6 +29,8 @@ import {
 import { useAppStore } from '../store';
 import { User as UserType, UserRole } from '../types';
 import { Card } from '../components/ui/Card';
+import { validateUser, PASSWORD_RULE } from '../lib/validation';
+import { validateUser, PASSWORD_RULE } from '../lib/validation';
 
 export const StaffManagement: React.FC = () => {
     const { currentUser, users, fetchUsers, addUser, updateUser } = useAppStore();
@@ -154,13 +156,11 @@ export const StaffManagement: React.FC = () => {
         e.preventDefault();
         setMessage(null);
 
-        if (!formData.name || !formData.email || !formData.role) {
-            setMessage({ type: 'error', text: 'Please fill in all required fields' });
-            return;
-        }
-
-        if (!editingUser && !formData.password) {
-            setMessage({ type: 'error', text: 'Password is required for new users' });
+        // Client-side validation mirrors the backend rules (incl. password policy).
+        const errors = validateUser(formData, !editingUser);
+        const firstError = Object.values(errors)[0];
+        if (firstError) {
+            setMessage({ type: 'error', text: firstError });
             return;
         }
 
@@ -505,6 +505,11 @@ export const StaffManagement: React.FC = () => {
                                         {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                                     </button>
                                 </div>
+                                {(!editingUser || formData.password) && (
+                                    <p className="mt-1.5 text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                                        {PASSWORD_RULE}
+                                    </p>
+                                )}
                             </div>
 
                             <div>

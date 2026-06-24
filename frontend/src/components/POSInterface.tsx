@@ -1,5 +1,6 @@
 // src/components/POSInterface.tsx
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { useReactToPrint } from 'react-to-print';
 import {
   Search, ShoppingCart, Trash2, DollarSign,
   Plus, Minus, X
@@ -44,10 +45,11 @@ const StockBadge: React.FC<{ quantity: number }> = ({ quantity }) => {
 };
 
 /* ─── Product card ───────────────────────────────────────────────────────── */
-const ProductCard: React.FC<{ product: Product; onClick: () => void }> = ({
+const ProductCard: React.FC<{ product: Product; onSelect: (p: Product) => void }> = React.memo(({
   product,
-  onClick,
+  onSelect,
 }) => {
+  const onClick = () => onSelect(product);
   const outOfStock = product.quantity <= 0;
   return (
     <div
@@ -97,7 +99,8 @@ const ProductCard: React.FC<{ product: Product; onClick: () => void }> = ({
       </div>
     </div>
   );
-};
+});
+ProductCard.displayName = 'ProductCard';
 
 /* ─── Field — compact labeled input with HARD-CODED padding ────────────── */
 const Field: React.FC<
@@ -152,8 +155,8 @@ const QtyBtn: React.FC<{
     aria-label={ariaLabel}
     className="flex items-center justify-center transition-colors duration-100 cursor-pointer"
     style={{
-      width: 26,
-      height: 26,
+      width: 28,
+      height: 28,
       borderRadius: '4px',
       border: '1px solid var(--color-border)',
       background: 'var(--color-bg-surface)',
@@ -187,14 +190,79 @@ export const POSInterface: React.FC = () => {
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [formError, setFormError] = useState('');
+  const [editingQtyIndex, setEditingQtyIndex] = useState<string | null>(null);
+
+  // ─── Print Ref ───────────────────────────────────────────────────────────
+  const receiptPrintRef = useRef<HTMLDivElement>(null);
 
   const {
     fetchProducts, products,
     cartItems, addToCart, updateCartItem, removeFromCart, clearCart,
-    getCartTotal, addTransaction,
+    getCartTotal, addTransaction, transactions,
   } = useAppStore();
 
   useEffect(() => { fetchProducts(); }, [fetchProducts]);
+
+  // ─── Print Handler ──────────────────────────────────────────────────────
+  const handlePrintReceipt = useReactToPrint({
+    content: () => receiptPrintRef.current,
+    documentTitle: `Receipt-${lastTransaction?.transactionNumber || 'Unknown'}`,
+    pageStyle: `
+      @page {
+        size: A4;
+        margin: 10mm;
+      }
+      @media print {
+        body {
+          background: white !important;
+          margin: 0 !important;
+          padding: 0 !important;
+        }
+        .no-print {
+          display: none !important;
+        }
+        .print-content {
+          display: block !important;
+        }
+        .fixed.inset-0 {
+          display: none !important;
+        }
+      }
+    `,
+    onBeforeGetContent: () => {
+      setShowReceipt(false);
+      return Promise.resolve();
+    },
+    onAfterPrint: () => {
+      console.log('Receipt printed successfully');
+    }
+  });
+
+  // ─── Get top selling products ──────────────────────────────────────────
+  const topSellingProducts = useMemo(() => {
+    if (transactions.length > 0) {
+      const salesCount: Record<string, number> = {};
+      
+      transactions.forEach(tx => {
+        tx.items.forEach(item => {
+          const productId = item.productId;
+          if (productId) {
+            salesCount[productId] = (salesCount[productId] || 0) + item.quantity;
+          }
+        });
+      });
+
+      const sorted = Object.entries(salesCount)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 12)
+        .map(([productId]) => products.find(p => p.id === productId))
+        .filter(Boolean) as Product[];
+
+      return sorted;
+    }
+    
+    return products.slice(0, 12);
+  }, [transactions, products]);
 
   const searchResults = useMemo(() => {
     if (!searchQuery.trim()) return [];
@@ -207,24 +275,29 @@ export const POSInterface: React.FC = () => {
     );
   }, [searchQuery, products]);
 
-  const handleAddProduct = (product: Product) => {
+  const handleAddProduct = React.useCallback((product: Product) => {
     setFormError('');
     if (!product.id) { setFormError('This product is missing an ID and cannot be added.'); return; }
     if (product.quantity <= 0) { setFormError(`${product.name} is out of stock.`); return; }
     addToCart(product, 1);
     setSearchQuery('');
-  };
+  }, [addToCart]);
 
   const handleQtyChange = (cartId: string, qty: number) => {
     if (qty < 1) removeFromCart(cartId);
     else updateCartItem(cartId, qty);
   };
 
-  const { subtotal, tax } = getCartTotal();
+  const handleQtyInputChange = (cartId: string, value: string) => {
+    const qty = parseInt(value);
+    if (isNaN(qty)) return;
+    if (qty < 1) removeFromCart(cartId);
+    else updateCartItem(cartId, qty);
+  };
+
+  const { subtotal, tax, taxRate } = getCartTotal();
   const discountAmount = (subtotal * discountPercent) / 100;
   const finalTotal = subtotal - discountAmount + tax;
-
-  // src/components/POSInterface.tsx - Updated handlePayment function
 
   const handlePayment = async () => {
     setFormError('');
@@ -234,7 +307,6 @@ export const POSInterface: React.FC = () => {
 
     setPaymentLoading(true);
     try {
-      // Create items with proper product structure for the receipt
       const transactionItems = cartItems.map((i) => ({
         productId: i.productId,
         product: {
@@ -267,7 +339,6 @@ export const POSInterface: React.FC = () => {
       });
 
       if (txn) {
-        // Ensure the transaction has the proper items structure for the receipt
         const receiptTransaction = {
           ...txn,
           items: transactionItems,
@@ -289,6 +360,14 @@ export const POSInterface: React.FC = () => {
     }
   };
 
+  // ─── Determine which products to show ──────────────────────────────────
+  const displayedProducts = useMemo(() => {
+    if (searchQuery.trim()) {
+      return searchResults;
+    }
+    return topSellingProducts;
+  }, [searchQuery, searchResults, topSellingProducts]);
+
   if (products.length === 0) {
     return (
       <div className="flex items-center justify-center" style={{ height: 256 }}>
@@ -305,9 +384,7 @@ export const POSInterface: React.FC = () => {
     );
   }
 
-  const displayedProducts = searchQuery.trim() ? searchResults : products;
-
-  /* ─── Shared input style with HARD-CODED padding ────────────────── */
+  /* ─── Shared input style ──────────────────────────────────────────────── */
   const inputStyle: React.CSSProperties = {
     background: 'var(--color-input-bg)',
     border: '1px solid var(--color-input-border)',
@@ -347,18 +424,34 @@ export const POSInterface: React.FC = () => {
             {products.length} products available
           </p>
         </div>
-        <span
-          style={{
-            fontSize: '10px',
-            fontWeight: 600,
-            padding: '4px 12px',
-            borderRadius: '9999px',
-            background: 'var(--color-success-light)',
-            color: 'var(--color-success-text)',
-          }}
-        >
-          Ready to scan
-        </span>
+        <div className="flex items-center gap-2">
+          {!searchQuery.trim() && (
+            <span
+              style={{
+                fontSize: '10px',
+                fontWeight: 600,
+                padding: '4px 12px',
+                borderRadius: '9999px',
+                background: 'var(--color-info-light)',
+                color: 'var(--color-info-text)',
+              }}
+            >
+              Top Selling
+            </span>
+          )}
+          <span
+            style={{
+              fontSize: '10px',
+              fontWeight: 600,
+              padding: '4px 12px',
+              borderRadius: '9999px',
+              background: 'var(--color-success-light)',
+              color: 'var(--color-success-text)',
+            }}
+          >
+            Ready to scan
+          </span>
+        </div>
       </div>
 
       {/* Form-level error banner */}
@@ -387,10 +480,10 @@ export const POSInterface: React.FC = () => {
       )}
 
       {/* Main layout */}
-      <div className="grid grid-cols-1 xl:grid-cols-4" style={{ gap: '16px' }}>
+      <div className="grid grid-cols-1 lg:grid-cols-3" style={{ gap: '16px' }}>
 
         {/* ── Products ─────────────────────────────────────────────────── */}
-        <div className="xl:col-span-3">
+        <div className="xl:col-span-2">
           {/* Search */}
           <div className="relative" style={{ marginBottom: '12px' }}>
             <Search
@@ -445,7 +538,7 @@ export const POSInterface: React.FC = () => {
             <span
               style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-secondary)' }}
             >
-              {searchQuery.trim() ? 'Search Results' : 'All Products'}
+              {searchQuery.trim() ? 'Search Results' : 'Top Selling Products'}
             </span>
             <span
               style={{
@@ -454,8 +547,8 @@ export const POSInterface: React.FC = () => {
                 marginBottom: '4px',
                 padding: '4px 8px',
                 borderRadius: '6px',
-                background: searchQuery.trim() ? 'var(--color-info-light)' : 'var(--color-bg-subtle)',
-                color: searchQuery.trim() ? 'var(--color-info-text)' : 'var(--color-text-muted)',
+                background: searchQuery.trim() ? 'var(--color-info-light)' : 'var(--color-accent-light)',
+                color: searchQuery.trim() ? 'var(--color-info-text)' : 'var(--color-accent-text)',
               }}
             >
               {displayedProducts.length}
@@ -463,11 +556,11 @@ export const POSInterface: React.FC = () => {
           </div>
 
           {/* Grid */}
-          {displayedProducts.length === 0 && searchQuery.trim() ? (
+          {displayedProducts.length === 0 ? (
             <div className="text-center" style={{ padding: '40px 0' }}>
               <Search style={{ width: 28, height: 28, margin: '0 auto', color: 'var(--color-text-muted)', opacity: 0.4 }} />
               <p style={{ fontSize: '13px', marginTop: '12px', color: 'var(--color-text-muted)' }}>
-                No products match "{searchQuery}"
+                {searchQuery.trim() ? `No products match "${searchQuery}"` : 'No products available'}
               </p>
             </div>
           ) : (
@@ -476,7 +569,7 @@ export const POSInterface: React.FC = () => {
                 <ProductCard
                   key={p.id}
                   product={p}
-                  onClick={() => handleAddProduct(p)}
+                  onSelect={handleAddProduct}
                 />
               ))}
             </div>
@@ -493,11 +586,15 @@ export const POSInterface: React.FC = () => {
                 background: 'var(--color-bg-surface)',
                 border: '1px solid var(--color-border)',
                 boxShadow: 'var(--shadow-card)',
+                minHeight: '500px',
+                maxHeight: 'calc(100vh - 140px)',
+                display: 'flex',
+                flexDirection: 'column',
               }}
             >
               {/* Cart header */}
               <div
-                className="flex items-center justify-between"
+                className="flex items-center justify-between flex-shrink-0"
                 style={{ padding: '12px 16px', borderBottom: '1px solid var(--color-border)' }}
               >
                 <div className="flex items-center" style={{ gap: '8px' }}>
@@ -549,9 +646,10 @@ export const POSInterface: React.FC = () => {
                 )}
               </div>
 
-              <div style={{ padding: '16px' }}>
+              {/* Cart body - Scrollable */}
+              <div style={{ padding: '16px', flex: 1, overflowY: 'auto' }}>
                 {cartItems.length === 0 ? (
-                  <div className="text-center" style={{ padding: '32px 0' }}>
+                  <div className="text-center" style={{ padding: '40px 0' }}>
                     <div
                       className="flex items-center justify-center mx-auto"
                       style={{ width: 44, height: 44, borderRadius: '9999px', background: 'var(--color-bg-subtle)', marginBottom: '12px' }}
@@ -567,78 +665,97 @@ export const POSInterface: React.FC = () => {
                   </div>
                 ) : (
                   <>
-                    {/* Cart items */}
-                    <div className="overflow-y-auto" style={{ maxHeight: 220, margin: '0 -4px' }}>
+                    {/* Cart items - Larger display */}
+                    <div className="overflow-y-auto" style={{ maxHeight: 'calc(100vh - 400px)', margin: '0 -4px' }}>
                       {cartItems.map((item) => (
                         <div
                           key={item.cartId}
-                          className="flex items-center"
-                          style={{ gap: '8px', padding: '8px 4px', borderBottom: '1px solid var(--color-border)' }}
+                          className="flex flex-col"
+                          style={{ padding: '8px 4px', borderBottom: '1px solid var(--color-border)' }}
                         >
-                          <div className="min-w-0 flex-1">
-                            <p
-                              className="truncate"
-                              style={{ fontSize: '13px', fontWeight: 600, lineHeight: 'var(--leading-tight)', color: 'var(--color-text-primary)' }}
-                            >
-                              {item.product.name}
-                            </p>
-                            <Num style={{ fontSize: '10px', color: 'var(--color-text-muted)' }}>
-                              GHS {safeNumber(item.unitPrice).toFixed(2)} ea
-                            </Num>
-                          </div>
+                          <div className="flex items-center justify-between">
+                            <div className="min-w-0 flex-1">
+                              <p
+                                className="truncate"
+                                style={{ fontSize: '13px', fontWeight: 600, lineHeight: 'var(--leading-tight)', color: 'var(--color-text-primary)' }}
+                              >
+                                {item.product.name}
+                              </p>
+                              <Num style={{ fontSize: '10px', color: 'var(--color-text-muted)' }}>
+                                GHS {safeNumber(item.unitPrice).toFixed(2)} ea
+                              </Num>
+                            </div>
 
-                          <div className="flex items-center flex-shrink-0" style={{ gap: 2 }}>
-                            <QtyBtn
-                              ariaLabel={`Decrease quantity of ${item.product.name}`}
-                              onClick={() => handleQtyChange(item.cartId, item.quantity - 1)}
-                            >
-                              <Minus style={{ width: 10, height: 10 }} />
-                            </QtyBtn>
                             <Num
-                              className="text-center"
-                              style={{ width: 28, fontSize: '13px', fontWeight: 700, color: 'var(--color-text-primary)' }}
+                              className="text-right flex-shrink-0"
+                              style={{ fontSize: '14px', fontWeight: 700, color: 'var(--color-accent-text)' }}
                             >
-                              {item.quantity}
+                              GHS {safeNumber(item.total).toFixed(2)}
                             </Num>
-                            <QtyBtn
-                              ariaLabel={`Increase quantity of ${item.product.name}`}
-                              onClick={() => handleQtyChange(item.cartId, item.quantity + 1)}
-                            >
-                              <Plus style={{ width: 10, height: 10 }} />
-                            </QtyBtn>
                           </div>
 
-                          <Num
-                            className="text-right flex-shrink-0"
-                            style={{ width: 60, fontSize: '13px', fontWeight: 700, color: 'var(--color-text-primary)' }}
-                          >
-                            GHS {safeNumber(item.total).toFixed(2)}
-                          </Num>
+                          <div className="flex items-center justify-between mt-2">
+                            <div className="flex items-center flex-shrink-0" style={{ gap: 2 }}>
+                              <QtyBtn
+                                ariaLabel={`Decrease quantity of ${item.product.name}`}
+                                onClick={() => handleQtyChange(item.cartId, item.quantity - 1)}
+                              >
+                                <Minus style={{ width: 12, height: 12 }} />
+                              </QtyBtn>
+                              <input
+                                type="number"
+                                value={item.quantity}
+                                onChange={(e) => handleQtyInputChange(item.cartId, e.target.value)}
+                                onFocus={() => setEditingQtyIndex(item.cartId)}
+                                onBlur={() => setEditingQtyIndex(null)}
+                                style={{
+                                  width: '36px',
+                                  height: '28px',
+                                  textAlign: 'center',
+                                  fontSize: '14px',
+                                  fontWeight: 700,
+                                  border: '1px solid var(--color-border)',
+                                  borderRadius: '4px',
+                                  background: editingQtyIndex === item.cartId ? 'var(--color-accent-light)' : 'var(--color-input-bg)',
+                                  color: 'var(--color-text-primary)',
+                                  outline: 'none',
+                                  padding: '0',
+                                }}
+                                min="1"
+                              />
+                              <QtyBtn
+                                ariaLabel={`Increase quantity of ${item.product.name}`}
+                                onClick={() => handleQtyChange(item.cartId, item.quantity + 1)}
+                              >
+                                <Plus style={{ width: 12, height: 12 }} />
+                              </QtyBtn>
+                            </div>
 
-                          <button
-                            onClick={() => removeFromCart(item.cartId)}
-                            aria-label={`Remove ${item.product.name} from cart`}
-                            className="flex-shrink-0 transition-colors duration-100 cursor-pointer"
-                            style={{
-                              color: 'var(--color-text-muted)',
-                              background: 'transparent',
-                              border: 'none',
-                              padding: 4,
-                              opacity: 0.5,
-                            }}
-                            onMouseEnter={(e) => {
-                              const el = e.currentTarget as HTMLElement;
-                              el.style.color = 'var(--color-danger-text)';
-                              el.style.opacity = '1';
-                            }}
-                            onMouseLeave={(e) => {
-                              const el = e.currentTarget as HTMLElement;
-                              el.style.color = 'var(--color-text-muted)';
-                              el.style.opacity = '0.5';
-                            }}
-                          >
-                            <Trash2 style={{ width: 13, height: 13 }} />
-                          </button>
+                            <button
+                              onClick={() => removeFromCart(item.cartId)}
+                              aria-label={`Remove ${item.product.name} from cart`}
+                              className="flex-shrink-0 transition-colors duration-100 cursor-pointer"
+                              style={{
+                                color: 'var(--color-text-muted)',
+                                background: 'transparent',
+                                border: 'none',
+                                padding: 4,
+                                opacity: 0.5,
+                              }}
+                              onMouseEnter={(e) => {
+                                const el = e.currentTarget as HTMLElement;
+                                el.style.color = 'var(--color-danger-text)';
+                                el.style.opacity = '1';
+                              }}
+                              onMouseLeave={(e) => {
+                                const el = e.currentTarget as HTMLElement;
+                                el.style.color = 'var(--color-text-muted)';
+                                el.style.opacity = '0.5';
+                              }}
+                            >
+                              <Trash2 style={{ width: 14, height: 14 }} />
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -686,7 +803,7 @@ export const POSInterface: React.FC = () => {
                         ...(discountAmount > 0
                           ? [{ label: 'Discount', value: -discountAmount, color: 'var(--color-success-text)' }]
                           : []),
-                        { label: 'VAT 15%', value: tax, color: 'var(--color-text-secondary)' },
+                        { label: `VAT ${taxRate}%`, value: tax, color: 'var(--color-text-secondary)' },
                       ].map(({ label, value, color }) => (
                         <div key={label} className="flex justify-between" style={{ fontSize: '13px' }}>
                           <span style={{ color: 'var(--color-text-muted)' }}>{label}</span>
@@ -787,14 +904,31 @@ export const POSInterface: React.FC = () => {
         </div>
       </div>
 
+      {/* ─── RECEIPT MODAL ────────────────────────────────────────────────── */}
       {showReceipt && lastTransaction && (
-        <ReceiptModal
-          transaction={lastTransaction}
-          customerName={customerName}
-          customerPhone={customerPhone}
-          onClose={() => setShowReceipt(false)}
-          onPrint={() => window.print()}
-        />
+        <>
+          {/* Modal Overlay */}
+          <ReceiptModal
+            transaction={lastTransaction}
+            customerName={customerName}
+            customerPhone={customerPhone}
+            onClose={() => setShowReceipt(false)}
+            onPrint={handlePrintReceipt}
+          />
+          
+          {/* Hidden print content for react-to-print */}
+          <div style={{ display: 'none' }}>
+            <div ref={receiptPrintRef}>
+              <ReceiptModal
+                transaction={lastTransaction}
+                customerName={customerName}
+                customerPhone={customerPhone}
+                onClose={() => {}}
+                onPrint={() => {}}
+              />
+            </div>
+          </div>
+        </>
       )}
     </div>
   );

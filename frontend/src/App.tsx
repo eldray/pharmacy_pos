@@ -5,6 +5,7 @@ import { Login } from './components/Login';
 import { DashboardLayout } from './components/DashboardLayout';
 import { LandingPage } from './pages/LandingPage';
 import { Routes, Route, Navigate } from 'react-router-dom';
+import './App.css'; 
 
 function App() {
   const { currentUser, setCurrentUser } = useAppStore();

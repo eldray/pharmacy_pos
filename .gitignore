@@ -58,3 +58,7 @@ pids
 *.pid
 *.seed
 *.pid.lock
+
+# Database backups
+backend/backups/
+*.dump

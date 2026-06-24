@@ -1,4 +1,4 @@
-// src/pages/InventoryPage.tsx
+// src/pages/InventoryPage.tsx - Updated with Sorting
 import React, { useState, useMemo, useEffect } from 'react';
 import {
   Package,
@@ -31,13 +31,23 @@ import {
   GripVertical,
   Layers,
   AlertCircle,
-  Clock as ClockIcon
+  Clock as ClockIcon,
+  ArrowUpDown
 } from 'lucide-react';
 import { useAppStore } from '../store';
 import { Product, InventoryLog } from '../types';
 import { Card } from '../components/ui/Card';
 
 type TabType = 'overview' | 'low-stock' | 'expiry' | 'history';
+
+// ─── SORT TYPES ──────────────────────────────────────────────────────
+type SortField = 'name' | 'sku' | 'category' | 'quantity' | 'price' | 'expiry' | 'date' | 'type';
+type SortDirection = 'asc' | 'desc';
+
+interface SortConfig {
+  field: SortField;
+  direction: SortDirection;
+}
 
 const InventoryPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('overview');
@@ -51,12 +61,15 @@ const InventoryPage: React.FC = () => {
   const [disposalQty, setDisposalQty] = useState(0);
   const [disposalReason, setDisposalReason] = useState('');
 
-  // Pagination states for each tab
+  // Pagination states
   const [overviewPage, setOverviewPage] = useState(1);
   const [lowStockPage, setLowStockPage] = useState(1);
   const [expiryPage, setExpiryPage] = useState(1);
   const [historyPage, setHistoryPage] = useState(1);
   const [itemsPerPage] = useState(10);
+
+  // ─── SORT STATES ──────────────────────────────────────────────────
+  const [sortConfig, setSortConfig] = useState<SortConfig>({ field: 'name', direction: 'asc' });
 
   const {
     currentUser,
@@ -105,6 +118,101 @@ const InventoryPage: React.FC = () => {
     fetchInventoryLogs();
   }, [fetchProducts, fetchInventoryLogs]);
 
+  // ─── SORT FUNCTION ──────────────────────────────────────────────────
+  const sortProducts = (items: Product[], field: SortField, direction: SortDirection): Product[] => {
+    return [...items].sort((a, b) => {
+      let aVal: any;
+      let bVal: any;
+
+      switch (field) {
+        case 'name':
+          aVal = a.name.toLowerCase();
+          bVal = b.name.toLowerCase();
+          break;
+        case 'sku':
+          aVal = a.sku.toLowerCase();
+          bVal = b.sku.toLowerCase();
+          break;
+        case 'category':
+          aVal = a.category.toLowerCase();
+          bVal = b.category.toLowerCase();
+          break;
+        case 'quantity':
+          aVal = a.quantity;
+          bVal = b.quantity;
+          break;
+        case 'price':
+          aVal = a.unitPrice;
+          bVal = b.unitPrice;
+          break;
+        case 'expiry':
+          aVal = a.expiryDate ? new Date(a.expiryDate).getTime() : 0;
+          bVal = b.expiryDate ? new Date(b.expiryDate).getTime() : 0;
+          break;
+        default:
+          aVal = a.name.toLowerCase();
+          bVal = b.name.toLowerCase();
+      }
+
+      if (aVal < bVal) return direction === 'asc' ? -1 : 1;
+      if (aVal > bVal) return direction === 'asc' ? 1 : -1;
+      return 0;
+    });
+  };
+
+  const sortLogs = (items: InventoryLog[], field: SortField, direction: SortDirection): InventoryLog[] => {
+    return [...items].sort((a, b) => {
+      let aVal: any;
+      let bVal: any;
+
+      switch (field) {
+        case 'name':
+          aVal = a.productName.toLowerCase();
+          bVal = b.productName.toLowerCase();
+          break;
+        case 'type':
+          aVal = a.type.toLowerCase();
+          bVal = b.type.toLowerCase();
+          break;
+        case 'date':
+          aVal = new Date(a.createdAt).getTime();
+          bVal = new Date(b.createdAt).getTime();
+          break;
+        case 'quantity':
+          aVal = a.quantity;
+          bVal = b.quantity;
+          break;
+        default:
+          aVal = new Date(a.createdAt).getTime();
+          bVal = new Date(b.createdAt).getTime();
+      }
+
+      if (aVal < bVal) return direction === 'asc' ? -1 : 1;
+      if (aVal > bVal) return direction === 'asc' ? 1 : -1;
+      return 0;
+    });
+  };
+
+  // ─── SORT HANDLER ──────────────────────────────────────────────────
+  const handleSort = (field: SortField) => {
+    setSortConfig((prev) => ({
+      field,
+      direction: prev.field === field && prev.direction === 'asc' ? 'desc' : 'asc'
+    }));
+    // Reset to page 1 when sorting
+    setOverviewPage(1);
+  };
+
+  const getSortIcon = (field: SortField) => {
+    if (sortConfig.field !== field) {
+      return <ArrowUpDown className="h-3 w-3 ml-1 opacity-40" />;
+    }
+    return sortConfig.direction === 'asc'
+      ? <ChevronUp className="h-3 w-3 ml-1" />
+      : <ChevronDown className="h-3 w-3 ml-1" />;
+  };
+
+  // ─── FILTERED AND SORTED DATA ────────────────────────────────────
   const filteredProducts = useMemo(() => {
     if (!searchQuery.trim()) return products;
     const query = searchQuery.toLowerCase();
@@ -117,10 +225,18 @@ const InventoryPage: React.FC = () => {
     );
   }, [searchQuery, products]);
 
+  const sortedProducts = useMemo(() => {
+    return sortProducts(filteredProducts, sortConfig.field, sortConfig.direction);
+  }, [filteredProducts, sortConfig]);
+
   const lowStockProducts = useMemo(
     () => products.filter((p) => p.quantity < 20),
     [products]
   );
+
+  const sortedLowStock = useMemo(() => {
+    return sortProducts(lowStockProducts, sortConfig.field, sortConfig.direction);
+  }, [lowStockProducts, sortConfig]);
 
   const expiringProducts = useMemo(() => {
     const threeMonthsFromNow = new Date();
@@ -128,41 +244,46 @@ const InventoryPage: React.FC = () => {
     return products.filter((p) => p.expiryDate && new Date(p.expiryDate) <= threeMonthsFromNow);
   }, [products]);
 
-  // ─── OVERVIEW PAGINATION ──────────────────────────────────────
-  const overviewTotalPages = Math.ceil(filteredProducts.length / itemsPerPage);
+  const sortedExpiry = useMemo(() => {
+    return sortProducts(expiringProducts, 'expiry', 'asc');
+  }, [expiringProducts]);
+
+  const sortedHistory = useMemo(() => {
+    return sortLogs(inventoryLogs, 'date', 'desc');
+  }, [inventoryLogs]);
+
+  // ─── PAGINATION ──────────────────────────────────────────────────
+  const overviewTotalPages = Math.ceil(sortedProducts.length / itemsPerPage);
   const overviewStartIndex = (overviewPage - 1) * itemsPerPage;
   const overviewEndIndex = overviewStartIndex + itemsPerPage;
-  const currentProducts = filteredProducts.slice(overviewStartIndex, overviewEndIndex);
+  const currentProducts = sortedProducts.slice(overviewStartIndex, overviewEndIndex);
 
   const goToOverviewPage = (page: number) => {
     setOverviewPage(Math.max(1, Math.min(page, overviewTotalPages)));
   };
 
-  // ─── LOW STOCK PAGINATION ──────────────────────────────────────
-  const lowStockTotalPages = Math.ceil(lowStockProducts.length / itemsPerPage);
+  const lowStockTotalPages = Math.ceil(sortedLowStock.length / itemsPerPage);
   const lowStockStartIndex = (lowStockPage - 1) * itemsPerPage;
   const lowStockEndIndex = lowStockStartIndex + itemsPerPage;
-  const currentLowStock = lowStockProducts.slice(lowStockStartIndex, lowStockEndIndex);
+  const currentLowStock = sortedLowStock.slice(lowStockStartIndex, lowStockEndIndex);
 
   const goToLowStockPage = (page: number) => {
     setLowStockPage(Math.max(1, Math.min(page, lowStockTotalPages)));
   };
 
-  // ─── EXPIRY PAGINATION ──────────────────────────────────────
-  const expiryTotalPages = Math.ceil(expiringProducts.length / itemsPerPage);
+  const expiryTotalPages = Math.ceil(sortedExpiry.length / itemsPerPage);
   const expiryStartIndex = (expiryPage - 1) * itemsPerPage;
   const expiryEndIndex = expiryStartIndex + itemsPerPage;
-  const currentExpiry = expiringProducts.slice(expiryStartIndex, expiryEndIndex);
+  const currentExpiry = sortedExpiry.slice(expiryStartIndex, expiryEndIndex);
 
   const goToExpiryPage = (page: number) => {
     setExpiryPage(Math.max(1, Math.min(page, expiryTotalPages)));
   };
 
-  // ─── HISTORY PAGINATION ──────────────────────────────────────
-  const historyTotalPages = Math.ceil(inventoryLogs.length / itemsPerPage);
+  const historyTotalPages = Math.ceil(sortedHistory.length / itemsPerPage);
   const historyStartIndex = (historyPage - 1) * itemsPerPage;
   const historyEndIndex = historyStartIndex + itemsPerPage;
-  const currentHistory = inventoryLogs.slice(historyStartIndex, historyEndIndex);
+  const currentHistory = sortedHistory.slice(historyStartIndex, historyEndIndex);
 
   const goToHistoryPage = (page: number) => {
     setHistoryPage(Math.max(1, Math.min(page, historyTotalPages)));
@@ -348,8 +469,8 @@ const InventoryPage: React.FC = () => {
                   key={page}
                   onClick={() => onPageChange(page)}
                   className={`px-3 py-1.5 text-sm font-medium rounded-lg ${currentPage === page
-                    ? 'btn-accent'
-                    : 'btn-ghost'
+                      ? 'btn-accent'
+                      : 'btn-ghost'
                     }`}
                 >
                   {page}
@@ -374,7 +495,21 @@ const InventoryPage: React.FC = () => {
     );
   };
 
-  // ─── OVERVIEW VIEW (Dashboard + Products Combined) ──────────────
+  // ─── SORTABLE TABLE HEADER ──────────────────────────────────────
+  const SortableHeader = ({ field, label }: { field: SortField; label: string }) => (
+    <th
+      className="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase cursor-pointer hover:text-primary transition-colors select-none"
+      onClick={() => handleSort(field)}
+      style={{ whiteSpace: 'nowrap' }}
+    >
+      <div className="flex items-center gap-1">
+        {label}
+        {getSortIcon(field)}
+      </div>
+    </th>
+  );
+
+  // ─── OVERVIEW VIEW ──────────────────────────────────────────────
   const renderOverview = () => {
     const totalProducts = products.length;
     const lowStockCount = lowStockProducts.length;
@@ -481,16 +616,16 @@ const InventoryPage: React.FC = () => {
           />
         </div>
 
-        {/* Products Table */}
+        {/* Products Table with Sortable Headers */}
         <Card>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[1000px]">
               <thead className="bg-subtle border-b border-theme">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase">Product</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase">SKU</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase">Category</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase">Quantity</th>
+                  <SortableHeader field="name" label="Product" />
+                  <SortableHeader field="sku" label="SKU" />
+                  <SortableHeader field="category" label="Category" />
+                  <SortableHeader field="quantity" label="Quantity" />
                   <th className="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase">Status</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase">Actions</th>
                 </tr>
@@ -557,7 +692,7 @@ const InventoryPage: React.FC = () => {
               </tbody>
             </table>
 
-            {filteredProducts.length === 0 && (
+            {sortedProducts.length === 0 && (
               <div className="text-center py-12">
                 <Package className="h-12 w-12 text-muted mx-auto mb-3" />
                 <p className="text-base font-medium text-primary mb-1">No products found</p>
@@ -573,7 +708,7 @@ const InventoryPage: React.FC = () => {
             onPageChange={goToOverviewPage}
             startIndex={overviewStartIndex}
             endIndex={overviewEndIndex}
-            totalItems={filteredProducts.length}
+            totalItems={sortedProducts.length}
             itemsLabel="products"
           />
         </Card>
@@ -588,7 +723,7 @@ const InventoryPage: React.FC = () => {
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-base font-bold text-primary">Low Stock Items</h2>
-            <p className="text-sm text-secondary">{lowStockProducts.length} products below 20 units</p>
+            <p className="text-sm text-secondary">{sortedLowStock.length} products below 20 units</p>
           </div>
           <button
             onClick={() => setActiveTab('overview')}
@@ -605,8 +740,8 @@ const InventoryPage: React.FC = () => {
           <table className="w-full min-w-[800px]">
             <thead className="bg-subtle border-b border-theme">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase">Product</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase">Quantity</th>
+                <SortableHeader field="name" label="Product" />
+                <SortableHeader field="quantity" label="Quantity" />
                 <th className="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase">Status</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase">Actions</th>
               </tr>
@@ -640,7 +775,7 @@ const InventoryPage: React.FC = () => {
             </tbody>
           </table>
 
-          {lowStockProducts.length === 0 && (
+          {sortedLowStock.length === 0 && (
             <div className="text-center py-12">
               <CheckCircle className="h-12 w-12 mx-auto mb-3" style={{ color: 'var(--color-success)' }} />
               <p className="text-base font-medium text-primary">All products are well stocked!</p>
@@ -648,14 +783,13 @@ const InventoryPage: React.FC = () => {
           )}
         </div>
 
-        {/* Low Stock Pagination */}
         <Pagination
           currentPage={lowStockPage}
           totalPages={lowStockTotalPages}
           onPageChange={goToLowStockPage}
           startIndex={lowStockStartIndex}
           endIndex={lowStockEndIndex}
-          totalItems={lowStockProducts.length}
+          totalItems={sortedLowStock.length}
           itemsLabel="products"
         />
       </Card>
@@ -669,7 +803,7 @@ const InventoryPage: React.FC = () => {
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-base font-bold text-primary">Expiry Management</h2>
-            <p className="text-sm text-secondary">{expiringProducts.length} products expiring within 3 months</p>
+            <p className="text-sm text-secondary">{sortedExpiry.length} products expiring within 3 months</p>
           </div>
           <button
             onClick={() => setActiveTab('overview')}
@@ -686,47 +820,45 @@ const InventoryPage: React.FC = () => {
           <table className="w-full min-w-[800px]">
             <thead className="bg-subtle border-b border-theme">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase">Product</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase">Expiry Date</th>
+                <SortableHeader field="name" label="Product" />
+                <SortableHeader field="expiry" label="Expiry Date" />
                 <th className="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase">Status</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-theme">
-              {currentExpiry
-                .sort((a, b) => new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime())
-                .map((product) => (
-                  <tr key={product.id} className="hover:bg-subtle transition-colors">
-                    <td className="px-4 py-3">
-                      <div>
-                        <p className="font-semibold text-primary">{product.name}</p>
-                        <p className="text-xs text-secondary">Batch: {product.batchNumber}</p>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <p className="text-base font-medium text-primary">
-                        {new Date(product.expiryDate).toLocaleDateString()}
-                      </p>
-                    </td>
-                    <td className="px-4 py-3">
-                      {getExpiryBadge(product.expiryDate)}
-                    </td>
-                    <td className="px-4 py-3">
-                      <button
-                        onClick={() => openDisposalModal(product)}
-                        className="btn-ghost flex items-center gap-1 px-3 py-1.5 text-sm"
-                        style={{ color: 'var(--color-danger-text)' }}
-                      >
-                        <Trash2 className="h-3 w-3" />
-                        Dispose
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+              {currentExpiry.map((product) => (
+                <tr key={product.id} className="hover:bg-subtle transition-colors">
+                  <td className="px-4 py-3">
+                    <div>
+                      <p className="font-semibold text-primary">{product.name}</p>
+                      <p className="text-xs text-secondary">Batch: {product.batchNumber}</p>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <p className="text-base font-medium text-primary">
+                      {new Date(product.expiryDate).toLocaleDateString()}
+                    </p>
+                  </td>
+                  <td className="px-4 py-3">
+                    {getExpiryBadge(product.expiryDate)}
+                  </td>
+                  <td className="px-4 py-3">
+                    <button
+                      onClick={() => openDisposalModal(product)}
+                      className="btn-ghost flex items-center gap-1 px-3 py-1.5 text-sm"
+                      style={{ color: 'var(--color-danger-text)' }}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                      Dispose
+                    </button>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
 
-          {expiringProducts.length === 0 && (
+          {sortedExpiry.length === 0 && (
             <div className="text-center py-12">
               <CheckCircle className="h-12 w-12 mx-auto mb-3" style={{ color: 'var(--color-success)' }} />
               <p className="text-base font-medium text-primary">No products expiring soon!</p>
@@ -734,14 +866,13 @@ const InventoryPage: React.FC = () => {
           )}
         </div>
 
-        {/* Expiry Pagination */}
         <Pagination
           currentPage={expiryPage}
           totalPages={expiryTotalPages}
           onPageChange={goToExpiryPage}
           startIndex={expiryStartIndex}
           endIndex={expiryEndIndex}
-          totalItems={expiringProducts.length}
+          totalItems={sortedExpiry.length}
           itemsLabel="products"
         />
       </Card>
@@ -755,7 +886,7 @@ const InventoryPage: React.FC = () => {
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-base font-bold text-primary">Inventory History</h2>
-            <p className="text-sm text-secondary">{inventoryLogs.length} total activities</p>
+            <p className="text-sm text-secondary">{sortedHistory.length} total activities</p>
           </div>
           <button
             onClick={() => setActiveTab('overview')}
@@ -772,11 +903,11 @@ const InventoryPage: React.FC = () => {
           <table className="w-full min-w-[800px]">
             <thead className="bg-subtle border-b border-theme sticky top-0">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase">Product</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase">Type</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase">Quantity</th>
+                <SortableHeader field="name" label="Product" />
+                <SortableHeader field="type" label="Type" />
+                <SortableHeader field="quantity" label="Quantity" />
                 <th className="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase">User</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase">Date</th>
+                <SortableHeader field="date" label="Date" />
                 <th className="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase">Notes</th>
               </tr>
             </thead>
@@ -810,7 +941,7 @@ const InventoryPage: React.FC = () => {
             </tbody>
           </table>
 
-          {inventoryLogs.length === 0 && (
+          {sortedHistory.length === 0 && (
             <div className="text-center py-12">
               <History className="h-12 w-12 mx-auto mb-3 opacity-40" />
               <p className="text-base font-medium text-primary">No history yet</p>
@@ -819,14 +950,13 @@ const InventoryPage: React.FC = () => {
           )}
         </div>
 
-        {/* History Pagination */}
         <Pagination
           currentPage={historyPage}
           totalPages={historyTotalPages}
           onPageChange={goToHistoryPage}
           startIndex={historyStartIndex}
           endIndex={historyEndIndex}
-          totalItems={inventoryLogs.length}
+          totalItems={sortedHistory.length}
           itemsLabel="logs"
         />
       </Card>
@@ -887,6 +1017,9 @@ const InventoryPage: React.FC = () => {
           <span className="text-xs px-3 py-1 rounded-full" style={{ background: 'var(--color-accent-light)', color: 'var(--color-accent-text)' }}>
             {products.length} products
           </span>
+          <span className="text-xs px-3 py-1 rounded-full" style={{ background: 'var(--color-bg-subtle)', color: 'var(--color-text-muted)' }}>
+            Sort: {sortConfig.field} {sortConfig.direction === 'asc' ? '↑' : '↓'}
+          </span>
         </div>
       </div>
 
@@ -897,7 +1030,6 @@ const InventoryPage: React.FC = () => {
             key={tab.id}
             onClick={() => {
               setActiveTab(tab.id as TabType);
-              // Reset page to 1 when switching tabs
               if (tab.id === 'overview') setOverviewPage(1);
               else if (tab.id === 'low-stock') setLowStockPage(1);
               else if (tab.id === 'expiry') setExpiryPage(1);
@@ -1001,7 +1133,8 @@ const InventoryPage: React.FC = () => {
       {activeTab === 'expiry' && renderExpiry()}
       {activeTab === 'history' && renderHistory()}
 
-      {/* ─── STOCK ADJUSTMENT MODAL ──────────────────────────────────── */}
+      {/* ─── MODALS (same as before) ────────────────────────────────── */}
+      {/* Stock Adjustment Modal */}
       {showAdjustmentModal && selectedProduct && (
         <div className="fixed inset-0 bg-overlay flex items-center justify-center p-4 z-modal">
           <div className="surface-elevated rounded-2xl shadow-xl w-full max-w-md border-theme">
@@ -1125,7 +1258,7 @@ const InventoryPage: React.FC = () => {
         </div>
       )}
 
-      {/* ─── DISPOSAL MODAL ──────────────────────────────────────── */}
+      {/* Disposal Modal */}
       {showDisposalModal && selectedProduct && (
         <div className="fixed inset-0 bg-overlay flex items-center justify-center p-4 z-modal">
           <div className="surface-elevated rounded-2xl shadow-xl w-full max-w-md border-theme">

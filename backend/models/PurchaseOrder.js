@@ -37,7 +37,12 @@ const PurchaseOrder = sequelize.define('PurchaseOrder', {
   deliveryDate: DataTypes.DATE,
   notes: DataTypes.TEXT
 }, {
-  tableName: 'purchase_orders'
+  tableName: 'purchase_orders',
+  indexes: [
+    { fields: ['supplierId'] },
+    { fields: ['status'] },
+    { fields: ['orderDate'] },
+  ]
 });
 
 // NO ASSOCIATIONS HERE - They are handled in models/index.js

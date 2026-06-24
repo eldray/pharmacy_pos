@@ -45,6 +45,7 @@ export const LabManagement: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
+    const [dateFilter, setDateFilter] = useState('all'); // 'all', 'today', 'week', 'month'
     const [showRequestModal, setShowRequestModal] = useState(false);
     const [stats, setStats] = useState<any>(null);
     const [currentPage, setCurrentPage] = useState(1);
@@ -99,13 +100,48 @@ export const LabManagement: React.FC = () => {
         }
     };
 
+    // ─── Date Filter Function ──────────────────────────────────────────────
+    const filterByDate = (transactions: LabTransaction[], filter: string): LabTransaction[] => {
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        
+        switch (filter) {
+            case 'today':
+                return transactions.filter(t => {
+                    const txDate = new Date(t.createdAt);
+                    return txDate >= today;
+                });
+            case 'week':
+                const weekStart = new Date(today);
+                weekStart.setDate(today.getDate() - 7);
+                return transactions.filter(t => {
+                    const txDate = new Date(t.createdAt);
+                    return txDate >= weekStart;
+                });
+            case 'month':
+                const monthStart = new Date(today);
+                monthStart.setMonth(today.getMonth() - 1);
+                return transactions.filter(t => {
+                    const txDate = new Date(t.createdAt);
+                    return txDate >= monthStart;
+                });
+            default:
+                return transactions;
+        }
+    };
+
     const filteredTransactions = useMemo(() => {
         let transactions = labTransactions || [];
 
+        // Apply date filter first
+        transactions = filterByDate(transactions, dateFilter);
+
+        // Apply status filter
         if (statusFilter !== 'all') {
             transactions = transactions.filter(t => t.status === statusFilter);
         }
 
+        // Apply search filter
         if (searchQuery) {
             const query = searchQuery.toLowerCase();
             transactions = transactions.filter(t =>
@@ -116,7 +152,47 @@ export const LabManagement: React.FC = () => {
         }
 
         return transactions;
-    }, [labTransactions, statusFilter, searchQuery]);
+    }, [labTransactions, statusFilter, searchQuery, dateFilter]);
+
+    // ─── Calculate Filtered Stats ──────────────────────────────────────────
+    const filteredStats = useMemo(() => {
+        const total = filteredTransactions.length;
+        const pending = filteredTransactions.filter(t => t.status === 'pending').length;
+        const inProgress = filteredTransactions.filter(t => t.status === 'in_progress').length;
+        const completed = filteredTransactions.filter(t => t.status === 'completed').length;
+        const cancelled = filteredTransactions.filter(t => t.status === 'cancelled').length;
+        const revenue = filteredTransactions.reduce((sum, t) => sum + safeNumber(t.totalAmount), 0);
+
+        return { total, pending, inProgress, completed, cancelled, revenue };
+    }, [filteredTransactions]);
+
+    // ─── Date Filter Button ────────────────────────────────────────────────
+    const DateFilterBtn: React.FC<{ label: string; value: string }> = ({ label, value }) => (
+        <button
+            onClick={() => setDateFilter(value)}
+            className="px-3 py-1.5 rounded-lg text-[0.72rem] font-semibold transition-all duration-200 whitespace-nowrap"
+            style={{
+                background: dateFilter === value ? 'var(--color-accent)' : 'var(--color-bg-subtle)',
+                color: dateFilter === value ? 'var(--color-accent-fg)' : 'var(--color-text-secondary)',
+                border: dateFilter === value ? 'none' : '1px solid var(--color-border)',
+                cursor: 'pointer',
+            }}
+            onMouseEnter={(e) => {
+                if (dateFilter !== value) {
+                    (e.currentTarget as HTMLElement).style.background = 'var(--color-border)';
+                    (e.currentTarget as HTMLElement).style.color = 'var(--color-text-primary)';
+                }
+            }}
+            onMouseLeave={(e) => {
+                if (dateFilter !== value) {
+                    (e.currentTarget as HTMLElement).style.background = 'var(--color-bg-subtle)';
+                    (e.currentTarget as HTMLElement).style.color = 'var(--color-text-secondary)';
+                }
+            }}
+        >
+            {label}
+        </button>
+    );
 
     // Pagination
     const totalPages = Math.ceil(filteredTransactions.length / itemsPerPage);
@@ -176,6 +252,16 @@ export const LabManagement: React.FC = () => {
     // Check if user can request lab tests
     const canRequestLab = currentUser?.role === 'admin' || currentUser?.role === 'lab' || currentUser?.role === 'officer';
 
+    // Get date filter label for display
+    const getDateFilterLabel = () => {
+        switch (dateFilter) {
+            case 'today': return 'Today';
+            case 'week': return 'This Week';
+            case 'month': return 'This Month';
+            default: return 'All Time';
+        }
+    };
+
     return (
         <div className="space-y-6 pb-6">
             {/* Header - Clean & Simple */}
@@ -186,11 +272,15 @@ export const LabManagement: React.FC = () => {
                         <p className="text-[0.72rem] mt-0.5" style={{ color: 'var(--color-text-muted)' }}>Manage lab test requests, results, and reports</p>
                         <div className="flex flex-wrap items-center gap-3 mt-2">
                             <span className="text-[0.7rem]" style={{ color: 'var(--color-text-muted)' }}>
-                                {labTransactions?.length || 0} transactions
+                                {filteredTransactions.length} transactions
                             </span>
                             <span className="text-[0.7rem]" style={{ color: 'var(--color-text-muted)' }}>•</span>
                             <span className="text-[0.7rem]" style={{ color: 'var(--color-text-muted)' }}>
                                 {labTestTemplates?.length || 0} templates
+                            </span>
+                            <span className="text-[0.7rem]" style={{ color: 'var(--color-text-muted)' }}>•</span>
+                            <span className="text-[0.7rem]" style={{ color: 'var(--color-accent-text)' }}>
+                                {getDateFilterLabel()}
                             </span>
                         </div>
                     </div>
@@ -207,123 +297,140 @@ export const LabManagement: React.FC = () => {
                 </div>
             </div>
 
-            {/* Stats - Larger cards with better readability */}
-            {stats && (
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-                    <Card className="p-4">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-sm text-secondary font-medium">Total</p>
-                                <p className="text-2xl font-bold text-primary tabular-nums">{stats.total || 0}</p>
-                            </div>
-                            <div className="p-2.5 rounded-lg" style={{ background: 'var(--color-accent)', color: 'var(--color-accent-fg)' }}>
-                                <FlaskConical className="h-4 w-4" />
-                            </div>
+            {/* Stats - Filtered Results */}
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                <Card className="p-4">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <p className="text-sm text-secondary font-medium">Total</p>
+                            <p className="text-2xl font-bold text-primary tabular-nums">{filteredStats.total}</p>
                         </div>
-                    </Card>
-
-                    <Card className="p-4" style={{ borderColor: 'var(--color-warning)', background: 'var(--color-warning-light)' }}>
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-sm font-medium" style={{ color: 'var(--color-warning-text)' }}>Pending</p>
-                                <p className="text-2xl font-bold tabular-nums" style={{ color: 'var(--color-warning-text)' }}>{stats.pending || 0}</p>
-                            </div>
-                            <div className="p-2.5 rounded-lg" style={{ background: 'var(--color-warning)', color: 'var(--color-accent-fg)' }}>
-                                <Clock className="h-4 w-4" />
-                            </div>
+                        <div className="p-2.5 rounded-lg" style={{ background: 'var(--color-accent)', color: 'var(--color-accent-fg)' }}>
+                            <FlaskConical className="h-4 w-4" />
                         </div>
-                    </Card>
-
-                    <Card className="p-4" style={{ borderColor: 'var(--color-info)', background: 'var(--color-info-light)' }}>
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-sm font-medium" style={{ color: 'var(--color-info-text)' }}>In Progress</p>
-                                <p className="text-2xl font-bold tabular-nums" style={{ color: 'var(--color-info-text)' }}>{stats.inProgress || 0}</p>
-                            </div>
-                            <div className="p-2.5 rounded-lg" style={{ background: 'var(--color-info)', color: 'var(--color-accent-fg)' }}>
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                            </div>
-                        </div>
-                    </Card>
-
-                    <Card className="p-4" style={{ borderColor: 'var(--color-success)', background: 'var(--color-success-light)' }}>
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-sm font-medium" style={{ color: 'var(--color-success-text)' }}>Completed</p>
-                                <p className="text-2xl font-bold tabular-nums" style={{ color: 'var(--color-success-text)' }}>{stats.completed || 0}</p>
-                            </div>
-                            <div className="p-2.5 rounded-lg" style={{ background: 'var(--color-success)', color: 'var(--color-accent-fg)' }}>
-                                <CheckCircle className="h-4 w-4" />
-                            </div>
-                        </div>
-                    </Card>
-
-                    <Card className="p-4" style={{ borderColor: 'var(--color-danger)', background: 'var(--color-danger-light)' }}>
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-sm font-medium" style={{ color: 'var(--color-danger-text)' }}>Cancelled</p>
-                                <p className="text-2xl font-bold tabular-nums" style={{ color: 'var(--color-danger-text)' }}>{stats.cancelled || 0}</p>
-                            </div>
-                            <div className="p-2.5 rounded-lg" style={{ background: 'var(--color-danger)', color: 'var(--color-accent-fg)' }}>
-                                <XCircle className="h-4 w-4" />
-                            </div>
-                        </div>
-                    </Card>
-
-                    <Card className="p-4" style={{ borderColor: 'var(--color-success)', background: 'var(--color-success-light)' }}>
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-sm font-medium" style={{ color: 'var(--color-success-text)' }}>Today Revenue</p>
-                                <p className="text-2xl font-bold tabular-nums" style={{ color: 'var(--color-success-text)' }}>
-                                    GHS {safeNumber(stats.today?.revenue).toFixed(2)}
-                                </p>
-                            </div>
-                            <div className="p-2.5 rounded-lg" style={{ background: 'var(--color-success)', color: 'var(--color-accent-fg)' }}>
-                                <DollarSign className="h-4 w-4" />
-                            </div>
-                        </div>
-                    </Card>
-                </div>
-            )}
-
-            {/* Search and Filter - Larger inputs */}
-            <Card className="p-4">
-                <div className="flex flex-col sm:flex-row gap-4">
-                    <div className="relative flex-1">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted" />
-                        <input
-                            type="text"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder="Search by patient name, transaction number, or test type..."
-                            className="input-base w-full pl-10 pr-4 text-sm"
-                            style={{ ...fieldStyle, paddingLeft: '2.5rem' }}
-                            onFocus={onFieldFocus}
-                            onBlur={onFieldBlur}
-                        />
                     </div>
-                    <div className="flex gap-2">
-                        <select
-                            value={statusFilter}
-                            onChange={(e) => setStatusFilter(e.target.value)}
-                            className="input-base px-4 text-sm"
-                            style={fieldStyle}
-                            onFocus={onFieldFocus}
-                            onBlur={onFieldBlur}
-                        >
-                            <option value="all">All Status</option>
-                            <option value="pending">Pending</option>
-                            <option value="in_progress">In Progress</option>
-                            <option value="completed">Completed</option>
-                            <option value="cancelled">Cancelled</option>
-                        </select>
-                        <button
-                            onClick={loadData}
-                            className="btn-ghost px-4 py-2.5"
-                            style={{ height: '42px' }}
-                        >
-                            <RefreshCw className="h-5 w-5" />
-                        </button>
+                </Card>
+
+                <Card className="p-4" style={{ borderColor: 'var(--color-warning)', background: 'var(--color-warning-light)' }}>
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <p className="text-sm font-medium" style={{ color: 'var(--color-warning-text)' }}>Pending</p>
+                            <p className="text-2xl font-bold tabular-nums" style={{ color: 'var(--color-warning-text)' }}>{filteredStats.pending}</p>
+                        </div>
+                        <div className="p-2.5 rounded-lg" style={{ background: 'var(--color-warning)', color: 'var(--color-accent-fg)' }}>
+                            <Clock className="h-4 w-4" />
+                        </div>
+                    </div>
+                </Card>
+
+                <Card className="p-4" style={{ borderColor: 'var(--color-info)', background: 'var(--color-info-light)' }}>
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <p className="text-sm font-medium" style={{ color: 'var(--color-info-text)' }}>In Progress</p>
+                            <p className="text-2xl font-bold tabular-nums" style={{ color: 'var(--color-info-text)' }}>{filteredStats.inProgress}</p>
+                        </div>
+                        <div className="p-2.5 rounded-lg" style={{ background: 'var(--color-info)', color: 'var(--color-accent-fg)' }}>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                        </div>
+                    </div>
+                </Card>
+
+                <Card className="p-4" style={{ borderColor: 'var(--color-success)', background: 'var(--color-success-light)' }}>
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <p className="text-sm font-medium" style={{ color: 'var(--color-success-text)' }}>Completed</p>
+                            <p className="text-2xl font-bold tabular-nums" style={{ color: 'var(--color-success-text)' }}>{filteredStats.completed}</p>
+                        </div>
+                        <div className="p-2.5 rounded-lg" style={{ background: 'var(--color-success)', color: 'var(--color-accent-fg)' }}>
+                            <CheckCircle className="h-4 w-4" />
+                        </div>
+                    </div>
+                </Card>
+
+                <Card className="p-4" style={{ borderColor: 'var(--color-danger)', background: 'var(--color-danger-light)' }}>
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <p className="text-sm font-medium" style={{ color: 'var(--color-danger-text)' }}>Cancelled</p>
+                            <p className="text-2xl font-bold tabular-nums" style={{ color: 'var(--color-danger-text)' }}>{filteredStats.cancelled}</p>
+                        </div>
+                        <div className="p-2.5 rounded-lg" style={{ background: 'var(--color-danger)', color: 'var(--color-accent-fg)' }}>
+                            <XCircle className="h-4 w-4" />
+                        </div>
+                    </div>
+                </Card>
+
+                <Card className="p-4" style={{ borderColor: 'var(--color-success)', background: 'var(--color-success-light)' }}>
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <p className="text-sm font-medium" style={{ color: 'var(--color-success-text)' }}>Revenue</p>
+                            <p className="text-2xl font-bold tabular-nums" style={{ color: 'var(--color-success-text)' }}>
+                                GHS {safeNumber(filteredStats.revenue).toFixed(2)}
+                            </p>
+                        </div>
+                        <div className="p-2.5 rounded-lg" style={{ background: 'var(--color-success)', color: 'var(--color-accent-fg)' }}>
+                            <DollarSign className="h-4 w-4" />
+                        </div>
+                    </div>
+                </Card>
+            </div>
+
+            {/* Search, Filter and Date Range */}
+            <Card className="p-4">
+                <div className="flex flex-col gap-4">
+                    <div className="flex flex-col sm:flex-row gap-4">
+                        <div className="relative flex-1">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted" />
+                            <input
+                                type="text"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                placeholder="Search by patient name, transaction number, or test type..."
+                                className="input-base w-full pl-10 pr-4 text-sm"
+                                style={{ ...fieldStyle, paddingLeft: '2.5rem' }}
+                                onFocus={onFieldFocus}
+                                onBlur={onFieldBlur}
+                            />
+                        </div>
+                        <div className="flex gap-2">
+                            <select
+                                value={statusFilter}
+                                onChange={(e) => setStatusFilter(e.target.value)}
+                                className="input-base px-4 text-sm"
+                                style={fieldStyle}
+                                onFocus={onFieldFocus}
+                                onBlur={onFieldBlur}
+                            >
+                                <option value="all">All Status</option>
+                                <option value="pending">Pending</option>
+                                <option value="in_progress">In Progress</option>
+                                <option value="completed">Completed</option>
+                                <option value="cancelled">Cancelled</option>
+                            </select>
+                            <button
+                                onClick={loadData}
+                                className="btn-ghost px-4 py-2.5"
+                                style={{ height: '42px' }}
+                            >
+                                <RefreshCw className="h-5 w-5" />
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Date Filter Buttons */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <Calendar className="h-4 w-4" style={{ color: 'var(--color-text-muted)' }} />
+                        <span className="text-sm font-medium" style={{ color: 'var(--color-text-secondary)' }}>Date:</span>
+                        <div className="flex gap-1.5">
+                            <DateFilterBtn label="All" value="all" />
+                            <DateFilterBtn label="Today" value="today" />
+                            <DateFilterBtn label="This Week" value="week" />
+                            <DateFilterBtn label="This Month" value="month" />
+                        </div>
+                        {dateFilter !== 'all' && (
+                            <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: 'var(--color-accent-light)', color: 'var(--color-accent-text)' }}>
+                                {filteredTransactions.length} results
+                            </span>
+                        )}
                     </div>
                 </div>
             </Card>

@@ -1,6 +1,7 @@
 // src/pages/LabDetail.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useReactToPrint } from 'react-to-print';
 import {
     ArrowLeft,
     Printer,
@@ -16,17 +17,28 @@ import {
     Edit2,
     Eye,
     FlaskConical,
-    Download,
     RefreshCw,
     XCircle,
     Loader2,
-    TrendingUp,
-    Package,
     ChevronRight,
     ChevronDown,
     ChevronUp,
     Receipt,
-    Home
+    Home,
+    Search,
+    Filter,
+    Download,
+    Plus,
+    Minus,
+    Activity,
+    Thermometer,
+    HeartPulse,
+    Syringe,
+    TestTube,
+    Microscope,
+    ClipboardCheck,
+    Pill,
+    Stethoscope
 } from 'lucide-react';
 import { useAppStore } from '../store';
 import { Card } from '../components/ui/Card';
@@ -54,29 +66,12 @@ export const LabDetail: React.FC = () => {
     const [activeTab, setActiveTab] = useState<'overview' | 'tests' | 'results'>('overview');
     const [error, setError] = useState<string | null>(null);
     const [expandedTest, setExpandedTest] = useState<string | null>(null);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [statusFilter, setStatusFilter] = useState<string>('all');
 
-    // --- Shared field style ---
-    const fieldStyle: React.CSSProperties = {
-        background: 'var(--color-input-bg)',
-        border: '1px solid var(--color-input-border)',
-        borderRadius: 'var(--radius-md)',
-        color: 'var(--color-input-text)',
-        outline: 'none',
-        fontSize: '0.875rem',
-        padding: '10px 14px',
-        width: '100%',
-        transition: 'border-color 100ms ease, box-shadow 100ms ease',
-    };
-
-    const onFieldFocus = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-        e.currentTarget.style.borderColor = 'var(--color-input-border-focus)';
-        e.currentTarget.style.boxShadow = '0 0 0 2px var(--color-input-ring)';
-    };
-
-    const onFieldBlur = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-        e.currentTarget.style.borderColor = 'var(--color-input-border)';
-        e.currentTarget.style.boxShadow = 'none';
-    };
+    // ── Print Refs ──────────────────────────────────────────────────────────
+    const printReportRef = useRef<HTMLDivElement>(null);
+    const printReceiptRef = useRef<HTMLDivElement>(null);
 
     const safeNumber = (value: any): number => {
         const num = Number(value);
@@ -106,60 +101,126 @@ export const LabDetail: React.FC = () => {
         }
     };
 
-    const getStatusBadge = (status: string) => {
-        const config: Record<string, { cls: string; icon: React.ReactNode }> = {
-            pending: { cls: 'badge-warning', icon: <Clock className="h-3 w-3" /> },
-            in_progress: { cls: 'badge-info', icon: <Loader2 className="h-3 w-3 animate-spin" /> },
-            completed: { cls: 'badge-success', icon: <CheckCircle className="h-3 w-3" /> },
-            cancelled: { cls: 'badge-danger', icon: <XCircle className="h-3 w-3" /> },
+    // ── Print Handlers ──────────────────────────────────────────────────────
+    const handlePrintReport = useReactToPrint({
+        contentRef: printReportRef,  // ← Use contentRef
+        documentTitle: `Lab-Report-${transaction?.transactionNumber || 'Unknown'}`,
+        pageStyle: `
+            @page {
+                size: A4;
+                margin: 10mm;
+            }
+            @media print {
+                body {
+                    background: white !important;
+                    margin: 0 !important;
+                    padding: 0 !important;
+                }
+                .no-print {
+                    display: none !important;
+                }
+                .print-content {
+                    display: block !important;
+                }
+                .fixed.inset-0 {
+                    display: none !important;
+                }
+            }
+        `,
+        onBeforeGetContent: () => {
+            setShowPrintModal(false);
+            return Promise.resolve();
+        }
+    });
+
+    const handlePrintReceipt = useReactToPrint({
+        contentRef: printReceiptRef,  // ← Use contentRef
+        documentTitle: `Receipt-${transaction?.transactionNumber || 'Unknown'}`,
+        pageStyle: `
+            @page {
+                size: A4;
+                margin: 10mm;
+            }
+            @media print {
+                body {
+                    background: white !important;
+                    margin: 0 !important;
+                    padding: 0 !important;
+                }
+                .no-print {
+                    display: none !important;
+                }
+                .print-content {
+                    display: block !important;
+                }
+                .fixed.inset-0 {
+                    display: none !important;
+                }
+            }
+        `,
+        onBeforeGetContent: () => {
+            setShowReceiptModal(false);
+            return Promise.resolve();
+        }
+    });
+
+    const getStatusConfig = (status: string) => {
+        const config: Record<string, { bg: string; color: string; icon: React.ReactNode; label: string }> = {
+            pending: {
+                bg: 'var(--color-warning-light)',
+                color: 'var(--color-warning-text)',
+                icon: <Clock className="h-3.5 w-3.5" />,
+                label: 'Pending'
+            },
+            in_progress: {
+                bg: 'var(--color-info-light)',
+                color: 'var(--color-info-text)',
+                icon: <Loader2 className="h-3.5 w-3.5 animate-spin" />,
+                label: 'In Progress'
+            },
+            completed: {
+                bg: 'var(--color-success-light)',
+                color: 'var(--color-success-text)',
+                icon: <CheckCircle className="h-3.5 w-3.5" />,
+                label: 'Completed'
+            },
+            cancelled: {
+                bg: 'var(--color-danger-light)',
+                color: 'var(--color-danger-text)',
+                icon: <XCircle className="h-3.5 w-3.5" />,
+                label: 'Cancelled'
+            },
         };
-        const { cls, icon } = config[status] || { cls: 'badge-info', icon: null };
-        return (
-            <span className={`badge ${cls} inline-flex items-center gap-1 text-sm px-3 py-1.5`}>
-                {icon}
-                {status.replace('_', ' ')}
-            </span>
-        );
+        return config[status] || config.pending;
     };
 
-    const getPaymentStatusBadge = (status: string) => {
-        const config: Record<string, string> = {
-            pending: 'badge-warning',
-            paid: 'badge-success',
-            partial: 'badge-warning',
-            refunded: 'badge-danger',
+    const getPriorityConfig = (priority: string) => {
+        const config: Record<string, { bg: string; color: string; label: string }> = {
+            stat: { bg: 'var(--color-danger-light)', color: 'var(--color-danger-text)', label: 'STAT' },
+            urgent: { bg: 'var(--color-warning-light)', color: 'var(--color-warning-text)', label: 'Urgent' },
+            normal: { bg: 'var(--color-info-light)', color: 'var(--color-info-text)', label: 'Normal' },
         };
-        const cls = config[status] || 'badge-info';
-        return <span className={`badge ${cls} text-sm px-3 py-1.5`}>{status}</span>;
+        return config[priority] || config.normal;
     };
 
-    const getPriorityBadge = (priority: string) => {
-        switch (priority) {
-            case 'stat':
-                return <span className="badge badge-danger text-sm px-3 py-1.5 animate-pulse">STAT</span>;
-            case 'urgent':
-                return <span className="badge badge-warning text-sm px-3 py-1.5">Urgent</span>;
-            default:
-                return <span className="badge badge-info text-sm px-3 py-1.5">Normal</span>;
-        }
+    const getPaymentStatusConfig = (status: string) => {
+        const config: Record<string, { bg: string; color: string; label: string }> = {
+            pending: { bg: 'var(--color-warning-light)', color: 'var(--color-warning-text)', label: 'Pending' },
+            paid: { bg: 'var(--color-success-light)', color: 'var(--color-success-text)', label: 'Paid' },
+            partial: { bg: 'var(--color-warning-light)', color: 'var(--color-warning-text)', label: 'Partial' },
+            refunded: { bg: 'var(--color-danger-light)', color: 'var(--color-danger-text)', label: 'Refunded' },
+        };
+        return config[status] || config.pending;
     };
 
-    const getFlagColor = (flag: string) => {
-        switch (flag) {
-            case 'critical': return 'bg-danger-light text-danger-text border-danger';
-            case 'high': return 'bg-warning-light text-warning-text border-warning';
-            case 'low': return 'bg-warning-light text-warning-text border-warning';
-            default: return 'bg-success-light text-success-text border-success';
-        }
-    };
-
-    const getFlagIcon = (flag: string) => {
-        switch (flag) {
-            case 'critical': return '🔴';
-            case 'high': return '⬆️';
-            case 'low': return '⬇️';
-            default: return '✅';
-        }
+    const getFlagConfig = (flag: string) => {
+        const config: Record<string, { bg: string; color: string; icon: string }> = {
+            critical: { bg: 'var(--color-danger-light)', color: 'var(--color-danger-text)', icon: '🔴' },
+            high: { bg: 'var(--color-warning-light)', color: 'var(--color-warning-text)', icon: '⬆️' },
+            low: { bg: 'var(--color-warning-light)', color: 'var(--color-warning-text)', icon: '⬇️' },
+            normal: { bg: 'var(--color-success-light)', color: 'var(--color-success-text)', icon: '✅' },
+        };
+        return config[flag] || config.normal;
     };
 
     const handleResultEntry = (test: any) => {
@@ -173,11 +234,11 @@ export const LabDetail: React.FC = () => {
         loadTransaction();
     };
 
-    const handlePrintReceipt = () => {
+    const handleOpenReceiptModal = () => {
         setShowReceiptModal(true);
     };
 
-    const handlePrintReport = () => {
+    const handleOpenReportModal = () => {
         const completedTests = transaction?.labTests?.filter((t: any) => t.status === 'completed') || [];
         if (completedTests.length === 0) {
             alert('No completed tests with results to print');
@@ -190,12 +251,33 @@ export const LabDetail: React.FC = () => {
         setExpandedTest(expandedTest === testId ? null : testId);
     };
 
+    const filteredTests = () => {
+        if (!transaction?.labTests) return [];
+        let tests = transaction.labTests;
+        
+        if (searchQuery) {
+            const query = searchQuery.toLowerCase();
+            tests = tests.filter((t: any) =>
+                t.testType.toLowerCase().includes(query) ||
+                t.testNumber?.toLowerCase().includes(query) ||
+                t.testCategory?.toLowerCase().includes(query)
+            );
+        }
+        
+        if (statusFilter !== 'all') {
+            tests = tests.filter((t: any) => t.status === statusFilter);
+        }
+        
+        return tests;
+    };
+
     const renderResultTable = (test: any) => {
         if (!test.results || Object.keys(test.results).length === 0) {
             return (
-                <div className="text-center py-8 text-secondary">
-                    <AlertCircle className="h-10 w-10 mx-auto mb-3" style={{ color: 'var(--color-text-muted)' }} />
-                    <p className="text-sm">No results entered for this test</p>
+                <div className="text-center py-12 text-secondary">
+                    <AlertCircle className="h-12 w-12 mx-auto mb-4" style={{ color: 'var(--color-text-muted)' }} />
+                    <p className="text-sm font-medium">No results entered for this test</p>
+                    <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>Results will appear here once entered</p>
                 </div>
             );
         }
@@ -203,13 +285,13 @@ export const LabDetail: React.FC = () => {
         return (
             <div className="overflow-x-auto">
                 <table className="w-full">
-                    <thead className="bg-subtle border-b border-theme">
-                        <tr>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase">Parameter</th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase">Result</th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase">Reference Range</th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase">Unit</th>
-                            <th className="px-4 py-3 text-center text-xs font-semibold text-secondary uppercase">Flag</th>
+                    <thead>
+                        <tr style={{ background: 'var(--color-bg-subtle)', borderBottom: '2px solid var(--color-border)' }}>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase tracking-wider">Parameter</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase tracking-wider">Result</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase tracking-wider">Reference Range</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase tracking-wider">Unit</th>
+                            <th className="px-4 py-3 text-center text-xs font-semibold text-secondary uppercase tracking-wider">Flag</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-theme">
@@ -217,6 +299,7 @@ export const LabDetail: React.FC = () => {
                             const refRange = test.referenceRanges?.[key]?.referenceRange || '';
                             const unit = test.referenceRanges?.[key]?.unit || '';
                             const flag = test.referenceRanges?.[key]?.flag || 'normal';
+                            const flagConfig = getFlagConfig(flag);
 
                             return (
                                 <tr key={key} className="hover:bg-subtle transition-colors">
@@ -230,8 +313,11 @@ export const LabDetail: React.FC = () => {
                                     <td className="px-4 py-3 text-sm text-secondary">{refRange || 'N/A'}</td>
                                     <td className="px-4 py-3 text-sm text-secondary">{unit || 'N/A'}</td>
                                     <td className="px-4 py-3 text-center">
-                                        <span className={`inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-full border ${getFlagColor(flag)}`}>
-                                            {getFlagIcon(flag)} {flag.toUpperCase()}
+                                        <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full`}
+                                            style={{ background: flagConfig.bg, color: flagConfig.color }}
+                                        >
+                                            <span>{flagConfig.icon}</span>
+                                            {flag.toUpperCase()}
                                         </span>
                                     </td>
                                 </tr>
@@ -246,7 +332,10 @@ export const LabDetail: React.FC = () => {
     if (loading) {
         return (
             <div className="flex items-center justify-center h-64">
-                <Loader2 className="h-8 w-8 animate-spin" style={{ color: 'var(--color-accent)' }} />
+                <div className="text-center">
+                    <Loader2 className="h-10 w-10 animate-spin mx-auto" style={{ color: 'var(--color-accent)' }} />
+                    <p className="mt-4 text-sm" style={{ color: 'var(--color-text-muted)' }}>Loading transaction details...</p>
+                </div>
             </div>
         );
     }
@@ -255,14 +344,15 @@ export const LabDetail: React.FC = () => {
         return (
             <div className="flex items-center justify-center h-64">
                 <div className="text-center">
-                    <div className="text-4xl mb-4" style={{ color: 'var(--color-danger)' }}>⚠️</div>
+                    <div className="text-5xl mb-4">⚠️</div>
                     <h3 className="text-xl font-bold text-primary">{error || 'Transaction not found'}</h3>
+                    <p className="text-sm mt-2" style={{ color: 'var(--color-text-muted)' }}>The transaction you're looking for doesn't exist or has been removed</p>
                     <button
                         onClick={() => navigate('/dashboard/lab')}
-                        className="btn-accent mt-4 px-5 py-2.5 inline-flex items-center gap-2 text-sm"
+                        className="btn-accent mt-6 px-6 py-2.5 inline-flex items-center gap-2 text-sm"
                     >
                         <ArrowLeft className="h-4 w-4" />
-                        Back to Lab
+                        Back to Lab Dashboard
                     </button>
                 </div>
             </div>
@@ -271,9 +361,9 @@ export const LabDetail: React.FC = () => {
 
     const testCount = transaction.labTests?.length || 0;
     const completedTests = transaction.labTests?.filter((t: any) => t.status === 'completed').length || 0;
+    const pendingTests = transaction.labTests?.filter((t: any) => t.status === 'pending' || t.status === 'in_progress').length || 0;
     const totalAmount = safeNumber(transaction.totalAmount);
 
-    // Build transaction object for receipt
     const receiptTransaction = {
         id: transaction.id,
         transactionNumber: transaction.transactionNumber,
@@ -296,282 +386,265 @@ export const LabDetail: React.FC = () => {
     };
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', paddingBottom: '24px' }}>
+        <div className="space-y-6 pb-8">
 
-            {/* ── HEADER WITH BACK BUTTON ───────────────────────────────── */}
-            <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                flexWrap: 'wrap',
-                gap: '12px',
-                paddingBottom: '12px',
-                borderBottom: '1px solid var(--color-border)',
-            }}>
-                <div className="flex items-center" style={{ gap: '16px' }}>
-                    {/* Back Button */}
+            {/* ── HEADER ──────────────────────────────────────────────────── */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
                     <button
                         onClick={() => navigate('/dashboard/lab')}
-                        style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: '8px',
-                            padding: '8px 16px',
-                            borderRadius: '8px',
-                            background: 'var(--color-bg-subtle)',
-                            border: '1px solid var(--color-border)',
-                            color: 'var(--color-text-secondary)',
-                            cursor: 'pointer',
-                            transition: 'all 150ms ease',
-                            height: '38px',
-                            fontSize: '13px',
-                            fontWeight: 500,
-                        }}
-                        onMouseEnter={(e) => {
-                            (e.currentTarget as HTMLElement).style.background = 'var(--color-border)';
-                            (e.currentTarget as HTMLElement).style.color = 'var(--color-text-primary)';
-                        }}
-                        onMouseLeave={(e) => {
-                            (e.currentTarget as HTMLElement).style.background = 'var(--color-bg-subtle)';
-                            (e.currentTarget as HTMLElement).style.color = 'var(--color-text-secondary)';
-                        }}
+                        className="p-2 rounded-lg hover:bg-subtle transition-colors"
+                        style={{ border: '1px solid var(--color-border)' }}
                     >
-                        <ArrowLeft size={16} />
-                        Back to Lab
+                        <ArrowLeft size={18} style={{ color: 'var(--color-text-secondary)' }} />
                     </button>
-
                     <div>
-                        <h1 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--color-text-primary)' }}>
-                            Lab Transaction Details
+                        <h1 className="text-xl font-bold text-primary flex items-center gap-3">
+                            <span>Lab Transaction</span>
+                            <span className="text-xs font-mono px-3 py-1 rounded-full" style={{
+                                background: 'var(--color-bg-subtle)',
+                                color: 'var(--color-text-muted)',
+                                border: '1px solid var(--color-border)'
+                            }}>
+                                {transaction.transactionNumber}
+                            </span>
                         </h1>
-                        <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
-                            {transaction.transactionNumber} - {transaction.patientName}
+                        <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+                            {transaction.patientName} • {new Date(transaction.createdAt).toLocaleString()}
                         </p>
                     </div>
                 </div>
 
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                <div className="flex items-center gap-2 flex-wrap">
                     <button
-                        onClick={handlePrintReceipt}
+                        onClick={handleOpenReceiptModal}
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
                         style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            padding: '8px 14px',
-                            borderRadius: '6px',
-                            fontSize: '12px',
-                            fontWeight: 500,
                             background: 'var(--color-bg-surface)',
-                            border: '1px solid var(--color-border)',
                             color: 'var(--color-text-secondary)',
-                            cursor: 'pointer',
-                            transition: 'all 150ms ease',
-                            height: '34px',
+                            border: '1px solid var(--color-border)'
                         }}
                         onMouseEnter={(e) => {
-                            (e.currentTarget as HTMLElement).style.background = 'var(--color-bg-subtle)';
-                            (e.currentTarget as HTMLElement).style.color = 'var(--color-text-primary)';
+                            e.currentTarget.style.background = 'var(--color-bg-subtle)';
                         }}
                         onMouseLeave={(e) => {
-                            (e.currentTarget as HTMLElement).style.background = 'var(--color-bg-surface)';
-                            (e.currentTarget as HTMLElement).style.color = 'var(--color-text-secondary)';
+                            e.currentTarget.style.background = 'var(--color-bg-surface)';
                         }}
                     >
-                        <Receipt size={14} />
+                        <Receipt size={16} />
                         Receipt
                     </button>
                     <button
-                        onClick={handlePrintReport}
+                        onClick={handleOpenReportModal}
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
                         style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            padding: '8px 14px',
-                            borderRadius: '6px',
-                            fontSize: '12px',
-                            fontWeight: 500,
                             background: 'var(--color-bg-surface)',
-                            border: '1px solid var(--color-border)',
                             color: 'var(--color-text-secondary)',
-                            cursor: 'pointer',
-                            transition: 'all 150ms ease',
-                            height: '34px',
+                            border: '1px solid var(--color-border)'
                         }}
                         onMouseEnter={(e) => {
-                            (e.currentTarget as HTMLElement).style.background = 'var(--color-bg-subtle)';
-                            (e.currentTarget as HTMLElement).style.color = 'var(--color-text-primary)';
+                            e.currentTarget.style.background = 'var(--color-bg-subtle)';
                         }}
                         onMouseLeave={(e) => {
-                            (e.currentTarget as HTMLElement).style.background = 'var(--color-bg-surface)';
-                            (e.currentTarget as HTMLElement).style.color = 'var(--color-text-secondary)';
+                            e.currentTarget.style.background = 'var(--color-bg-surface)';
                         }}
                     >
-                        <Printer size={14} />
+                        <Printer size={16} />
                         Report
                     </button>
                     <button
                         onClick={loadTransaction}
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
                         style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: '6px',
-                            padding: '8px 12px',
-                            borderRadius: '6px',
-                            fontSize: '12px',
-                            fontWeight: 500,
                             background: 'transparent',
-                            border: '1px solid var(--color-border)',
                             color: 'var(--color-text-muted)',
-                            cursor: 'pointer',
-                            transition: 'all 150ms ease',
-                            height: '34px',
+                            border: '1px solid var(--color-border)'
                         }}
                         onMouseEnter={(e) => {
-                            (e.currentTarget as HTMLElement).style.background = 'var(--color-bg-subtle)';
-                            (e.currentTarget as HTMLElement).style.color = 'var(--color-text-primary)';
+                            e.currentTarget.style.background = 'var(--color-bg-subtle)';
+                            e.currentTarget.style.color = 'var(--color-text-primary)';
                         }}
                         onMouseLeave={(e) => {
-                            (e.currentTarget as HTMLElement).style.background = 'transparent';
-                            (e.currentTarget as HTMLElement).style.color = 'var(--color-text-muted)';
+                            e.currentTarget.style.background = 'transparent';
+                            e.currentTarget.style.color = 'var(--color-text-muted)';
                         }}
                     >
-                        <RefreshCw size={14} />
+                        <RefreshCw size={16} />
                         Refresh
                     </button>
                 </div>
             </div>
 
-            {/* ── BREADCRUMB NAVIGATION ──────────────────────────────────── */}
-            <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                fontSize: '13px',
-                color: 'var(--color-text-muted)',
-                padding: '6px 0',
-            }}>
-                <Link
-                    to="/dashboard"
-                    style={{
-                        color: 'var(--color-text-secondary)',
-                        textDecoration: 'none',
-                        transition: 'color 150ms ease',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                    }}
-                    onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.color = 'var(--color-accent-text)'}
-                    onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.color = 'var(--color-text-secondary)'}
-                >
+            {/* ── BREADCRUMB ──────────────────────────────────────────────── */}
+            <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--color-text-muted)' }}>
+                <Link to="/dashboard" className="hover:text-accent-text transition-colors flex items-center gap-1">
                     <Home size={14} />
                     Dashboard
                 </Link>
                 <ChevronRight size={14} />
-                <Link
-                    to="/dashboard/lab"
-                    style={{
-                        color: 'var(--color-text-secondary)',
-                        textDecoration: 'none',
-                        transition: 'color 150ms ease',
-                    }}
-                    onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.color = 'var(--color-accent-text)'}
-                    onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.color = 'var(--color-text-secondary)'}
-                >
+                <Link to="/dashboard/lab" className="hover:text-accent-text transition-colors">
                     Lab
                 </Link>
                 <ChevronRight size={14} />
-                <span style={{ color: 'var(--color-text-primary)', fontWeight: 500 }}>
+                <span className="font-medium" style={{ color: 'var(--color-text-primary)' }}>
                     {transaction.transactionNumber}
                 </span>
             </div>
 
-            {/* ── SUMMARY CARDS ──────────────────────────────────────────── */}
-            <div className="grid grid-cols-2 md:grid-cols-4" style={{ gap: '12px' }}>
-                <Card style={{ padding: '16px' }}>
-                    <div className="flex items-center" style={{ gap: '8px', marginBottom: '4px' }}>
-                        <User size={16} style={{ color: 'var(--color-text-muted)' }} />
-                        <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--color-text-muted)' }}>Patient</span>
+            {/* ── QUICK STATS ─────────────────────────────────────────────── */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+                <Card className="p-4">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 rounded-lg" style={{ background: 'var(--color-info-light)' }}>
+                            <User size={16} style={{ color: 'var(--color-info-text)' }} />
+                        </div>
+                        <div>
+                            <p className="text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>Patient</p>
+                            <p className="text-sm font-semibold text-primary truncate">{transaction.patientName}</p>
+                        </div>
                     </div>
-                    <p style={{ fontSize: '15px', fontWeight: 600, color: 'var(--color-text-primary)' }}>{transaction.patientName}</p>
-                    {transaction.patientPhone && (
-                        <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', marginTop: '2px' }}>{transaction.patientPhone}</p>
-                    )}
                 </Card>
 
-                <Card style={{ padding: '16px' }}>
-                    <div className="flex items-center" style={{ gap: '8px', marginBottom: '4px' }}>
-                        <FlaskConical size={16} style={{ color: 'var(--color-text-muted)' }} />
-                        <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--color-text-muted)' }}>Tests</span>
+                <Card className="p-4">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 rounded-lg" style={{ background: 'var(--color-role-lab-bg)' }}>
+                            <FlaskConical size={16} style={{ color: 'var(--color-role-lab)' }} />
+                        </div>
+                        <div>
+                            <p className="text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>Tests</p>
+                            <p className="text-sm font-semibold text-primary">{testCount} total</p>
+                        </div>
                     </div>
-                    <p style={{ fontSize: '15px', fontWeight: 600, color: 'var(--color-text-primary)' }}>{testCount} total</p>
-                    <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', marginTop: '2px' }}>{completedTests} completed</p>
                 </Card>
 
-                <Card style={{ padding: '16px' }}>
-                    <div className="flex items-center" style={{ gap: '8px', marginBottom: '4px' }}>
-                        <Clock size={16} style={{ color: 'var(--color-text-muted)' }} />
-                        <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--color-text-muted)' }}>Status</span>
+                <Card className="p-4">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 rounded-lg" style={{ background: 'var(--color-success-light)' }}>
+                            <CheckCircle size={16} style={{ color: 'var(--color-success-text)' }} />
+                        </div>
+                        <div>
+                            <p className="text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>Completed</p>
+                            <p className="text-sm font-semibold text-primary">{completedTests}</p>
+                        </div>
                     </div>
-                    <div style={{ marginTop: '2px' }}>{getStatusBadge(transaction.status)}</div>
-                    <div style={{ marginTop: '4px' }}>{getPaymentStatusBadge(transaction.paymentStatus)}</div>
                 </Card>
 
-                <Card style={{ padding: '16px' }}>
-                    <div className="flex items-center" style={{ gap: '8px', marginBottom: '4px' }}>
-                        <DollarSign size={16} style={{ color: 'var(--color-text-muted)' }} />
-                        <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--color-text-muted)' }}>Amount</span>
+                <Card className="p-4">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 rounded-lg" style={{ background: 'var(--color-warning-light)' }}>
+                            <Clock size={16} style={{ color: 'var(--color-warning-text)' }} />
+                        </div>
+                        <div>
+                            <p className="text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>Pending</p>
+                            <p className="text-sm font-semibold text-primary">{pendingTests}</p>
+                        </div>
                     </div>
-                    <p style={{ fontSize: '20px', fontWeight: 700, color: 'var(--color-accent-text)', fontVariantNumeric: 'tabular-nums' }}>
-                        GHS {totalAmount.toFixed(2)}
-                    </p>
-                    <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', marginTop: '2px', textTransform: 'capitalize' }}>
-                        {transaction.paymentMethod || 'N/A'}
-                    </p>
+                </Card>
+
+                <Card className="p-4">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 rounded-lg" style={{ background: 'var(--color-accent-light)' }}>
+                            <DollarSign size={16} style={{ color: 'var(--color-accent-text)' }} />
+                        </div>
+                        <div>
+                            <p className="text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>Amount</p>
+                            <p className="text-sm font-bold" style={{ color: 'var(--color-accent-text)' }}>
+                                GHS {totalAmount.toFixed(2)}
+                            </p>
+                        </div>
+                    </div>
+                </Card>
+
+                <Card className="p-4">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 rounded-lg" style={{ 
+                            background: getPaymentStatusConfig(transaction.paymentStatus).bg 
+                        }}>
+                            <CreditCard size={16} style={{ 
+                                color: getPaymentStatusConfig(transaction.paymentStatus).color 
+                            }} />
+                        </div>
+                        <div>
+                            <p className="text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>Payment</p>
+                            <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{
+                                background: getPaymentStatusConfig(transaction.paymentStatus).bg,
+                                color: getPaymentStatusConfig(transaction.paymentStatus).color
+                            }}>
+                                {getPaymentStatusConfig(transaction.paymentStatus).label}
+                            </span>
+                        </div>
+                    </div>
                 </Card>
             </div>
 
+            {/* ── STATUS BAR ───────────────────────────────────────────────── */}
+            <Card className="p-4 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-4 flex-wrap">
+                    <div className="flex items-center gap-2">
+                        <span className="text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>Status:</span>
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-full" style={{
+                            background: getStatusConfig(transaction.status).bg,
+                            color: getStatusConfig(transaction.status).color
+                        }}>
+                            {getStatusConfig(transaction.status).icon}
+                            {getStatusConfig(transaction.status).label}
+                        </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <span className="text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>Priority:</span>
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-full" style={{
+                            background: getPriorityConfig(transaction.priority).bg,
+                            color: getPriorityConfig(transaction.priority).color
+                        }}>
+                            {getPriorityConfig(transaction.priority).label}
+                        </span>
+                    </div>
+                    {transaction.patientPhone && (
+                        <div className="flex items-center gap-2">
+                            <Phone size={14} style={{ color: 'var(--color-text-muted)' }} />
+                            <span className="text-sm text-secondary">{transaction.patientPhone}</span>
+                        </div>
+                    )}
+                </div>
+                {pendingTests > 0 && (
+                    <button
+                        onClick={() => {
+                            const incomplete = transaction.labTests?.filter((t: any) => t.status !== 'completed') || [];
+                            if (incomplete.length > 0) {
+                                handleResultEntry(incomplete[0]);
+                            }
+                        }}
+                        className="btn-accent inline-flex items-center gap-2 px-4 py-2 text-sm"
+                    >
+                        <Edit2 size={14} />
+                        Enter Results ({pendingTests} pending)
+                    </button>
+                )}
+            </Card>
+
             {/* ── TABS ────────────────────────────────────────────────────── */}
-            <div style={{
-                display: 'flex',
-                gap: '0',
-                borderBottom: '1px solid var(--color-border)',
-                marginBottom: '4px',
-            }}>
+            <div className="flex items-center gap-1 border-b" style={{ borderColor: 'var(--color-border)' }}>
                 {[
                     { id: 'overview', label: 'Overview', icon: <FileText size={16} /> },
                     { id: 'tests', label: `Tests (${testCount})`, icon: <FlaskConical size={16} /> },
-                    { id: 'results', label: `Results (${completedTests}/${testCount})`, icon: <CheckCircle size={16} /> },
+                    { id: 'results', label: `Results (${completedTests})`, icon: <CheckCircle size={16} /> },
                 ].map((tab) => (
                     <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id as any)}
+                        className="inline-flex items-center gap-2 px-5 py-3 text-sm font-medium transition-all relative"
                         style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '8px',
-                            padding: '10px 20px',
-                            fontSize: '13px',
-                            fontWeight: 600,
-                            background: 'transparent',
-                            border: 'none',
                             color: activeTab === tab.id ? 'var(--color-accent-text)' : 'var(--color-text-muted)',
                             borderBottom: activeTab === tab.id ? '2px solid var(--color-accent)' : '2px solid transparent',
-                            cursor: 'pointer',
-                            transition: 'all 150ms ease',
-                            marginBottom: '-1px',
                         }}
                         onMouseEnter={(e) => {
                             if (activeTab !== tab.id) {
-                                (e.currentTarget as HTMLElement).style.color = 'var(--color-text-primary)';
-                                (e.currentTarget as HTMLElement).style.background = 'var(--color-bg-subtle)';
+                                e.currentTarget.style.color = 'var(--color-text-primary)';
                             }
                         }}
                         onMouseLeave={(e) => {
                             if (activeTab !== tab.id) {
-                                (e.currentTarget as HTMLElement).style.color = 'var(--color-text-muted)';
-                                (e.currentTarget as HTMLElement).style.background = 'transparent';
+                                e.currentTarget.style.color = 'var(--color-text-muted)';
                             }
                         }}
                     >
@@ -583,283 +656,469 @@ export const LabDetail: React.FC = () => {
 
             {/* ── OVERVIEW TAB ───────────────────────────────────────────── */}
             {activeTab === 'overview' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                    <div className="grid grid-cols-2 md:grid-cols-3" style={{ gap: '12px', padding: '16px', background: 'var(--color-bg-subtle)', borderRadius: '10px', border: '1px solid var(--color-border)' }}>
-                        <div>
-                            <p style={{ fontSize: '12px', fontWeight: 500, color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <User size={14} />
-                                Patient
-                            </p>
-                            <p style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-text-primary)', marginTop: '2px' }}>{transaction.patientName}</p>
-                        </div>
-                        {transaction.patientPhone && (
-                            <div>
-                                <p style={{ fontSize: '12px', fontWeight: 500, color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                    <Phone size={14} />
-                                    Phone
-                                </p>
-                                <p style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-text-primary)', marginTop: '2px' }}>{transaction.patientPhone}</p>
+                <div className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Patient Information */}
+                        <Card className="p-6">
+                            <h3 className="text-sm font-semibold mb-4 flex items-center gap-2" style={{ color: 'var(--color-text-secondary)' }}>
+                                <User size={16} />
+                                Patient Information
+                            </h3>
+                            <div className="space-y-3">
+                                <div className="flex justify-between items-center py-2 border-b" style={{ borderColor: 'var(--color-border)' }}>
+                                    <span className="text-sm" style={{ color: 'var(--color-text-muted)' }}>Name</span>
+                                    <span className="text-sm font-medium text-primary">{transaction.patientName}</span>
+                                </div>
+                                {transaction.patientPhone && (
+                                    <div className="flex justify-between items-center py-2 border-b" style={{ borderColor: 'var(--color-border)' }}>
+                                        <span className="text-sm" style={{ color: 'var(--color-text-muted)' }}>Phone</span>
+                                        <span className="text-sm font-medium text-primary">{transaction.patientPhone}</span>
+                                    </div>
+                                )}
+                                {transaction.patientAge && (
+                                    <div className="flex justify-between items-center py-2 border-b" style={{ borderColor: 'var(--color-border)' }}>
+                                        <span className="text-sm" style={{ color: 'var(--color-text-muted)' }}>Age</span>
+                                        <span className="text-sm font-medium text-primary">{transaction.patientAge}</span>
+                                    </div>
+                                )}
+                                {transaction.patientGender && (
+                                    <div className="flex justify-between items-center py-2 border-b" style={{ borderColor: 'var(--color-border)' }}>
+                                        <span className="text-sm" style={{ color: 'var(--color-text-muted)' }}>Gender</span>
+                                        <span className="text-sm font-medium text-primary">{transaction.patientGender}</span>
+                                    </div>
+                                )}
+                                <div className="flex justify-between items-center py-2">
+                                    <span className="text-sm" style={{ color: 'var(--color-text-muted)' }}>Requested By</span>
+                                    <span className="text-sm font-medium text-primary">{transaction.requestedByName}</span>
+                                </div>
                             </div>
-                        )}
-                        <div>
-                            <p style={{ fontSize: '12px', fontWeight: 500, color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <Calendar size={14} />
-                                Date
-                            </p>
-                            <p style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-text-primary)', marginTop: '2px' }}>
-                                {new Date(transaction.createdAt).toLocaleDateString()}
-                            </p>
-                        </div>
-                        {transaction.patientAge && (
-                            <div>
-                                <p style={{ fontSize: '12px', fontWeight: 500, color: 'var(--color-text-muted)' }}>Age</p>
-                                <p style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-text-primary)', marginTop: '2px' }}>{transaction.patientAge}</p>
+                        </Card>
+
+                        {/* Transaction Summary */}
+                        <Card className="p-6">
+                            <h3 className="text-sm font-semibold mb-4 flex items-center gap-2" style={{ color: 'var(--color-text-secondary)' }}>
+                                <Receipt size={16} />
+                                Transaction Summary
+                            </h3>
+                            <div className="space-y-3">
+                                <div className="flex justify-between items-center py-2 border-b" style={{ borderColor: 'var(--color-border)' }}>
+                                    <span className="text-sm" style={{ color: 'var(--color-text-muted)' }}>Transaction ID</span>
+                                    <span className="text-sm font-mono font-medium text-primary">{transaction.transactionNumber}</span>
+                                </div>
+                                <div className="flex justify-between items-center py-2 border-b" style={{ borderColor: 'var(--color-border)' }}>
+                                    <span className="text-sm" style={{ color: 'var(--color-text-muted)' }}>Date</span>
+                                    <span className="text-sm font-medium text-primary">{new Date(transaction.createdAt).toLocaleString()}</span>
+                                </div>
+                                <div className="flex justify-between items-center py-2 border-b" style={{ borderColor: 'var(--color-border)' }}>
+                                    <span className="text-sm" style={{ color: 'var(--color-text-muted)' }}>Total Tests</span>
+                                    <span className="text-sm font-medium text-primary">{testCount}</span>
+                                </div>
+                                <div className="flex justify-between items-center py-2 border-b" style={{ borderColor: 'var(--color-border)' }}>
+                                    <span className="text-sm" style={{ color: 'var(--color-text-muted)' }}>Total Amount</span>
+                                    <span className="text-base font-bold" style={{ color: 'var(--color-accent-text)' }}>
+                                        GHS {totalAmount.toFixed(2)}
+                                    </span>
+                                </div>
+                                <div className="flex justify-between items-center py-2">
+                                    <span className="text-sm" style={{ color: 'var(--color-text-muted)' }}>Payment Method</span>
+                                    <span className="text-sm font-medium text-primary capitalize">{transaction.paymentMethod || 'N/A'}</span>
+                                </div>
                             </div>
-                        )}
-                        {transaction.patientGender && (
-                            <div>
-                                <p style={{ fontSize: '12px', fontWeight: 500, color: 'var(--color-text-muted)' }}>Gender</p>
-                                <p style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-text-primary)', marginTop: '2px' }}>{transaction.patientGender}</p>
-                            </div>
-                        )}
-                        <div>
-                            <p style={{ fontSize: '12px', fontWeight: 500, color: 'var(--color-text-muted)' }}>Requested By</p>
-                            <p style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-text-primary)', marginTop: '2px' }}>{transaction.requestedByName}</p>
-                        </div>
+                        </Card>
                     </div>
 
                     {transaction.notes && (
-                        <div style={{ padding: '14px 16px', background: 'var(--color-bg-subtle)', borderRadius: '10px', border: '1px solid var(--color-border)' }}>
-                            <p style={{ fontSize: '12px', fontWeight: 500, color: 'var(--color-text-muted)' }}>Notes</p>
-                            <p style={{ fontSize: '14px', marginTop: '4px', color: 'var(--color-text-primary)' }}>{transaction.notes}</p>
-                        </div>
+                        <Card className="p-6">
+                            <h3 className="text-sm font-semibold mb-3 flex items-center gap-2" style={{ color: 'var(--color-text-secondary)' }}>
+                                <FileText size={16} />
+                                Notes
+                            </h3>
+                            <p className="text-sm text-primary" style={{ whiteSpace: 'pre-wrap' }}>{transaction.notes}</p>
+                        </Card>
                     )}
 
-                    <div style={{ display: 'flex', gap: '12px' }}>
+                    {/* Quick Actions */}
+                    <div className="flex flex-wrap gap-3">
+                        {pendingTests > 0 && (
+                            <button
+                                onClick={() => {
+                                    const incomplete = transaction.labTests?.filter((t: any) => t.status !== 'completed') || [];
+                                    if (incomplete.length > 0) {
+                                        handleResultEntry(incomplete[0]);
+                                    }
+                                }}
+                                className="btn-accent inline-flex items-center gap-2 px-6 py-2.5 text-sm"
+                            >
+                                <Edit2 size={16} />
+                                Enter Results
+                            </button>
+                        )}
                         <button
-                            onClick={() => {
-                                const incomplete = transaction.labTests?.filter((t: any) => t.status !== 'completed') || [];
-                                if (incomplete.length === 0) {
-                                    alert('All tests are already completed');
-                                    return;
-                                }
-                                handleResultEntry(incomplete[0]);
+                            onClick={handleOpenReceiptModal}
+                            className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-medium rounded-lg transition-colors"
+                            style={{
+                                background: 'var(--color-bg-surface)',
+                                color: 'var(--color-text-secondary)',
+                                border: '1px solid var(--color-border)'
                             }}
-                            className="btn-accent"
-                            style={{ padding: '10px 24px', fontSize: '14px' }}
+                            onMouseEnter={(e) => {
+                                e.currentTarget.style.background = 'var(--color-bg-subtle)';
+                            }}
+                            onMouseLeave={(e) => {
+                                e.currentTarget.style.background = 'var(--color-bg-surface)';
+                            }}
                         >
-                            <Edit2 size={16} style={{ marginRight: '8px' }} />
-                            Enter Results
+                            <Receipt size={16} />
+                            Print Receipt
                         </button>
+                        {completedTests > 0 && (
+                            <button
+                                onClick={handleOpenReportModal}
+                                className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-medium rounded-lg transition-colors"
+                                style={{
+                                    background: 'var(--color-bg-surface)',
+                                    color: 'var(--color-text-secondary)',
+                                    border: '1px solid var(--color-border)'
+                                }}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.background = 'var(--color-bg-subtle)';
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.background = 'var(--color-bg-surface)';
+                                }}
+                            >
+                                <Printer size={16} />
+                                Print Report
+                            </button>
+                        )}
                     </div>
                 </div>
             )}
 
             {/* ── TESTS TAB ────────────────────────────────────────────────── */}
             {activeTab === 'tests' && (
-                <Card style={{ padding: 0, overflow: 'hidden' }}>
-                    <div style={{ overflowX: 'auto' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                            <thead>
-                                <tr style={{ background: 'var(--color-bg-subtle)', borderBottom: '1px solid var(--color-border)' }}>
-                                    <th style={{ padding: '10px 14px', textAlign: 'left', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.02em', color: 'var(--color-text-muted)' }}>Test</th>
-                                    <th style={{ padding: '10px 14px', textAlign: 'left', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.02em', color: 'var(--color-text-muted)' }}>Category</th>
-                                    <th style={{ padding: '10px 14px', textAlign: 'left', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.02em', color: 'var(--color-text-muted)' }}>Status</th>
-                                    <th style={{ padding: '10px 14px', textAlign: 'left', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.02em', color: 'var(--color-text-muted)' }}>Priority</th>
-                                    <th style={{ padding: '10px 14px', textAlign: 'right', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.02em', color: 'var(--color-text-muted)' }}>Price</th>
-                                    <th style={{ padding: '10px 14px', textAlign: 'center', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.02em', color: 'var(--color-text-muted)' }}>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody style={{ borderBottom: '1px solid var(--color-border)' }}>
-                                {transaction.labTests?.map((test: any, index: number) => (
-                                    <tr key={test.id} style={{ borderBottom: index < transaction.labTests.length - 1 ? '1px solid var(--color-border)' : 'none', transition: 'background 150ms ease' }}
-                                        onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.background = 'var(--color-bg-subtle)'}
-                                        onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.background = 'transparent'}
-                                    >
-                                        <td style={{ padding: '10px 14px' }}>
-                                            <p style={{ fontSize: '13px', fontWeight: 500, color: 'var(--color-text-primary)' }}>{test.testType}</p>
-                                            <p style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{test.testNumber}</p>
-                                        </td>
-                                        <td style={{ padding: '10px 14px', fontSize: '13px', color: 'var(--color-text-secondary)' }}>{test.testCategory}</td>
-                                        <td style={{ padding: '10px 14px' }}>{getStatusBadge(test.status)}</td>
-                                        <td style={{ padding: '10px 14px' }}>{getPriorityBadge(test.priority)}</td>
-                                        <td style={{ padding: '10px 14px', textAlign: 'right', fontSize: '14px', fontWeight: 700, color: 'var(--color-accent-text)', fontVariantNumeric: 'tabular-nums' }}>
-                                            GHS {safeNumber(test.testPrice).toFixed(2)}
-                                        </td>
-                                        <td style={{ padding: '10px 14px', textAlign: 'center' }}>
-                                            {test.status !== 'completed' && test.status !== 'cancelled' && (
-                                                <button
-                                                    onClick={() => handleResultEntry(test)}
-                                                    className="btn-accent"
-                                                    style={{ padding: '6px 12px', fontSize: '12px' }}
-                                                >
-                                                    <Edit2 size={12} style={{ marginRight: '4px' }} />
-                                                    Results
-                                                </button>
-                                            )}
-                                            {test.status === 'completed' && (
-                                                <button
-                                                    onClick={() => setActiveTab('results')}
-                                                    className="btn-accent"
-                                                    style={{ padding: '6px 12px', fontSize: '12px' }}
-                                                >
-                                                    <Eye size={12} style={{ marginRight: '4px' }} />
-                                                    View
-                                                </button>
-                                            )}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                <div className="space-y-4">
+                    {/* Filters */}
+                    <Card className="p-4 flex flex-wrap items-center gap-4">
+                        <div className="flex-1 min-w-[200px]">
+                            <div className="relative">
+                                <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2" style={{ color: 'var(--color-text-muted)' }} />
+                                <input
+                                    type="text"
+                                    placeholder="Search tests..."
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    className="w-full pl-9 pr-3 py-2 text-sm rounded-lg"
+                                    style={{
+                                        background: 'var(--color-input-bg)',
+                                        border: '1px solid var(--color-input-border)',
+                                        color: 'var(--color-input-text)',
+                                        outline: 'none'
+                                    }}
+                                    onFocus={(e) => {
+                                        e.currentTarget.style.borderColor = 'var(--color-input-border-focus)';
+                                        e.currentTarget.style.boxShadow = '0 0 0 2px var(--color-input-ring)';
+                                    }}
+                                    onBlur={(e) => {
+                                        e.currentTarget.style.borderColor = 'var(--color-input-border)';
+                                        e.currentTarget.style.boxShadow = 'none';
+                                    }}
+                                />
+                            </div>
+                        </div>
+                        <select
+                            value={statusFilter}
+                            onChange={(e) => setStatusFilter(e.target.value)}
+                            className="px-3 py-2 text-sm rounded-lg"
+                            style={{
+                                background: 'var(--color-input-bg)',
+                                border: '1px solid var(--color-input-border)',
+                                color: 'var(--color-input-text)',
+                                outline: 'none'
+                            }}
+                            onFocus={(e) => {
+                                e.currentTarget.style.borderColor = 'var(--color-input-border-focus)';
+                                e.currentTarget.style.boxShadow = '0 0 0 2px var(--color-input-ring)';
+                            }}
+                            onBlur={(e) => {
+                                e.currentTarget.style.borderColor = 'var(--color-input-border)';
+                                e.currentTarget.style.boxShadow = 'none';
+                            }}
+                        >
+                            <option value="all">All Status</option>
+                            <option value="pending">Pending</option>
+                            <option value="in_progress">In Progress</option>
+                            <option value="completed">Completed</option>
+                            <option value="cancelled">Cancelled</option>
+                        </select>
+                        <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                            {filteredTests().length} test{filteredTests().length !== 1 ? 's' : ''} found
+                        </span>
+                    </Card>
+
+                    {/* Tests List */}
+                    <div className="space-y-3">
+                        {filteredTests().map((test: any) => {
+                            const statusConfig = getStatusConfig(test.status);
+                            const priorityConfig = getPriorityConfig(test.priority);
+                            const isExpanded = expandedTest === test.id;
+
+                            return (
+                                <Card key={test.id} className="overflow-hidden hover:shadow-md transition-shadow">
+                                    <div className="p-4 cursor-pointer" onClick={() => toggleTestExpand(test.id)}>
+                                        <div className="flex items-center justify-between flex-wrap gap-3">
+                                            <div className="flex items-center gap-4 flex-1 min-w-0">
+                                                <div className="flex-shrink-0">
+                                                    <div className="p-2 rounded-lg" style={{ background: statusConfig.bg }}>
+                                                        {statusConfig.icon}
+                                                    </div>
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <h4 className="text-sm font-semibold text-primary truncate">{test.testType}</h4>
+                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                        <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{test.testNumber}</span>
+                                                        <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>•</span>
+                                                        <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{test.testCategory}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex items-center gap-3 flex-wrap">
+                                                <span className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-full" style={{
+                                                    background: priorityConfig.bg,
+                                                    color: priorityConfig.color
+                                                }}>
+                                                    {priorityConfig.label}
+                                                </span>
+                                                <span className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-full" style={{
+                                                    background: statusConfig.bg,
+                                                    color: statusConfig.color
+                                                }}>
+                                                    {statusConfig.icon}
+                                                    {statusConfig.label}
+                                                </span>
+                                                <span className="text-sm font-bold" style={{ color: 'var(--color-accent-text)' }}>
+                                                    GHS {safeNumber(test.testPrice).toFixed(2)}
+                                                </span>
+                                                {isExpanded ? <ChevronUp size={18} style={{ color: 'var(--color-text-muted)' }} /> : <ChevronDown size={18} style={{ color: 'var(--color-text-muted)' }} />}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {isExpanded && (
+                                        <div className="p-4 border-t" style={{ borderColor: 'var(--color-border)' }}>
+                                            <div className="space-y-4">
+                                                {/* Test Details */}
+                                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                                    <div>
+                                                        <p className="text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>Category</p>
+                                                        <p className="text-sm font-medium text-primary">{test.testCategory}</p>
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>Status</p>
+                                                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 text-xs font-medium rounded-full" style={{
+                                                            background: statusConfig.bg,
+                                                            color: statusConfig.color
+                                                        }}>
+                                                            {statusConfig.icon}
+                                                            {statusConfig.label}
+                                                        </span>
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>Priority</p>
+                                                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 text-xs font-medium rounded-full" style={{
+                                                            background: priorityConfig.bg,
+                                                            color: priorityConfig.color
+                                                        }}>
+                                                            {priorityConfig.label}
+                                                        </span>
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>Price</p>
+                                                        <p className="text-sm font-bold" style={{ color: 'var(--color-accent-text)' }}>
+                                                            GHS {safeNumber(test.testPrice).toFixed(2)}
+                                                        </p>
+                                                    </div>
+                                                </div>
+
+                                                {/* Actions */}
+                                                <div className="flex flex-wrap gap-2 pt-2 border-t" style={{ borderColor: 'var(--color-border)' }}>
+                                                    {test.status !== 'completed' && test.status !== 'cancelled' && (
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleResultEntry(test);
+                                                            }}
+                                                            className="btn-accent inline-flex items-center gap-2 px-4 py-1.5 text-sm"
+                                                        >
+                                                            <Edit2 size={14} />
+                                                            Enter Results
+                                                        </button>
+                                                    )}
+                                                    {test.status === 'completed' && test.results && Object.keys(test.results).length > 0 && (
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setActiveTab('results');
+                                                            }}
+                                                            className="inline-flex items-center gap-2 px-4 py-1.5 text-sm font-medium rounded-lg transition-colors"
+                                                            style={{
+                                                                background: 'var(--color-bg-subtle)',
+                                                                color: 'var(--color-text-secondary)',
+                                                                border: '1px solid var(--color-border)'
+                                                            }}
+                                                            onMouseEnter={(e) => {
+                                                                e.currentTarget.style.background = 'var(--color-border)';
+                                                            }}
+                                                            onMouseLeave={(e) => {
+                                                                e.currentTarget.style.background = 'var(--color-bg-subtle)';
+                                                            }}
+                                                        >
+                                                            <Eye size={14} />
+                                                            View Results
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </Card>
+                            );
+                        })}
+
+                        {filteredTests().length === 0 && (
+                            <div className="text-center py-12">
+                                <AlertCircle className="h-12 w-12 mx-auto mb-4" style={{ color: 'var(--color-text-muted)' }} />
+                                <p className="text-sm font-medium text-secondary">No tests found</p>
+                                <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
+                                    {searchQuery ? 'Try adjusting your search or filters' : 'No tests available for this transaction'}
+                                </p>
+                            </div>
+                        )}
                     </div>
-                </Card>
+                </div>
             )}
 
             {/* ── RESULTS TAB ────────────────────────────────────────────── */}
             {activeTab === 'results' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    {transaction.labTests?.map((test: any) => {
-                        const isCompleted = test.status === 'completed';
+                <div className="space-y-4">
+                    {transaction.labTests?.filter((t: any) => t.status === 'completed').map((test: any) => {
                         const hasResults = test.results && Object.keys(test.results).length > 0;
                         const isExpanded = expandedTest === test.id;
+                        const statusConfig = getStatusConfig(test.status);
 
                         return (
-                            <Card key={test.id} style={{ padding: 0, overflow: 'hidden' }}>
-                                {/* Test Header */}
-                                <div style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'space-between',
-                                    padding: '12px 16px',
-                                    background: 'var(--color-bg-subtle)',
-                                    borderBottom: '1px solid var(--color-border)',
-                                }}>
-                                    <div className="flex items-center" style={{ gap: '12px' }}>
-                                        <div style={{
-                                            padding: '6px',
-                                            borderRadius: '8px',
-                                            background: isCompleted ? 'var(--color-success-light)' : 'var(--color-warning-light)',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                        }}>
-                                            {isCompleted ? (
-                                                <CheckCircle size={18} style={{ color: 'var(--color-success-text)' }} />
-                                            ) : (
-                                                <Clock size={18} style={{ color: 'var(--color-warning-text)' }} />
-                                            )}
-                                        </div>
-                                        <div>
-                                            <h4 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-text-primary)' }}>{test.testType}</h4>
-                                            <div className="flex items-center" style={{ gap: '8px' }}>
-                                                <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{test.testNumber}</span>
-                                                <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>•</span>
-                                                <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{test.testCategory}</span>
+                            <Card key={test.id} className="overflow-hidden hover:shadow-md transition-shadow">
+                                <div className="p-4 cursor-pointer" onClick={() => toggleTestExpand(test.id)}>
+                                    <div className="flex items-center justify-between flex-wrap gap-3">
+                                        <div className="flex items-center gap-4 flex-1 min-w-0">
+                                            <div className="flex-shrink-0">
+                                                <div className="p-2 rounded-lg" style={{ background: statusConfig.bg }}>
+                                                    {statusConfig.icon}
+                                                </div>
+                                            </div>
+                                            <div className="min-w-0">
+                                                <h4 className="text-sm font-semibold text-primary truncate">{test.testType}</h4>
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{test.testNumber}</span>
+                                                    <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>•</span>
+                                                    <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{test.testCategory}</span>
+                                                    {hasResults && (
+                                                        <>
+                                                            <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>•</span>
+                                                            <span className="text-xs font-medium" style={{ color: 'var(--color-success-text)' }}>
+                                                                {Object.keys(test.results).length} parameters
+                                                            </span>
+                                                        </>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
-                                    <div className="flex items-center" style={{ gap: '8px' }}>
-                                        {getStatusBadge(test.status)}
-                                        <button
-                                            onClick={() => toggleTestExpand(test.id)}
-                                            style={{
-                                                padding: '4px',
-                                                borderRadius: '6px',
-                                                background: 'transparent',
-                                                border: 'none',
-                                                cursor: 'pointer',
-                                                color: 'var(--color-text-secondary)',
-                                                transition: 'all 150ms ease',
-                                            }}
-                                            onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.background = 'var(--color-bg-subtle)'}
-                                            onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.background = 'transparent'}
-                                        >
-                                            {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-                                        </button>
+
+                                        <div className="flex items-center gap-3">
+                                            <span className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-full" style={{
+                                                background: statusConfig.bg,
+                                                color: statusConfig.color
+                                            }}>
+                                                {statusConfig.icon}
+                                                {statusConfig.label}
+                                            </span>
+                                            {isExpanded ? <ChevronUp size={18} style={{ color: 'var(--color-text-muted)' }} /> : <ChevronDown size={18} style={{ color: 'var(--color-text-muted)' }} />}
+                                        </div>
                                     </div>
                                 </div>
 
-                                {/* Test Content - Expanded */}
                                 {isExpanded && (
-                                    <div style={{ padding: '16px' }}>
-                                        {isCompleted && hasResults ? (
-                                            <>
+                                    <div className="p-4 border-t" style={{ borderColor: 'var(--color-border)' }}>
+                                        {hasResults ? (
+                                            <div className="space-y-4">
                                                 {renderResultTable(test)}
 
-                                                {/* Summary and Interpretation */}
                                                 {test.resultSummary && (
-                                                    <div style={{ marginTop: '12px', padding: '12px 16px', borderRadius: '8px', border: '1px solid var(--color-border)', background: 'var(--color-info-light)' }}>
-                                                        <p style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-info-text)' }}>📋 Summary</p>
-                                                        <p style={{ fontSize: '14px', marginTop: '4px', color: 'var(--color-info-text)' }}>{test.resultSummary}</p>
+                                                    <div className="p-4 rounded-lg" style={{ background: 'var(--color-info-light)', border: '1px solid var(--color-info)' }}>
+                                                        <p className="text-xs font-semibold flex items-center gap-2" style={{ color: 'var(--color-info-text)' }}>
+                                                            <ClipboardCheck size={14} />
+                                                            Summary
+                                                        </p>
+                                                        <p className="text-sm mt-1" style={{ color: 'var(--color-info-text)' }}>{test.resultSummary}</p>
                                                     </div>
                                                 )}
+
                                                 {test.resultInterpretation && (
-                                                    <div style={{ marginTop: '8px', padding: '12px 16px', borderRadius: '8px', border: '1px solid var(--color-border)', background: 'var(--color-role-lab-bg)' }}>
-                                                        <p style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-role-lab)' }}>🔬 Interpretation</p>
-                                                        <p style={{ fontSize: '14px', marginTop: '4px', color: 'var(--color-role-lab)' }}>{test.resultInterpretation}</p>
+                                                    <div className="p-4 rounded-lg" style={{ background: 'var(--color-role-lab-bg)', border: '1px solid var(--color-role-lab)' }}>
+                                                        <p className="text-xs font-semibold flex items-center gap-2" style={{ color: 'var(--color-role-lab)' }}>
+                                                            <Microscope size={14} />
+                                                            Interpretation
+                                                        </p>
+                                                        <p className="text-sm mt-1" style={{ color: 'var(--color-role-lab)' }}>{test.resultInterpretation}</p>
                                                     </div>
                                                 )}
+
                                                 {test.performedByName && (
-                                                    <p style={{ marginTop: '8px', fontSize: '12px', color: 'var(--color-text-muted)' }}>
-                                                        Performed by: <span style={{ fontWeight: 500, color: 'var(--color-text-primary)' }}>{test.performedByName}</span>
-                                                        on {test.completedAt ? new Date(test.completedAt).toLocaleDateString() : 'N/A'}
+                                                    <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                                                        Performed by: <span className="font-medium text-primary">{test.performedByName}</span>
+                                                        {test.completedAt && ` on ${new Date(test.completedAt).toLocaleString()}`}
                                                     </p>
                                                 )}
-                                            </>
-                                        ) : isCompleted ? (
-                                            <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--color-text-muted)' }}>
-                                                <AlertCircle size={32} style={{ margin: '0 auto 8px', color: 'var(--color-text-muted)' }} />
-                                                <p style={{ fontSize: '13px' }}>No results entered for this test</p>
                                             </div>
                                         ) : (
-                                            <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--color-text-muted)' }}>
-                                                <Clock size={32} style={{ margin: '0 auto 8px', color: 'var(--color-text-muted)' }} />
-                                                <p style={{ fontSize: '13px' }}>Results pending</p>
-                                                {test.status !== 'cancelled' && (
-                                                    <button
-                                                        onClick={() => handleResultEntry(test)}
-                                                        className="btn-accent"
-                                                        style={{ marginTop: '12px', padding: '8px 16px', fontSize: '13px' }}
-                                                    >
-                                                        <Edit2 size={14} style={{ marginRight: '6px' }} />
-                                                        Enter Results Now
-                                                    </button>
-                                                )}
+                                            <div className="text-center py-8">
+                                                <AlertCircle className="h-10 w-10 mx-auto mb-3" style={{ color: 'var(--color-text-muted)' }} />
+                                                <p className="text-sm font-medium text-secondary">No results available</p>
+                                                <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>This test was marked as completed but no results were entered</p>
                                             </div>
                                         )}
                                     </div>
-                                )
-                                }
+                                )}
 
-                                {/* Collapsed Preview */}
-                                {!isExpanded && isCompleted && hasResults && (
-                                    <div style={{ padding: '12px 16px 16px 16px' }}>
-                                        <div className="grid grid-cols-2 md:grid-cols-4" style={{ gap: '6px' }}>
-                                            {Object.entries(test.results).slice(0, 4).map(([key, value]) => (
-                                                <div key={key} style={{
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'space-between',
-                                                    padding: '8px 12px',
+                                {!isExpanded && hasResults && (
+                                    <div className="px-4 pb-4">
+                                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+                                            {Object.entries(test.results).slice(0, 5).map(([key, value]) => {
+                                                const flag = test.referenceRanges?.[key]?.flag || 'normal';
+                                                const flagConfig = getFlagConfig(flag);
+                                                
+                                                return (
+                                                    <div key={key} className="flex items-center justify-between px-3 py-2 rounded-lg text-xs" style={{
+                                                        background: 'var(--color-bg-subtle)',
+                                                        border: '1px solid var(--color-border)'
+                                                    }}>
+                                                        <span style={{ color: 'var(--color-text-muted)' }}>{key}</span>
+                                                        <span className="font-semibold" style={{ 
+                                                            color: flag === 'normal' ? 'var(--color-success-text)' : 'var(--color-danger-text)'
+                                                        }}>
+                                                            {value || 'N/A'}
+                                                        </span>
+                                                    </div>
+                                                );
+                                            })}
+                                            {Object.keys(test.results).length > 5 && (
+                                                <div className="flex items-center justify-center px-3 py-2 rounded-lg text-xs" style={{
                                                     background: 'var(--color-bg-subtle)',
-                                                    borderRadius: '6px',
                                                     border: '1px solid var(--color-border)',
+                                                    color: 'var(--color-text-muted)'
                                                 }}>
-                                                    <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{key}</span>
-                                                    <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-primary)' }}>{value || 'N/A'}</span>
-                                                </div>
-                                            ))}
-                                            {Object.keys(test.results).length > 4 && (
-                                                <div style={{
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'center',
-                                                    padding: '8px 12px',
-                                                    fontSize: '12px',
-                                                    color: 'var(--color-text-muted)',
-                                                }}>
-                                                    +{Object.keys(test.results).length - 4} more
+                                                    +{Object.keys(test.results).length - 5} more
                                                 </div>
                                             )}
                                         </div>
@@ -869,100 +1128,150 @@ export const LabDetail: React.FC = () => {
                         );
                     })}
 
-                    {(!transaction.labTests || transaction.labTests.length === 0) && (
-                        <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--color-text-muted)' }}>
-                            <AlertCircle size={40} style={{ margin: '0 auto 12px', color: 'var(--color-text-muted)' }} />
-                            <p style={{ fontSize: '14px' }}>No tests found in this transaction</p>
+                    {transaction.labTests?.filter((t: any) => t.status === 'completed').length === 0 && (
+                        <div className="text-center py-16">
+                            <AlertCircle className="h-16 w-16 mx-auto mb-4" style={{ color: 'var(--color-text-muted)' }} />
+                            <h3 className="text-lg font-semibold text-primary">No Completed Tests</h3>
+                            <p className="text-sm mt-2" style={{ color: 'var(--color-text-muted)' }}>
+                                Results will appear here once tests are completed
+                            </p>
+                            {pendingTests > 0 && (
+                                <button
+                                    onClick={() => {
+                                        const incomplete = transaction.labTests?.filter((t: any) => t.status !== 'completed') || [];
+                                        if (incomplete.length > 0) {
+                                            handleResultEntry(incomplete[0]);
+                                        }
+                                    }}
+                                    className="btn-accent inline-flex items-center gap-2 px-6 py-2.5 text-sm mt-6"
+                                >
+                                    <Edit2 size={16} />
+                                    Enter Results Now
+                                </button>
+                            )}
                         </div>
                     )}
                 </div>
-            )
-            }
+            )}
 
             {/* ── MODALS ────────────────────────────────────────────────────── */}
-            {
-                showResultEntry && selectedTest && (
-                    <LabResultEntry
-                        test={selectedTest}
-                        onClose={() => {
-                            setSelectedTest(null);
-                            setShowResultEntry(false);
-                        }}
-                        onSuccess={handleResultSaved}
-                    />
-                )
-            }
+            {showResultEntry && selectedTest && (
+                <LabResultEntry
+                    test={selectedTest}
+                    onClose={() => {
+                        setSelectedTest(null);
+                        setShowResultEntry(false);
+                    }}
+                    onSuccess={handleResultSaved}
+                />
+            )}
 
-            {
-                showReceiptModal && (
-                    <ReceiptModal
-                        transaction={receiptTransaction}
-                        customerName={transaction.patientName}
-                        customerPhone={transaction.patientPhone}
-                        onClose={() => setShowReceiptModal(false)}
-                        onPrint={() => window.print()}
-                    />
-                )
-            }
-
-            {
-                showPrintModal && transaction && (
-                    <div className="fixed inset-0 bg-overlay flex items-center justify-center p-4 z-modal">
-                        <div className="surface-elevated rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto border-theme">
-                            <div className="sticky top-0" style={{
-                                background: 'var(--gradient-accent)',
-                                color: '#fff',
-                                borderRadius: '12px 12px 0 0',
-                                padding: '16px 24px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'space-between',
-                            }}>
-                                <div className="flex items-center" style={{ gap: '12px' }}>
-                                    <Printer size={24} />
-                                    <h2 style={{ fontSize: '18px', fontWeight: 700 }}>Lab Report - {transaction.patientName}</h2>
-                                </div>
+            {/* ── RECEIPT MODAL ────────────────────────────────────────────── */}
+            {showReceiptModal && (
+                <div className="fixed inset-0 bg-overlay flex items-center justify-center p-4 z-modal no-print">
+                    <div className="surface-elevated rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto border-theme">
+                        <div className="sticky top-0 p-4" style={{
+                            background: 'var(--gradient-accent)',
+                            color: '#fff',
+                            borderRadius: '12px 12px 0 0',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                        }}>
+                            <div className="flex items-center gap-3">
+                                <Receipt size={24} />
+                                <h2 className="text-lg font-bold">Receipt</h2>
+                            </div>
+                            <div className="flex items-center gap-2">
                                 <button
-                                    onClick={() => setShowPrintModal(false)}
-                                    style={{
-                                        padding: '6px',
-                                        borderRadius: '8px',
-                                        background: 'rgba(255,255,255,0.1)',
-                                        border: 'none',
-                                        color: '#fff',
-                                        cursor: 'pointer',
-                                        transition: 'background 150ms ease',
-                                    }}
-                                    onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.2)'}
-                                    onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.1)'}
+                                    onClick={handlePrintReceipt}
+                                    className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors flex items-center gap-2 text-sm"
+                                >
+                                    <Printer size={16} />
+                                    Print
+                                </button>
+                                <button
+                                    onClick={() => setShowReceiptModal(false)}
+                                    className="p-2 hover:bg-white/20 rounded-lg transition-colors"
                                 >
                                     <XCircle size={24} />
                                 </button>
                             </div>
-                            <div style={{ padding: '24px' }}>
-                                <LabResultPrint transaction={transaction} />
-                                <div style={{ display: 'flex', gap: '12px', marginTop: '24px', paddingTop: '24px', borderTop: '1px solid var(--color-border)' }}>
-                                    <button
-                                        onClick={() => window.print()}
-                                        className="btn-accent"
-                                        style={{ flex: 1, padding: '12px 24px', fontSize: '14px' }}
-                                    >
-                                        <Printer size={16} style={{ marginRight: '8px' }} />
-                                        Print Report
-                                    </button>
-                                    <button
-                                        onClick={() => setShowPrintModal(false)}
-                                        className="btn-ghost"
-                                        style={{ padding: '12px 24px', fontSize: '14px' }}
-                                    >
-                                        Close
-                                    </button>
-                                </div>
-                            </div>
+                        </div>
+                        <div className="p-6">
+                            <ReceiptModal
+                                transaction={receiptTransaction}
+                                customerName={transaction.patientName}
+                                customerPhone={transaction.patientPhone}
+                                onClose={() => setShowReceiptModal(false)}
+                                onPrint={handlePrintReceipt}
+                            />
                         </div>
                     </div>
-                )
-            }
-        </div >
+                </div>
+            )}
+
+            {/* ── HIDDEN PRINT CONTENT FOR RECEIPT ────────────────────────── */}
+            <div style={{ position: 'absolute', left: '-9999px', top: '-9999px', width: '1px', height: '1px', overflow: 'hidden' }}>
+                <div ref={printReceiptRef}>
+                    {transaction && (
+                        <ReceiptModal
+                            transaction={receiptTransaction}
+                            customerName={transaction.patientName}
+                            customerPhone={transaction.patientPhone}
+                            onClose={() => {}}
+                            onPrint={() => {}}
+                        />
+                    )}
+                </div>
+            </div>
+
+            <div style={{ position: 'absolute', left: '-9999px', top: '-9999px', width: '1px', height: '1px', overflow: 'hidden' }}>
+                <div ref={printReportRef}>
+                    {transaction && (
+                        <LabResultPrint transaction={transaction} />
+                    )}
+                </div>
+            </div>
+
+            {/* ── REPORT MODAL ─────────────────────────────────────────────── */}
+            {showPrintModal && transaction && (
+                <div className="fixed inset-0 bg-overlay flex items-center justify-center p-4 z-modal no-print">
+                    <div className="surface-elevated rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto border-theme">
+                        <div className="sticky top-0 p-4" style={{
+                            background: 'var(--gradient-accent)',
+                            color: '#fff',
+                            borderRadius: '12px 12px 0 0',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                        }}>
+                            <div className="flex items-center gap-3">
+                                <Printer size={24} />
+                                <h2 className="text-lg font-bold">Lab Report - {transaction.patientName}</h2>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={handlePrintReport}
+                                    className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors flex items-center gap-2 text-sm"
+                                >
+                                    <Printer size={16} />
+                                    Print
+                                </button>
+                                <button
+                                    onClick={() => setShowPrintModal(false)}
+                                    className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+                                >
+                                    <XCircle size={24} />
+                                </button>
+                            </div>
+                        </div>
+                        <div className="p-6">
+                            <LabResultPrint transaction={transaction} />
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
     );
 };

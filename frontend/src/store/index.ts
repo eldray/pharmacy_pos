@@ -13,7 +13,7 @@ import {
   LabTestTemplate,
   LabTransaction,
 } from '../types';
-import api from '../api/api';
+import api, { getErrorMessage } from '../api/api';
 
 // ==================== INTERFACE ====================
 interface AppStore {
@@ -36,7 +36,7 @@ interface AppStore {
 
   // Products
   products: Product[];
-  fetchProducts: () => Promise<void>;
+  fetchProducts: (force?: boolean) => Promise<void>;
   addProduct: (product: Omit<Product, 'id' | 'createdAt' | 'updatedAt'>) => Promise<Product | null>;
   updateProduct: (id: string, updates: Partial<Product>) => Promise<Product | null>;
   deleteProduct: (id: string) => Promise<boolean>;  // ← ADDED
@@ -49,7 +49,7 @@ interface AppStore {
   updateCartItem: (cartId: string, quantity: number, discount?: number) => void;
   removeFromCart: (cartId: string) => void;
   clearCart: () => void;
-  getCartTotal: () => { subtotal: number; tax: number; total: number };
+  getCartTotal: () => { subtotal: number; tax: number; total: number; taxRate: number };
 
   // Transactions
   transactions: Transaction[];
@@ -63,7 +63,7 @@ interface AppStore {
 
   // Suppliers
   suppliers: Supplier[];
-  fetchSuppliers: () => Promise<void>;
+  fetchSuppliers: (force?: boolean) => Promise<void>;
   addSupplier: (supplier: Omit<Supplier, 'id' | 'createdAt'>) => Promise<Supplier | null>;
   updateSupplier: (id: string, updates: Partial<Supplier>) => Promise<Supplier | null>;
 
@@ -94,6 +94,15 @@ const safeNumber = (value: any): number => {
   const num = Number(value);
   return isNaN(num) ? 0 : num;
 };
+
+// Lightweight staleness guard: avoid refetching the same collection on every
+// page mount. Collections stay "fresh" for FRESH_MS; pass force to override
+// (e.g. an explicit refresh). Mutations update store state directly, so a
+// skipped refetch never shows stale data.
+const FRESH_MS = 30_000;
+const _fetchedAt: Record<string, number> = {};
+const isFresh = (key: string) => Date.now() - (_fetchedAt[key] || 0) < FRESH_MS;
+const markFetched = (key: string) => { _fetchedAt[key] = Date.now(); };
 
 const normalizeProduct = (p: any): Product => ({
   ...p,
@@ -131,22 +140,22 @@ export const useAppStore = create<AppStore>((set, get) => ({
     localStorage.removeItem('auth_token');
   },
   loginUser: async (email, password) => {
+    // Throws a human-readable Error on failure (e.g. rate-limit / bad
+    // credentials) so the UI can show the real reason.
     try {
       const response = await api.post('/auth/login', { email, password });
-      if (response.data) {
-        const userData = response.data.user || response.data;
-        const token = response.data.token || response.data.accessToken;
-        if (userData && token) {
-          localStorage.setItem('auth_token', token);
-          const userWithToken = { ...userData, token };
-          set({ currentUser: userWithToken });
-          return { user: userWithToken, token };
-        }
+      const userData = response.data?.user || response.data;
+      const token = response.data?.token || response.data?.accessToken;
+      if (userData && token) {
+        localStorage.setItem('auth_token', token);
+        const userWithToken = { ...userData, token };
+        set({ currentUser: userWithToken });
+        return { user: userWithToken, token };
       }
       return null;
     } catch (error: any) {
       console.error('Login failed:', error);
-      return null;
+      throw new Error(getErrorMessage(error, 'Invalid email or password'));
     }
   },
 
@@ -215,10 +224,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   // ==================== PRODUCTS ====================
   products: [],
-  fetchProducts: async () => {
+  fetchProducts: async (force = false) => {
+    if (!force && isFresh('products') && get().products.length) return;
     try {
       const response = await api.get('/products');
       set({ products: response.data.map(normalizeProduct) });
+      markFetched('products');
     } catch (err) {
       console.error('Failed to fetch products', err);
     }
@@ -327,9 +338,13 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const items = get().cartItems || [];
     const subtotal = items.reduce((sum, i) => sum + safeNumber(i.total), 0);
     const discount = items.reduce((sum, i) => sum + safeNumber(i.discount), 0);
-    const tax = (subtotal - discount) * 0.15;
-    const total = subtotal - discount + tax;
-    return { subtotal: subtotal - discount, tax, total };
+    // Tax rate comes from company settings (falls back to 15%). Use ?? so a
+    // deliberately-configured 0% rate is respected.
+    const taxRate = safeNumber(get().company?.receiptSettings?.taxRate ?? 15);
+    const taxable = subtotal - discount;
+    const tax = taxable * (taxRate / 100);
+    const total = taxable + tax;
+    return { subtotal: taxable, tax, total, taxRate };
   },
 
   // ==================== TRANSACTIONS ====================
@@ -422,10 +437,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   // ==================== SUPPLIERS ====================
   suppliers: [],
-  fetchSuppliers: async () => {
+  fetchSuppliers: async (force = false) => {
+    if (!force && isFresh('suppliers') && get().suppliers.length) return;
     try {
       const response = await api.get('/suppliers');
       set({ suppliers: response.data });
+      markFetched('suppliers');
     } catch (err) {
       console.error('Failed to fetch suppliers');
     }

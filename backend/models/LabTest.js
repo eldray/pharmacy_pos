@@ -98,7 +98,12 @@ const LabTest = sequelize.define('LabTest', {
     }
 }, {
     tableName: 'lab_tests',
-    timestamps: true
+    timestamps: true,
+    indexes: [
+        { fields: ['labTransactionId'] },
+        { fields: ['performedBy'] },
+        { fields: ['status'] },
+    ]
 });
 
 module.exports = LabTest;

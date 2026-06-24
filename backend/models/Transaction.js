@@ -47,7 +47,12 @@ const Transaction = sequelize.define('Transaction', {
   customerPhone: DataTypes.STRING,
   notes: DataTypes.TEXT
 }, {
-  tableName: 'transactions'
+  tableName: 'transactions',
+  indexes: [
+    { fields: ['cashierId'] },
+    { fields: ['createdAt'] },
+    { fields: ['paymentMethod'] },
+  ]
 });
 
 // NO ASSOCIATIONS HERE - They are handled in models/index.js

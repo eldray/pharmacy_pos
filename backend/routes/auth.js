@@ -2,11 +2,19 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const { auth } = require('../middleware/auth');
+const { rateLimit } = require('../middleware/rateLimit');
 
 const router = express.Router();
 
+// Strict limiter for login: 10 attempts per 15 min per IP to slow brute force.
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: 'Too many login attempts. Please try again in a few minutes.',
+});
+
 // Login
-router.post('/login', async (req, res) => {
+router.post('/login', loginLimiter, async (req, res) => {
   const { email, password } = req.body;
 
   if (!process.env.JWT_SECRET) {

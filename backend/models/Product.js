@@ -43,7 +43,11 @@ const Product = sequelize.define('Product', {
   }
 }, {
   tableName: 'products',
-  paranoid: true  // ← ADD THIS for soft delete
+  paranoid: true,  // ← ADD THIS for soft delete
+  indexes: [
+    { fields: ['name'] },
+    { fields: ['category'] },
+  ]
 });
 
 module.exports = Product;

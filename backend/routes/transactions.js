@@ -7,6 +7,7 @@ const InventoryLog = require('../models/InventoryLog');
 const User = require('../models/User');
 const Company = require('../models/Company');
 const { auth, adminAuth } = require('../middleware/auth');
+const { recordAudit } = require('../utils/audit');
 
 const router = express.Router();
 
@@ -181,6 +182,11 @@ router.post('/', auth, async (req, res) => {
     const company = await Company.getCompany();
     await t.commit();
 
+    await recordAudit(req, {
+      action: 'create', entity: 'Transaction', entityId: txRecord.id,
+      changes: { transactionNumber, total, paymentMethod, itemCount: cleanItems.length }
+    });
+
     res.status(201).json({
       success: true,
       transaction: txRecord,
@@ -243,6 +249,10 @@ router.post('/:id/refund', auth, adminAuth, async (req, res) => {
     }
 
     await t.commit();
+    await recordAudit(req, {
+      action: 'refund', entity: 'Transaction', entityId: tx.id,
+      changes: { originalTransaction: tx.transactionNumber, refundTransaction: refundNumber, amount: tx.total }
+    });
     res.json({
       success: true,
       message: 'Refund processed successfully',

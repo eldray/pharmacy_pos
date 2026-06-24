@@ -9,6 +9,10 @@ import { useAppStore } from '../store';
 import { Product } from '../types';
 import { Card } from '../components/ui/Card';
 import { ProductHistoryModal } from '../components/ProductHistoryModal';
+import { getCategoryOptions } from '../lib/categories';
+import { validateProduct } from '../lib/validation';
+
+const ADD_NEW_CATEGORY = '__add_new__';
 
 export const ProductManagement: React.FC = () => {
   const [showModal, setShowModal] = useState(false);
@@ -23,16 +27,17 @@ export const ProductManagement: React.FC = () => {
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState<string | null>(null);
 
+  // The product form defines *what a product is* — name, description, category,
+  // price. Stock (quantity), batch, expiry and supplier arrive via Purchase
+  // Orders / Inventory, not here.
   const [formData, setFormData] = useState({
     name: '',
     description: '',
     category: '',
     unitPrice: '',
-    quantity: '',
-    batchNumber: '',
-    expiryDate: '',
-    supplier: '',
   });
+  // When true, the category field shows a free-text input for a new category.
+  const [addingCategory, setAddingCategory] = useState(false);
 
   // --- Shared field style ---
   const fieldStyle: React.CSSProperties = {
@@ -55,12 +60,12 @@ export const ProductManagement: React.FC = () => {
     resize: 'vertical',
   };
 
-  const onFieldFocus = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const onFieldFocus = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     e.currentTarget.style.borderColor = 'var(--color-input-border-focus)';
     e.currentTarget.style.boxShadow = '0 0 0 2px var(--color-input-ring)';
   };
 
-  const onFieldBlur = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const onFieldBlur = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     e.currentTarget.style.borderColor = 'var(--color-input-border)';
     e.currentTarget.style.boxShadow = 'none';
   };
@@ -103,30 +108,24 @@ export const ProductManagement: React.FC = () => {
 
   const openNewProductModal = () => {
     setEditingProduct(null);
+    setAddingCategory(false);
     setFormData({
       name: '',
       description: '',
       category: '',
       unitPrice: '',
-      quantity: '',
-      batchNumber: '',
-      expiryDate: '',
-      supplier: '',
     });
     setShowModal(true);
   };
 
   const openEditModal = (product: Product) => {
     setEditingProduct(product);
+    setAddingCategory(false);
     setFormData({
       name: product.name,
       description: product.description || '',
       category: product.category,
       unitPrice: product.unitPrice.toString(),
-      quantity: product.quantity.toString(),
-      batchNumber: product.batchNumber || '',
-      expiryDate: product.expiryDate || '',
-      supplier: product.supplier || '',
     });
     setShowModal(true);
   };
@@ -162,7 +161,7 @@ export const ProductManagement: React.FC = () => {
     try {
       const result = await deleteProduct(id);
       if (result) {
-        await fetchProducts();
+        await fetchProducts(true);
         alert(hasTransactions
           ? 'Product archived successfully. Transaction history preserved.'
           : 'Product deleted successfully.'
@@ -181,22 +180,22 @@ export const ProductManagement: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.name || !formData.category || !formData.unitPrice || !formData.quantity) {
-      alert('Please fill in all required fields');
+    const category = formData.category.trim();
+    const errors = validateProduct({ name: formData.name, category, unitPrice: formData.unitPrice });
+    const firstError = Object.values(errors)[0];
+    if (firstError) {
+      alert(firstError);
       return;
     }
 
     setIsSubmitting(true);
     try {
+      // Only product-defining fields. Stock is managed via Purchase Orders.
       const commonData = {
         name: formData.name,
         description: formData.description || undefined,
-        category: formData.category,
+        category,
         unitPrice: parseFloat(formData.unitPrice),
-        quantity: parseInt(formData.quantity),
-        batchNumber: formData.batchNumber || undefined,
-        expiryDate: formData.expiryDate || undefined,
-        supplier: formData.supplier || undefined,
       };
 
       let success = false;
@@ -205,15 +204,16 @@ export const ProductManagement: React.FC = () => {
       } else {
         const newProduct = {
           ...commonData,
+          quantity: 0, // new products start with no stock
           sku: generateSKU(),
           barcode: generateBarcode(),
         };
-        success = !!(await addProduct(newProduct));
+        success = !!(await addProduct(newProduct as any));
       }
 
       if (success) {
         setShowModal(false);
-        fetchProducts();
+        fetchProducts(true);
       } else {
         alert('Failed to save product');
       }
@@ -674,31 +674,56 @@ export const ProductManagement: React.FC = () => {
 
                 <div>
                   <label className="block text-sm font-semibold text-primary mb-2">Category *</label>
-                  <input
-                    type="text"
-                    value={formData.category}
-                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                    placeholder="e.g., Pain Relief"
-                    className="input-base w-full text-sm"
-                    style={fieldStyle}
-                    onFocus={onFieldFocus}
-                    onBlur={onFieldBlur}
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-primary mb-2">Supplier</label>
-                  <input
-                    type="text"
-                    value={formData.supplier}
-                    onChange={(e) => setFormData({ ...formData, supplier: e.target.value })}
-                    placeholder="e.g., Pharma Supply Co."
-                    className="input-base w-full text-sm"
-                    style={fieldStyle}
-                    onFocus={onFieldFocus}
-                    onBlur={onFieldBlur}
-                  />
+                  {addingCategory ? (
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={formData.category}
+                        onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                        placeholder="New category name"
+                        className="input-base w-full text-sm"
+                        style={fieldStyle}
+                        onFocus={onFieldFocus}
+                        onBlur={onFieldBlur}
+                        autoFocus
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAddingCategory(false);
+                          setFormData({ ...formData, category: '' });
+                        }}
+                        className="btn-ghost px-3 text-sm flex-shrink-0"
+                        title="Pick from list instead"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <select
+                      value={formData.category}
+                      onChange={(e) => {
+                        if (e.target.value === ADD_NEW_CATEGORY) {
+                          setAddingCategory(true);
+                          setFormData({ ...formData, category: '' });
+                        } else {
+                          setFormData({ ...formData, category: e.target.value });
+                        }
+                      }}
+                      className="input-base w-full text-sm"
+                      style={fieldStyle}
+                      onFocus={onFieldFocus}
+                      onBlur={onFieldBlur}
+                      required
+                    >
+                      <option value="" disabled>Select a category…</option>
+                      {getCategoryOptions(products.map((p) => p.category)).map((cat) => (
+                        <option key={cat} value={cat}>{cat}</option>
+                      ))}
+                      <option value={ADD_NEW_CATEGORY}>+ Add new category…</option>
+                    </select>
+                  )}
                 </div>
 
                 <div>
@@ -718,47 +743,10 @@ export const ProductManagement: React.FC = () => {
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-semibold text-primary mb-2">Quantity *</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={formData.quantity}
-                    onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
-                    placeholder="0"
-                    className="input-base w-full text-sm"
-                    style={fieldStyle}
-                    onFocus={onFieldFocus}
-                    onBlur={onFieldBlur}
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-primary mb-2">Batch Number</label>
-                  <input
-                    type="text"
-                    value={formData.batchNumber}
-                    onChange={(e) => setFormData({ ...formData, batchNumber: e.target.value })}
-                    placeholder="e.g., BATCH-001"
-                    className="input-base w-full text-sm"
-                    style={fieldStyle}
-                    onFocus={onFieldFocus}
-                    onBlur={onFieldBlur}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-primary mb-2">Expiry Date</label>
-                  <input
-                    type="date"
-                    value={formData.expiryDate}
-                    onChange={(e) => setFormData({ ...formData, expiryDate: e.target.value })}
-                    className="input-base w-full text-sm"
-                    style={fieldStyle}
-                    onFocus={onFieldFocus}
-                    onBlur={onFieldBlur}
-                  />
+                <div className="md:col-span-2">
+                  <p className="text-xs text-secondary" style={{ color: 'var(--color-text-muted)' }}>
+                    Stock quantity, batch number, expiry and supplier are managed through Purchase Orders and Inventory — not here.
+                  </p>
                 </div>
               </div>
 
