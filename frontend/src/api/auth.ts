@@ -5,27 +5,27 @@ import { User } from '../types';
 export const login = async (email: string, password: string): Promise<{ user: User; token: string } | null> => {
   try {
     console.log('Sending login request:', { email, password }); // Debug log
-    
-    const response = await api.post('/auth/login', { 
-      email, 
-      password 
+
+    const response = await api.post('/auth/login', {
+      email,
+      password
     }, {
       headers: {
         'Content-Type': 'application/json',
       }
     });
-    
+
     console.log('Login response:', response.data); // Debug log
-    
+
     // Store token if successful
     if (response.data.token) {
       localStorage.setItem('auth_token', response.data.token);
     }
-    
+
     return response.data;
   } catch (error: any) {
     console.error('Login error:', error);
-    
+
     // Log detailed error information
     if (error.response) {
       console.error('Error response data:', error.response.data);
@@ -36,7 +36,7 @@ export const login = async (email: string, password: string): Promise<{ user: Us
     } else {
       console.error('Error message:', error.message);
     }
-    
+
     return null;
   }
 };
@@ -50,8 +50,30 @@ export const verifyToken = async (token: string): Promise<User | null> => {
   }
 };
 
+// src/api/auth.ts
 export const getDemoUsers = () => [
-  { email: 'admin@pharmacy.com', password: 'admin123', role: 'admin' as const },
-  { email: 'cashier@pharmacy.com', password: 'cashier123', role: 'cashier' as const },
-  { email: 'officer@pharmacy.com', password: 'officer123', role: 'officer' as const },
+  {
+    email: 'admin@pharmacy.com',
+    password: 'admin123',
+    role: 'admin',
+    name: 'Admin User'
+  },
+  {
+    email: 'cashier@pharmacy.com',
+    password: 'cashier123',
+    role: 'cashier',
+    name: 'Cashier User'
+  },
+  {
+    email: 'officer@pharmacy.com',
+    password: 'officer123',
+    role: 'officer',
+    name: 'Officer User'
+  },
+  {
+    email: 'lab@pharmacy.com',
+    password: 'lab123',
+    role: 'lab',
+    name: 'Lab Technician'
+  }
 ];

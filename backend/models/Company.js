@@ -1,6 +1,5 @@
 // models/Company.js
-
-const { sequelize, DataTypes } = require('../database');
+const { sequelize, DataTypes } = require('../config/database');
 
 const Company = sequelize.define('Company', {
   id: {
@@ -47,7 +46,7 @@ const Company = sequelize.define('Company', {
   timestamps: true
 });
 
-Company.getCompany = async function() {
+Company.getCompany = async function () {
   let company = await this.findOne();
   if (!company) {
     company = await this.create({});

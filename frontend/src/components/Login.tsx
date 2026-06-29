@@ -1,19 +1,14 @@
+// src/components/Login.tsx
 import React, { useState, useEffect } from 'react';
 import { useAppStore, initStore } from '../store';
 import { getDemoUsers } from '../api/auth';
 import { useNavigate } from 'react-router-dom';
 import {
-  User,
-  Lock,
-  Eye,
-  EyeOff,
-  Store,
-  Shield,
-  TrendingUp,
-  Package,
-  CheckCircle,
-  Zap,
+  User, Lock, Eye, EyeOff, Store,
+  Shield, TrendingUp, ShoppingCart,
+  FlaskConical, CheckCircle, Zap
 } from 'lucide-react';
+import { ThemeToggle } from './ui/ThemeToggle';
 
 export const Login: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -22,18 +17,15 @@ export const Login: React.FC = () => {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [quickLoginLoading, setQuickLoginLoading] = useState<string | null>(null);
+
   const { loginUser, currentUser } = useAppStore();
   const navigate = useNavigate();
   const demoUsers = getDemoUsers();
 
-  /* ──────────────────────  Auto-Redirect if logged in  ────────────────────── */
   useEffect(() => {
-    if (currentUser) {
-      navigate('/dashboard');
-    }
+    if (currentUser) navigate('/dashboard');
   }, [currentUser, navigate]);
 
-  /* ──────────────────────  LOGIN HANDLERS  ────────────────────── */
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -59,9 +51,7 @@ export const Login: React.FC = () => {
     setQuickLoginLoading(role);
     setEmail(demoEmail);
     setPassword(demoPassword);
-
     await new Promise((r) => setTimeout(r, 300));
-
     const result = await loginUser(demoEmail, demoPassword);
     if (result) {
       await initStore(result.user.role);
@@ -72,204 +62,334 @@ export const Login: React.FC = () => {
     setQuickLoginLoading(null);
   };
 
-  /* ──────────────────────  ICON / COLOR HELPERS  ────────────────────── */
   const getRoleIcon = (role: string) => {
     switch (role) {
       case 'admin': return <Shield className="h-4 w-4" />;
-      case 'manager': return <TrendingUp className="h-4 w-4" />;
-      case 'cashier': return <User className="h-4 w-4" />;
-      case 'inventory': return <Package className="h-4 w-4" />;
+      case 'officer': return <TrendingUp className="h-4 w-4" />;
+      case 'cashier': return <ShoppingCart className="h-4 w-4" />;
+      case 'lab': return <FlaskConical className="h-4 w-4" />;
       default: return <User className="h-4 w-4" />;
     }
   };
 
-  const getRoleColor = (role: string) => {
+  const getRoleBadgeClass = (role: string) => {
     switch (role) {
-      case 'admin': return 'from-purple-500 to-purple-600';
-      case 'manager': return 'from-blue-500 to-blue-600';
-      case 'cashier': return 'from-green-500 to-green-600';
-      case 'inventory': return 'from-orange-500 to-orange-600';
-      default: return 'from-gray-500 to-gray-600';
+      case 'admin': return 'badge-admin';
+      case 'officer': return 'badge-officer';
+      case 'cashier': return 'badge-cashier';
+      case 'lab': return 'badge-lab';
+      default: return '';
     }
   };
 
-  /* ──────────────────────  RENDER  ────────────────────── */
+  const getRoleDescription = (role: string) => {
+    switch (role) {
+      case 'admin': return 'Full system access & control';
+      case 'officer': return 'Inventory & operations';
+      case 'cashier': return 'Point of sale & service';
+      case 'lab': return 'Laboratory management';
+      default: return '';
+    }
+  };
+
+  const features = [
+    'Real-time Inventory Management',
+    'Multi-role Access Control',
+    'Sales Analytics & Reports',
+    'Laboratory Test Management',
+    'Customer Relationship Management',
+    'Prescription Tracking',
+    'Supplier Management',
+  ];
+
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
-      {/* Subtle background animations */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-purple-500 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-pulse" />
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-blue-500 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-pulse delay-1000" />
+    <div
+      className="min-h-screen flex flex-col theme-transition"
+      style={{ background: 'var(--gradient-brand)' }}
+    >
+      {/* Ambient orbs — subtle, not distracting */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none" aria-hidden>
+        <div
+          className="absolute -top-40 -right-40 w-96 h-96 rounded-full blur-3xl opacity-20"
+          style={{ background: 'var(--color-accent)' }}
+        />
+        <div
+          className="absolute -bottom-40 -left-40 w-96 h-96 rounded-full blur-3xl opacity-15"
+          style={{ background: 'var(--color-accent)' }}
+        />
       </div>
 
-      <main className="flex-1 flex items-center justify-center p-4 lg:p-6 relative z-10">
-        <div className="w-full max-w-6xl flex flex-col lg:flex-row gap-6 lg:gap-8 items-center">
-          {/* ── LEFT SECTION ── */}
-          <div className="lg:w-1/2 flex items-center justify-center">
-            <div className="text-center lg:text-left text-white max-w-md">
-              <div className="flex items-center justify-center lg:justify-start gap-4 mb-8">
-                <div className="p-4 bg-white/10 rounded-2xl backdrop-blur-sm">
-                  <Store className="h-10 w-10 text-white" />
-                </div>
-                <div>
-                  <h1 className="text-4xl lg:text-5xl font-bold mb-2">PharmaPOS</h1>
-                  <p className="text-xl lg:text-2xl text-white/80">
-                    Pharmacy Management System
-                  </p>
-                </div>
-              </div>
+      {/* Theme toggle — top right */}
+      <div className="absolute top-4 right-4 z-20">
+        <ThemeToggle />
+      </div>
 
-              <div className="space-y-4 mb-8">
-                <p className="text-lg text-white/70 leading-relaxed">
-                  Complete solution for inventory management, sales tracking, and customer care in modern pharmacies.
+      <main className="flex-1 flex items-center justify-center p-4 lg:p-8 relative z-10">
+        <div className="w-full max-w-6xl flex flex-col lg:flex-row gap-8 lg:gap-16 items-center">
+
+          {/* ── LEFT: Brand + features ───────────────────────────────────── */}
+          <div className="lg:w-1/2 text-center lg:text-left" style={{ color: 'var(--color-text-inverse)' }}>
+            {/* Logo mark */}
+            <div className="flex items-center justify-center lg:justify-start gap-4 mb-8">
+              <div
+                className="p-3 rounded-2xl"
+                style={{
+                  background: 'rgba(255,255,255,0.10)',
+                  border: '1px solid rgba(255,255,255,0.15)',
+                  backdropFilter: 'blur(8px)'
+                }}
+              >
+                <Store className="h-9 w-9" style={{ color: 'var(--color-text-inverse)' }} />
+              </div>
+              <div>
+                <h1 className="text-4xl lg:text-5xl font-bold tracking-tight" style={{ color: 'var(--color-text-inverse)' }}>
+                  PharmaPOS
+                </h1>
+                <p className="text-base mt-1" style={{ color: 'rgba(255,255,255,0.70)' }}>
+                  Pharmacy Management System
+                </p>
+              </div>
+            </div>
+
+            <p className="text-lg mb-8 leading-relaxed" style={{ color: 'rgba(255,255,255,0.65)' }}>
+              Complete solution for inventory management, sales tracking, lab tests, and customer care in modern pharmacies.
+            </p>
+
+            <ul className="space-y-3">
+              {features.map((f) => (
+                <li key={f} className="flex items-center gap-3">
+                  <CheckCircle
+                    className="h-5 w-5 flex-shrink-0"
+                    style={{ color: 'var(--color-success)' }}
+                  />
+                  <span style={{ color: 'rgba(255,255,255,0.75)' }}>{f}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* ── RIGHT: Login card ────────────────────────────────────────── */}
+          <div className="lg:w-1/2 w-full max-w-md">
+            <div
+              className="rounded-3xl p-7 shadow-2xl"
+              style={{
+                background: 'rgba(255,255,255,0.07)',
+                border: '1px solid rgba(255,255,255,0.12)',
+                backdropFilter: 'blur(20px)',
+              }}
+            >
+              <div className="text-center mb-6">
+                <h2 className="text-2xl font-bold" style={{ color: 'var(--color-text-inverse)' }}>
+                  Welcome Back
+                </h2>
+                <p className="text-sm mt-1" style={{ color: 'rgba(255,255,255,0.60)' }}>
+                  Sign in to your account
                 </p>
               </div>
 
-              <div className="space-y-3 text-white/70">
-                {[
-                  'Real-time Inventory Management',
-                  'Multi-role Access Control', 
-                  'Sales Analytics & Reports',
-                  'Customer Relationship Management',
-                  'Prescription Tracking',
-                  'Supplier Management'
-                ].map((txt) => (
-                  <div key={txt} className="flex items-center gap-3">
-                    <CheckCircle className="h-5 w-5 text-green-400 flex-shrink-0" />
-                    <span className="text-base">{txt}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* ── RIGHT SECTION ── */}
-          <div className="lg:w-1/2 w-full max-w-md">
-            <div className="bg-white/10 backdrop-blur-lg rounded-3xl shadow-2xl border border-white/20 p-6">
-              <div className="text-center mb-6">
-                <h2 className="text-2xl font-bold text-white mb-2">
-                  Welcome Back
-                </h2>
-                <p className="text-white/70 text-sm">Sign in to your account</p>
-              </div>
+              {/* Error */}
+              {error && (
+                <div
+                  className="mb-4 px-4 py-3 rounded-xl text-sm"
+                  style={{
+                    background: 'var(--color-danger-light)',
+                    color: 'var(--color-danger-text)',
+                    border: '1px solid var(--color-danger)'
+                  }}
+                >
+                  {error}
+                </div>
+              )}
 
               {/* Form */}
               <form onSubmit={handleLogin} className="space-y-4">
-                {error && (
-                  <div className="bg-red-500/20 border border-red-500/50 text-white px-4 py-3 rounded-xl text-sm backdrop-blur-sm">
-                    {error}
-                  </div>
-                )}
-
                 {/* Email */}
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-white/90">Email Address</label>
+                <div>
+                  <label
+                    className="block text-sm font-medium mb-1.5"
+                    style={{ color: 'rgba(255,255,255,0.85)' }}
+                  >
+                    Email Address
+                  </label>
                   <div className="relative">
-                    <User className="absolute left-3 top-3 h-4 w-4 text-white/50" />
+                    <User
+                      className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4"
+                      style={{ color: 'rgba(255,255,255,0.40)' }}
+                    />
                     <input
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/20 rounded-xl text-white placeholder-white/50 focus:ring-2 focus:ring-white/50 focus:border-transparent outline-none transition backdrop-blur-sm text-sm"
                       placeholder="Enter your email"
+                      className="w-full pl-10 pr-4 py-3 rounded-xl text-sm outline-none transition-all"
+                      style={{
+                        background: 'rgba(255,255,255,0.07)',
+                        border: '1px solid rgba(255,255,255,0.15)',
+                        color: 'var(--color-text-inverse)',
+                      }}
+                      onFocus={(e) => {
+                        e.target.style.borderColor = 'var(--color-accent)';
+                        e.target.style.boxShadow = '0 0 0 3px var(--color-input-ring)';
+                      }}
+                      onBlur={(e) => {
+                        e.target.style.borderColor = 'rgba(255,255,255,0.15)';
+                        e.target.style.boxShadow = 'none';
+                      }}
                     />
                   </div>
                 </div>
 
                 {/* Password */}
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-white/90">Password</label>
+                <div>
+                  <label
+                    className="block text-sm font-medium mb-1.5"
+                    style={{ color: 'rgba(255,255,255,0.85)' }}
+                  >
+                    Password
+                  </label>
                   <div className="relative">
-                    <Lock className="absolute left-3 top-3 h-4 w-4 text-white/50" />
+                    <Lock
+                      className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4"
+                      style={{ color: 'rgba(255,255,255,0.40)' }}
+                    />
                     <input
                       type={showPassword ? 'text' : 'password'}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="w-full pl-10 pr-12 py-3 bg-white/5 border border-white/20 rounded-xl text-white placeholder-white/50 focus:ring-2 focus:ring-white/50 focus:border-transparent outline-none transition backdrop-blur-sm text-sm"
                       placeholder="Enter your password"
+                      className="w-full pl-10 pr-12 py-3 rounded-xl text-sm outline-none transition-all"
+                      style={{
+                        background: 'rgba(255,255,255,0.07)',
+                        border: '1px solid rgba(255,255,255,0.15)',
+                        color: 'var(--color-text-inverse)',
+                      }}
+                      onFocus={(e) => {
+                        e.target.style.borderColor = 'var(--color-accent)';
+                        e.target.style.boxShadow = '0 0 0 3px var(--color-input-ring)';
+                      }}
+                      onBlur={(e) => {
+                        e.target.style.borderColor = 'rgba(255,255,255,0.15)';
+                        e.target.style.boxShadow = 'none';
+                      }}
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-3 text-white/50 hover:text-white/70 transition"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 transition-opacity hover:opacity-80"
+                      style={{ color: 'rgba(255,255,255,0.50)' }}
                     >
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   </div>
                 </div>
 
-                {/* Submit Button */}
+                {/* Submit */}
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white font-semibold py-3 rounded-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg text-sm"
+                  className="btn-accent w-full py-3 text-sm font-semibold rounded-xl mt-2"
                 >
                   {isLoading ? (
-                    <div className="flex items-center justify-center gap-2">
-                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span className="flex items-center justify-center gap-2">
+                      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                       Signing in...
-                    </div>
-                  ) : (
-                    'Sign In'
-                  )}
+                    </span>
+                  ) : 'Sign In'}
                 </button>
               </form>
 
-              {/* Quick Demo Access */}
-              <div className="mt-6 border-t border-white/20 pt-6">
-                <div className="flex items-center justify-center gap-2 mb-3">
-                  <Zap className="h-4 w-4 text-yellow-400" />
-                  <p className="text-sm font-medium text-white/90">Quick Demo Access</p>
-                  <Zap className="h-4 w-4 text-yellow-400" />
+              {/* Quick access */}
+              <div
+                className="mt-6 pt-6"
+                style={{ borderTop: '1px solid rgba(255,255,255,0.12)' }}
+              >
+                <div className="flex items-center justify-center gap-2 mb-4">
+                  <Zap className="h-4 w-4" style={{ color: '#FBBF24' }} />
+                  <span className="text-sm font-medium" style={{ color: 'rgba(255,255,255,0.85)' }}>
+                    Quick Demo Access
+                  </span>
+                  <Zap className="h-4 w-4" style={{ color: '#FBBF24' }} />
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
-                  {demoUsers.map((user) => (
+                  {demoUsers.map((u) => (
                     <button
-                      key={user.email}
-                      onClick={() => quickLogin(user.email, user.password, user.role)}
-                      disabled={quickLoginLoading === user.role}
-                      className={`p-2 bg-white/5 border border-white/10 rounded-lg text-left hover:bg-white/10 transition-all duration-200 backdrop-blur-sm group hover:border-white/30 disabled:opacity-50 ${
-                        quickLoginLoading === user.role ? 'animate-pulse' : ''
-                      }`}
+                      key={u.email}
+                      onClick={() => quickLogin(u.email, u.password, u.role)}
+                      disabled={quickLoginLoading === u.role}
+                      className={`
+                        p-3 rounded-xl text-left transition-all duration-200
+                        disabled:opacity-50
+                        ${quickLoginLoading === u.role ? 'animate-pulse' : ''}
+                      `}
+                      style={{
+                        background: 'rgba(255,255,255,0.05)',
+                        border: '1px solid rgba(255,255,255,0.10)',
+                      }}
+                      onMouseEnter={(e) => {
+                        (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.10)';
+                        (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.20)';
+                      }}
+                      onMouseLeave={(e) => {
+                        (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)';
+                        (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.10)';
+                      }}
                     >
                       <div className="flex items-center gap-2">
-                        <div
-                          className={`p-1.5 rounded-md bg-gradient-to-r ${getRoleColor(
-                            user.role
-                          )} text-white`}
+                        <span
+                          className={`p-1.5 rounded-lg text-white ${getRoleBadgeClass(u.role)}`}
+                          style={{ background: 'var(--gradient-accent)' }}
                         >
-                          {getRoleIcon(user.role)}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1">
-                            <span className="font-medium text-white text-xs truncate">
-                              {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
-                            </span>
-                            {quickLoginLoading === user.role && (
-                              <div className="w-2 h-2 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          {getRoleIcon(u.role)}
+                        </span>
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold capitalize truncate" style={{ color: 'var(--color-text-inverse)' }}>
+                            {u.role}
+                            {quickLoginLoading === u.role && (
+                              <span className="ml-1 inline-block w-2 h-2 border-2 border-white/30 border-t-white rounded-full animate-spin align-middle" />
                             )}
-                          </div>
-                          <p className="text-xs text-white/70 truncate">{user.email.split('@')[0]}</p>
+                          </p>
+                          <p className="text-xs truncate" style={{ color: 'rgba(255,255,255,0.50)' }}>
+                            {u.email.split('@')[0]}
+                          </p>
                         </div>
                       </div>
                     </button>
                   ))}
                 </div>
 
-                <div className="mt-3 p-2 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
-                  <p className="text-xs text-yellow-200 text-center">Click any role to auto-login</p>
+                {/* Role descriptions */}
+                <div className="mt-3 grid grid-cols-2 gap-1">
+                  {demoUsers.map((u) => (
+                    <div
+                      key={`desc-${u.email}`}
+                      className={`px-2 py-1 rounded-lg text-xs text-center ${getRoleBadgeClass(u.role)}`}
+                    >
+                      {getRoleDescription(u.role)}
+                    </div>
+                  ))}
+                </div>
+
+                <div
+                  className="mt-3 p-2 rounded-lg text-xs text-center"
+                  style={{
+                    background: 'rgba(251,191,36,0.10)',
+                    border: '1px solid rgba(251,191,36,0.25)',
+                    color: '#FDE68A'
+                  }}
+                >
+                  Click any role to auto-login instantly
                 </div>
               </div>
             </div>
           </div>
+
         </div>
       </main>
 
-      <footer className="py-3 text-center text-white/50 text-sm">
-        Pharmacy POS System v1.0 • Professional Healthcare Management
+      <footer className="py-3 text-center text-sm" style={{ color: 'rgba(255,255,255,0.35)' }}>
+        PharmacyPOS v1.0 • Professional Healthcare Management
       </footer>
     </div>
   );
 };
-

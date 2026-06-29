@@ -1,5 +1,5 @@
 // User Roles
-export type UserRole = 'admin' | 'cashier' | 'officer';
+export type UserRole = 'admin' | 'cashier' | 'officer' | 'lab';
 
 // User type
 export interface User {
@@ -140,4 +140,112 @@ export interface Company {
   updatedAt: string;
 }
 
+// Add these to your existing types
 
+export interface LabTestTemplate {
+  id: string;
+  name: string;
+  category: string;
+  description?: string;
+  price: number;
+  sampleType?: string;
+  defaultReferenceRanges?: Record<string, any>;
+  resultFields: Array<{ name: string; type: string; required: boolean }>;
+  instructions?: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LabTest {
+  id: string;
+  testNumber: string;
+  transactionId: string;
+  transaction?: Transaction;
+  patientName: string;
+  patientPhone?: string;
+  patientEmail?: string;
+  patientAge?: number;
+  patientGender?: 'Male' | 'Female' | 'Other';
+  testType: string;
+  testCategory: string;
+  testPrice: number;
+  status: 'pending' | 'in_progress' | 'completed' | 'cancelled';
+  priority: 'normal' | 'urgent' | 'stat';
+  requestedBy: string;
+  requestedByName: string;
+  requestedByUser?: User;
+  performedBy?: string;
+  performedByName?: string;
+  performedByUser?: User;
+  sampleType?: string;
+  sampleCollectedAt?: string;
+  sampleReceivedAt?: string;
+  results?: Record<string, any>;
+  resultSummary?: string;
+  resultInterpretation?: string;
+  resultDate?: string;
+  referenceRanges?: Record<string, any>;
+  notes?: string;
+  internalNotes?: string;
+  completedAt?: string;
+  cancelledAt?: string;
+  cancelledBy?: string;
+  cancellationReason?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+
+// Lab Transaction Types
+export interface LabTransaction {
+  id: string;
+  transactionNumber: string;
+  patientName: string;
+  patientPhone?: string;
+  patientEmail?: string;
+  patientAge?: number;
+  patientGender?: 'Male' | 'Female' | 'Other';
+  totalAmount: number;
+  paidAmount: number;
+  paymentMethod?: PaymentMethod;
+  paymentReference?: string;
+  paymentStatus: 'pending' | 'paid' | 'partial' | 'refunded';
+  status: 'pending' | 'in_progress' | 'completed' | 'cancelled';
+  notes?: string;
+  requestedBy: string;
+  requestedByName: string;
+  receiptNumber?: string;
+  receiptPrintedAt?: string;
+  completedAt?: string;
+  cancelledAt?: string;
+  labTests?: LabTest[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LabTestResult {
+  id: string;
+  testNumber: string;
+  labTransactionId: string;
+  testType: string;
+  testCategory: string;
+  testPrice: number;
+  status: 'pending' | 'in_progress' | 'completed' | 'cancelled';
+  priority: 'normal' | 'urgent' | 'stat';
+  sampleType?: string;
+  sampleCollectedAt?: string;
+  sampleReceivedAt?: string;
+  results: Record<string, any>;
+  resultSummary?: string;
+  resultInterpretation?: string;
+  resultDate?: string;
+  referenceRanges: Record<string, any>;
+  notes?: string;
+  performedBy?: string;
+  performedByName?: string;
+  completedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  transaction?: LabTransaction;
+}

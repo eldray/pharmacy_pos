@@ -1,4 +1,3 @@
-// middleware/auth.js
 const jwt = require('jsonwebtoken');
 
 const auth = (req, res, next) => {
@@ -21,4 +20,25 @@ const adminAuth = (req, res, next) => {
   next();
 };
 
-module.exports = { auth, adminAuth };
+const labAuth = (req, res, next) => {
+  if (req.user.role !== 'lab' && req.user.role !== 'admin') {
+    return res.status(403).json({ msg: 'Lab access required' });
+  }
+  next();
+};
+
+const officerAuth = (req, res, next) => {
+  if (!['admin', 'officer'].includes(req.user.role)) {
+    return res.status(403).json({ msg: 'Officer or Admin access required' });
+  }
+  next();
+};
+
+const cashierAuth = (req, res, next) => {
+  if (!['admin', 'cashier', 'officer'].includes(req.user.role)) {
+    return res.status(403).json({ msg: 'Cashier or higher access required' });
+  }
+  next();
+};
+
+module.exports = { auth, adminAuth, labAuth, officerAuth, cashierAuth };

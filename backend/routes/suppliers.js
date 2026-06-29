@@ -1,4 +1,5 @@
 const express = require('express');
+const { Op } = require('sequelize');
 const Supplier = require('../models/Supplier');
 const { auth, adminAuth } = require('../middleware/auth');
 
@@ -9,22 +10,18 @@ router.get('/', auth, async (req, res) => {
   try {
     const { search } = req.query;
     let where = {};
-    
+
     if (search) {
-      const { Op } = require('sequelize');
       where = {
         [Op.or]: [
-          { name: { [Op.like]: `%${search}%` } },
-          { email: { [Op.like]: `%${search}%` } },
-          { phone: { [Op.like]: `%${search}%` } }
+          { name: { [Op.iLike]: `%${search}%` } },
+          { email: { [Op.iLike]: `%${search}%` } },
+          { phone: { [Op.iLike]: `%${search}%` } }
         ]
       };
     }
-    
-    const suppliers = await Supplier.findAll({
-      where,
-      order: [['name', 'ASC']]
-    });
+
+    const suppliers = await Supplier.findAll({ where, order: [['name', 'ASC']] });
     res.json(suppliers);
   } catch (err) {
     console.error('Get suppliers error:', err);
@@ -36,12 +33,9 @@ router.get('/', auth, async (req, res) => {
 router.get('/:id', auth, async (req, res) => {
   try {
     const supplier = await Supplier.findByPk(req.params.id);
-    if (!supplier) {
-      return res.status(404).json({ msg: 'Supplier not found' });
-    }
+    if (!supplier) return res.status(404).json({ msg: 'Supplier not found' });
     res.json(supplier);
   } catch (err) {
-    console.error('Get supplier error:', err);
     res.status(500).json({ msg: 'Server error' });
   }
 });
@@ -53,7 +47,7 @@ router.post('/', auth, adminAuth, async (req, res) => {
     res.status(201).json(supplier);
   } catch (err) {
     console.error('Create supplier error:', err);
-    res.status(400).json({ msg: 'Invalid data' });
+    res.status(400).json({ msg: 'Invalid data', error: err.message });
   }
 });
 
@@ -61,15 +55,11 @@ router.post('/', auth, adminAuth, async (req, res) => {
 router.put('/:id', auth, adminAuth, async (req, res) => {
   try {
     const supplier = await Supplier.findByPk(req.params.id);
-    if (!supplier) {
-      return res.status(404).json({ msg: 'Supplier not found' });
-    }
-    
+    if (!supplier) return res.status(404).json({ msg: 'Supplier not found' });
     await supplier.update(req.body);
     res.json(supplier);
   } catch (err) {
-    console.error('Update supplier error:', err);
-    res.status(400).json({ msg: 'Invalid data' });
+    res.status(400).json({ msg: 'Invalid data', error: err.message });
   }
 });
 
@@ -77,14 +67,10 @@ router.put('/:id', auth, adminAuth, async (req, res) => {
 router.delete('/:id', auth, adminAuth, async (req, res) => {
   try {
     const supplier = await Supplier.findByPk(req.params.id);
-    if (!supplier) {
-      return res.status(404).json({ msg: 'Supplier not found' });
-    }
-    
+    if (!supplier) return res.status(404).json({ msg: 'Supplier not found' });
     await supplier.destroy();
     res.json({ msg: 'Supplier deleted successfully' });
   } catch (err) {
-    console.error('Delete supplier error:', err);
     res.status(500).json({ msg: 'Server error' });
   }
 });

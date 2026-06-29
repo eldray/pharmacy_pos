@@ -1,0 +1,439 @@
+/* src/styles/theme.css
+   Single source of truth for all design tokens.
+   Every color in the app must come from one of these variables.
+   Never use hardcoded Tailwind color classes (bg-slate-900, text-purple-500, etc.)
+   in component files — use the semantic variables below instead.
+*/
+
+/* ─── LIGHT THEME (clinical white / medical professional) ─────────────────── */
+:root,
+[data-theme="light"] {
+
+    /* Surface layers */
+    --color-bg-base: #F8F9FC;
+    /* page background — cool clinical white    */
+    --color-bg-surface: #FFFFFF;
+    /* card / panel surface                     */
+    --color-bg-elevated: #FFFFFF;
+    /* modals, dropdowns                        */
+    --color-bg-subtle: #F1F3F9;
+    /* input fills, table zebra, muted areas    */
+    --color-bg-overlay: rgba(15, 23, 42, 0.45);
+    /* modal backdrop             */
+
+    /* Sidebar */
+    --color-sidebar-bg: #0F172A;
+    /* always dark — medical equipment feel   */
+    --color-sidebar-border: rgba(255, 255, 255, 0.08);
+    --color-sidebar-text: rgba(255, 255, 255, 0.70);
+    --color-sidebar-text-active: #FFFFFF;
+    --color-sidebar-item-active: rgba(255, 255, 255, 0.12);
+    --color-sidebar-item-hover: rgba(255, 255, 255, 0.07);
+    --color-sidebar-badge-bg: rgba(255, 255, 255, 0.10);
+
+    /* Navbar */
+    --color-navbar-bg: #FFFFFF;
+    --color-navbar-border: #E4E7EF;
+    --color-navbar-text: #1E293B;
+
+    /* Brand / accent — purple */
+    --color-accent: #7C3AED;
+    /* purple-600                               */
+    --color-accent-hover: #6D28D9;
+    /* purple-700                               */
+    --color-accent-light: #EDE9FE;
+    /* purple-100                               */
+    --color-accent-text: #7C3AED;
+    --color-accent-fg: #FFFFFF;
+    /* text on accent bg                        */
+
+    /* Gradient — brand header, login, sidebar header strip */
+    --gradient-brand: linear-gradient(135deg, #1E1B4B 0%, #4C1D95 50%, #1E1B4B 100%);
+    --gradient-accent: linear-gradient(135deg, #7C3AED 0%, #6366F1 100%);
+    --gradient-card-accent: linear-gradient(135deg, #7C3AED22 0%, #6366F111 100%);
+
+    /* Typography */
+    --color-text-primary: #0F172A;
+    /* headings, labels                         */
+    --color-text-secondary: #475569;
+    /* subtext, descriptions                    */
+    --color-text-muted: #94A3B8;
+    /* placeholders, disabled                   */
+    --color-text-inverse: #FFFFFF;
+    /* text on dark backgrounds                 */
+
+    /* Borders */
+    --color-border: #E4E7EF;
+    --color-border-strong: #CBD5E1;
+    --color-border-focus: #7C3AED;
+
+    /* Semantic — status colors */
+    --color-success: #059669;
+    --color-success-light: #D1FAE5;
+    --color-success-text: #065F46;
+
+    --color-warning: #D97706;
+    --color-warning-light: #FEF3C7;
+    --color-warning-text: #92400E;
+
+    --color-danger: #DC2626;
+    --color-danger-light: #FEE2E2;
+    --color-danger-text: #991B1B;
+
+    --color-info: #0284C7;
+    --color-info-light: #E0F2FE;
+    --color-info-text: #0C4A6E;
+
+    /* Role badge colors */
+    --color-role-admin: #7C3AED;
+    --color-role-admin-bg: #EDE9FE;
+    --color-role-cashier: #059669;
+    --color-role-cashier-bg: #D1FAE5;
+    --color-role-officer: #0284C7;
+    --color-role-officer-bg: #E0F2FE;
+    --color-role-lab: #6366F1;
+    --color-role-lab-bg: #EEF2FF;
+
+    /* Input */
+    --color-input-bg: #FFFFFF;
+    --color-input-border: #D1D5DB;
+    --color-input-border-focus: #7C3AED;
+    --color-input-text: #0F172A;
+    --color-input-placeholder: #94A3B8;
+    --color-input-ring: rgba(124, 58, 237, 0.25);
+
+    /* Shadows */
+    --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
+    --shadow-md: 0 4px 12px rgba(15, 23, 42, 0.08);
+    --shadow-lg: 0 8px 24px rgba(15, 23, 42, 0.10);
+    --shadow-xl: 0 16px 40px rgba(15, 23, 42, 0.12);
+    --shadow-card: 0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
+
+    /* Radii */
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --radius-xl: 20px;
+    --radius-full: 9999px;
+
+    /* Transitions */
+    --transition-fast: 150ms ease;
+    --transition-normal: 200ms ease;
+    --transition-slow: 300ms ease;
+}
+
+/* ─── DARK THEME (deep navy / professional) ───────────────────────────────── */
+[data-theme="dark"] {
+
+    /* Surface layers — navy depth scale */
+    --color-bg-base: #0B1120;
+    /* deepest navy — page background           */
+    --color-bg-surface: #111827;
+    /* cards, panels                            */
+    --color-bg-elevated: #1A2336;
+    /* modals, dropdowns                        */
+    --color-bg-subtle: #1E2A40;
+    /* inputs, zebra rows, muted zones          */
+    --color-bg-overlay: rgba(0, 0, 0, 0.60);
+
+    /* Sidebar — slightly lighter than page bg to create depth */
+    --color-sidebar-bg: #0D1526;
+    --color-sidebar-border: rgba(255, 255, 255, 0.06);
+    --color-sidebar-text: rgba(255, 255, 255, 0.60);
+    --color-sidebar-text-active: #FFFFFF;
+    --color-sidebar-item-active: rgba(124, 58, 237, 0.25);
+    --color-sidebar-item-hover: rgba(255, 255, 255, 0.05);
+    --color-sidebar-badge-bg: rgba(255, 255, 255, 0.08);
+
+    /* Navbar */
+    --color-navbar-bg: #111827;
+    --color-navbar-border: rgba(255, 255, 255, 0.07);
+    --color-navbar-text: #F1F5F9;
+
+    /* Brand / accent — purple stays, slightly brighter on dark */
+    --color-accent: #8B5CF6;
+    /* purple-500 — more visible on dark        */
+    --color-accent-hover: #7C3AED;
+    --color-accent-light: rgba(139, 92, 246, 0.15);
+    --color-accent-text: #A78BFA;
+    --color-accent-fg: #FFFFFF;
+
+    --gradient-brand: linear-gradient(135deg, #0D1526 0%, #1E1B4B 50%, #0D1526 100%);
+    --gradient-accent: linear-gradient(135deg, #7C3AED 0%, #6366F1 100%);
+    --gradient-card-accent: linear-gradient(135deg, #7C3AED22 0%, #6366F111 100%);
+
+    /* Typography */
+    --color-text-primary: #F1F5F9;
+    --color-text-secondary: #94A3B8;
+    --color-text-muted: #475569;
+    --color-text-inverse: #0F172A;
+
+    /* Borders */
+    --color-border: rgba(255, 255, 255, 0.08);
+    --color-border-strong: rgba(255, 255, 255, 0.15);
+    --color-border-focus: #8B5CF6;
+
+    /* Semantic */
+    --color-success: #10B981;
+    --color-success-light: rgba(16, 185, 129, 0.15);
+    --color-success-text: #6EE7B7;
+
+    --color-warning: #F59E0B;
+    --color-warning-light: rgba(245, 158, 11, 0.15);
+    --color-warning-text: #FCD34D;
+
+    --color-danger: #EF4444;
+    --color-danger-light: rgba(239, 68, 68, 0.15);
+    --color-danger-text: #FCA5A5;
+
+    --color-info: #38BDF8;
+    --color-info-light: rgba(56, 189, 248, 0.15);
+    --color-info-text: #7DD3FC;
+
+    /* Role badges — desaturated for dark bg */
+    --color-role-admin: #A78BFA;
+    --color-role-admin-bg: rgba(139, 92, 246, 0.15);
+    --color-role-cashier: #34D399;
+    --color-role-cashier-bg: rgba(16, 185, 129, 0.15);
+    --color-role-officer: #38BDF8;
+    --color-role-officer-bg: rgba(56, 189, 248, 0.15);
+    --color-role-lab: #818CF8;
+    --color-role-lab-bg: rgba(99, 102, 241, 0.15);
+
+    /* Input */
+    --color-input-bg: #1E2A40;
+    --color-input-border: rgba(255, 255, 255, 0.10);
+    --color-input-border-focus: #8B5CF6;
+    --color-input-text: #F1F5F9;
+    --color-input-placeholder: #475569;
+    --color-input-ring: rgba(139, 92, 246, 0.30);
+
+    /* Shadows — more opaque on dark */
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.20);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.30);
+    --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.40);
+    --shadow-xl: 0 16px 40px rgba(0, 0, 0, 0.50);
+    --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.25), 0 1px 2px rgba(0, 0, 0, 0.20);
+
+    /* Radii + transitions inherit from :root */
+}
+
+/* ─── BASE RESETS ─────────────────────────────────────────────────────────── */
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+    background-color: var(--color-bg-base);
+    color: var(--color-text-primary);
+    transition: background-color var(--transition-slow), color var(--transition-slow);
+}
+
+/* ─── SCROLLBAR ───────────────────────────────────────────────────────────── */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--color-border-strong);
+    border-radius: var(--radius-full);
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--color-text-muted);
+}
+
+/* ─── FOCUS RING ──────────────────────────────────────────────────────────── */
+:focus-visible {
+    outline: 2px solid var(--color-border-focus);
+    outline-offset: 2px;
+}
+
+/* ─── UTILITY CLASSES ─────────────────────────────────────────────────────── */
+
+/* Surfaces */
+.surface {
+    background-color: var(--color-bg-surface);
+}
+
+.surface-elevated {
+    background-color: var(--color-bg-elevated);
+}
+
+.surface-subtle {
+    background-color: var(--color-bg-subtle);
+}
+
+/* Text */
+.text-primary {
+    color: var(--color-text-primary);
+}
+
+.text-secondary {
+    color: var(--color-text-secondary);
+}
+
+.text-muted {
+    color: var(--color-text-muted);
+}
+
+.text-inverse {
+    color: var(--color-text-inverse);
+}
+
+.text-accent {
+    color: var(--color-accent-text);
+}
+
+/* Border */
+.border-theme {
+    border-color: var(--color-border);
+}
+
+.border-theme-strong {
+    border-color: var(--color-border-strong);
+}
+
+/* Brand gradient backgrounds */
+.bg-brand {
+    background: var(--gradient-brand);
+}
+
+.bg-accent {
+    background: var(--gradient-accent);
+}
+
+/* Card */
+.card {
+    background-color: var(--color-bg-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+}
+
+/* Input base */
+.input-base {
+    background-color: var(--color-input-bg);
+    border: 1px solid var(--color-input-border);
+    border-radius: var(--radius-md);
+    color: var(--color-input-text);
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.input-base::placeholder {
+    color: var(--color-input-placeholder);
+}
+
+.input-base:focus {
+    border-color: var(--color-input-border-focus);
+    box-shadow: 0 0 0 3px var(--color-input-ring);
+    outline: none;
+}
+
+/* Button — accent */
+.btn-accent {
+    background: var(--gradient-accent);
+    color: var(--color-accent-fg);
+    border-radius: var(--radius-md);
+    font-weight: 600;
+    transition: opacity var(--transition-fast), transform var(--transition-fast);
+}
+
+.btn-accent:hover {
+    opacity: 0.92;
+    transform: translateY(-1px);
+}
+
+.btn-accent:active {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.btn-accent:disabled {
+    opacity: 0.50;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* Button — ghost */
+.btn-ghost {
+    background: transparent;
+    color: var(--color-text-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    font-weight: 500;
+    transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.btn-ghost:hover {
+    background-color: var(--color-bg-subtle);
+    color: var(--color-text-primary);
+}
+
+/* Status badges */
+.badge-success {
+    background-color: var(--color-success-light);
+    color: var(--color-success-text);
+}
+
+.badge-warning {
+    background-color: var(--color-warning-light);
+    color: var(--color-warning-text);
+}
+
+.badge-danger {
+    background-color: var(--color-danger-light);
+    color: var(--color-danger-text);
+}
+
+.badge-info {
+    background-color: var(--color-info-light);
+    color: var(--color-info-text);
+}
+
+/* Role badges */
+.badge-admin {
+    background-color: var(--color-role-admin-bg);
+    color: var(--color-role-admin);
+}
+
+.badge-cashier {
+    background-color: var(--color-role-cashier-bg);
+    color: var(--color-role-cashier);
+}
+
+.badge-officer {
+    background-color: var(--color-role-officer-bg);
+    color: var(--color-role-officer);
+}
+
+.badge-lab {
+    background-color: var(--color-role-lab-bg);
+    color: var(--color-role-lab);
+}
+
+/* Divider */
+.divider {
+    border-top: 1px solid var(--color-border);
+}
+
+/* Transition helper */
+.theme-transition {
+    transition:
+        background-color var(--transition-slow),
+        border-color var(--transition-slow),
+        color var(--transition-slow),
+        box-shadow var(--transition-slow);
+}

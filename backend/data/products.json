@@ -1,0 +1,124 @@
+{
+    "products": [
+        {
+            "name": "Paracetamol 500mg",
+            "description": "Pain and fever relief medication",
+            "sku": "SKU-PAR-001",
+            "barcode": "BAR-001-001",
+            "category": "Pain Relief",
+            "unitPrice": 2.50,
+            "quantity": 100,
+            "batchNumber": "BATCH-2024-001",
+            "expiryDate": "2026-12-31",
+            "supplier": "Pharma Inc"
+        },
+        {
+            "name": "Amoxicillin 250mg",
+            "description": "Antibiotic for bacterial infections",
+            "sku": "SKU-AMO-001",
+            "barcode": "BAR-001-002",
+            "category": "Antibiotics",
+            "unitPrice": 5.00,
+            "quantity": 50,
+            "batchNumber": "BATCH-2024-002",
+            "expiryDate": "2025-11-30",
+            "supplier": "Pharma Inc"
+        },
+        {
+            "name": "Ibuprofen 400mg",
+            "description": "Anti-inflammatory pain reliever",
+            "sku": "SKU-IBU-001",
+            "barcode": "BAR-001-003",
+            "category": "Pain Relief",
+            "unitPrice": 3.75,
+            "quantity": 75,
+            "batchNumber": "BATCH-2024-003",
+            "expiryDate": "2027-05-15",
+            "supplier": "Health Plus"
+        },
+        {
+            "name": "Omeprazole 20mg",
+            "description": "Acid reflux and heartburn treatment",
+            "sku": "SKU-OME-001",
+            "barcode": "BAR-001-004",
+            "category": "Gastrointestinal",
+            "unitPrice": 4.20,
+            "quantity": 60,
+            "batchNumber": "BATCH-2024-004",
+            "expiryDate": "2026-08-20",
+            "supplier": "Pharma Inc"
+        },
+        {
+            "name": "Lisinopril 10mg",
+            "description": "Blood pressure medication",
+            "sku": "SKU-LIS-001",
+            "barcode": "BAR-001-005",
+            "category": "Cardiovascular",
+            "unitPrice": 6.50,
+            "quantity": 45,
+            "batchNumber": "BATCH-2024-005",
+            "expiryDate": "2026-04-10",
+            "supplier": "Health Plus"
+        },
+        {
+            "name": "Metformin 500mg",
+            "description": "Type 2 diabetes medication",
+            "sku": "SKU-MET-001",
+            "barcode": "BAR-001-006",
+            "category": "Diabetes",
+            "unitPrice": 3.20,
+            "quantity": 80,
+            "batchNumber": "BATCH-2024-006",
+            "expiryDate": "2027-01-15",
+            "supplier": "Pharma Inc"
+        },
+        {
+            "name": "Vitamin C 1000mg",
+            "description": "Immune system support supplement",
+            "sku": "SKU-VIT-001",
+            "barcode": "BAR-001-007",
+            "category": "Vitamins",
+            "unitPrice": 8.99,
+            "quantity": 120,
+            "batchNumber": "BATCH-2024-007",
+            "expiryDate": "2028-03-01",
+            "supplier": "Health Plus"
+        },
+        {
+            "name": "Aspirin 81mg",
+            "description": "Low-dose aspirin for heart health",
+            "sku": "SKU-ASP-001",
+            "barcode": "BAR-001-008",
+            "category": "Cardiovascular",
+            "unitPrice": 2.25,
+            "quantity": 150,
+            "batchNumber": "BATCH-2024-008",
+            "expiryDate": "2027-09-30",
+            "supplier": "Pharma Inc"
+        },
+        {
+            "name": "Ciprofloxacin 500mg",
+            "description": "Antibiotic for various infections",
+            "sku": "SKU-CIP-001",
+            "barcode": "BAR-001-009",
+            "category": "Antibiotics",
+            "unitPrice": 7.50,
+            "quantity": 30,
+            "batchNumber": "BATCH-2024-009",
+            "expiryDate": "2025-10-15",
+            "supplier": "Health Plus"
+        },
+        {
+            "name": "Multivitamin Tablets",
+            "description": "Complete daily multivitamin supplement",
+            "sku": "SKU-MUL-001",
+            "barcode": "BAR-001-010",
+            "category": "Vitamins",
+            "unitPrice": 12.99,
+            "quantity": 90,
+            "batchNumber": "BATCH-2024-010",
+            "expiryDate": "2028-06-01",
+            "supplier": "Pharma Inc"
+        }
+    ]
+}

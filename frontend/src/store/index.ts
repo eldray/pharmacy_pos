@@ -9,6 +9,9 @@ import {
   Supplier,
   PurchaseOrder,
   Company,
+  LabTest,
+  LabTestTemplate,
+  LabTransaction,
 } from '../types';
 import api from '../api/api';
 
@@ -68,11 +71,58 @@ interface AppStore {
   fetchPurchaseOrders: () => Promise<void>;
   addPurchaseOrder: (po: Omit<PurchaseOrder, 'id' | 'createdAt' | 'orderDate'> & { orderDate?: string }) => Promise<PurchaseOrder | null>;
   updatePurchaseOrder: (id: string, updates: Partial<PurchaseOrder>) => Promise<PurchaseOrder | null>;
+
+  // Lab Test Templates
+  labTestTemplates: LabTestTemplate[];
+  fetchLabTestTemplates: () => Promise<void>;
+
+  // Lab Transactions
+  labTransactions: LabTransaction[];
+  fetchLabTransactions: (filters?: any) => Promise<void>;
+  fetchLabTransaction: (id: string) => Promise<LabTransaction | null>;
+  addLabTransaction: (data: any) => Promise<LabTransaction | null>;
+  updateLabTransaction: (id: string, updates: any) => Promise<LabTransaction | null>;
+  updateLabTest: (testId: string, updates: any) => Promise<LabTest | null>;
+  addLabTestResults: (testId: string, results: any) => Promise<LabTest | null>;
+  reprintLabReceipt: (id: string) => Promise<any>;
+  getLabTransactionStats: () => Promise<any>;
 }
 
-// ==================== STORE IMPLEMENTATION ====================
+// ==================== HELPERS ====================
+const safeNumber = (value: any): number => {
+  const num = Number(value);
+  return isNaN(num) ? 0 : num;
+};
+
+const normalizeProduct = (p: any): Product => ({
+  ...p,
+  id: String(p._id || p.id),
+  unitPrice: safeNumber(p.unitPrice),
+  quantity: safeNumber(p.quantity),
+  cost: safeNumber(p.cost),
+  reorderLevel: safeNumber(p.reorderLevel) || 10,
+});
+
+const normalizeLabTest = (t: any): LabTest => ({
+  ...t,
+  id: String(t._id || t.id),
+  testPrice: safeNumber(t.testPrice),
+  patientAge: t.patientAge ? safeNumber(t.patientAge) : undefined,
+  results: t.results || {},
+  referenceRanges: t.referenceRanges || {},
+});
+
+const normalizeLabTransaction = (t: any): LabTransaction => ({
+  ...t,
+  id: String(t._id || t.id),
+  totalAmount: safeNumber(t.totalAmount),
+  paidAmount: safeNumber(t.paidAmount),
+  labTests: (t.labTests || []).map(normalizeLabTest),
+});
+
+// ==================== STORE ====================
 export const useAppStore = create<AppStore>((set, get) => ({
-  // Auth
+  // ==================== AUTH ====================
   currentUser: null,
   setCurrentUser: (user) => set({ currentUser: user }),
   logout: () => {
@@ -99,7 +149,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     }
   },
 
-  // Company
+  // ==================== COMPANY ====================
   company: null,
   fetchCompany: async () => {
     try {
@@ -123,7 +173,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     }
   },
 
-  // Users
+  // ==================== USERS ====================
   users: [],
   fetchUsers: async () => {
     try {
@@ -162,26 +212,30 @@ export const useAppStore = create<AppStore>((set, get) => ({
     }
   },
 
-  // Products
+  // ==================== PRODUCTS ====================
   products: [],
   fetchProducts: async () => {
     try {
       const response = await api.get('/products');
-      const products = response.data.map((p: any) => ({
-        ...p,
-        id: String(p._id || p.id),
-      }));
-      set({ products });
+      set({ products: response.data.map(normalizeProduct) });
     } catch (err) {
       console.error('Failed to fetch products', err);
     }
   },
   addProduct: async (product) => {
     try {
-      const response = await api.post('/products', product);
+      const formattedProduct = {
+        ...product,
+        unitPrice: safeNumber(product.unitPrice),
+        quantity: safeNumber(product.quantity),
+        cost: safeNumber(product.cost),
+        reorderLevel: safeNumber(product.reorderLevel) || 10,
+      };
+      const response = await api.post('/products', formattedProduct);
       if (response.data) {
-        set((state) => ({ products: [...state.products, response.data] }));
-        return response.data;
+        const newProduct = normalizeProduct(response.data);
+        set((state) => ({ products: [...state.products, newProduct] }));
+        return newProduct;
       }
       return null;
     } catch (err) {
@@ -191,8 +245,14 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
   updateProduct: async (id, updates) => {
     try {
-      const response = await api.put(`/products/${id}`, updates);
-      const updated = response.data;
+      const formattedUpdates: any = { ...updates };
+      if (updates.unitPrice !== undefined) formattedUpdates.unitPrice = safeNumber(updates.unitPrice);
+      if (updates.quantity !== undefined) formattedUpdates.quantity = safeNumber(updates.quantity);
+      if (updates.cost !== undefined) formattedUpdates.cost = safeNumber(updates.cost);
+      if (updates.reorderLevel !== undefined) formattedUpdates.reorderLevel = safeNumber(updates.reorderLevel);
+
+      const response = await api.put(`/products/${id}`, formattedUpdates);
+      const updated = normalizeProduct(response.data);
       set((state) => ({
         products: state.products.map((p) => (p.id === id ? updated : p)),
       }));
@@ -211,7 +271,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     );
   },
 
-  // Cart – Always add as NEW line item
+  // ==================== CART ====================
   cartItems: [],
   addToCart: (product: Product, quantity = 1, discount = 0) => {
     set((state) => {
@@ -219,17 +279,16 @@ export const useAppStore = create<AppStore>((set, get) => ({
         console.error('Cannot add product: missing ID', product);
         return state;
       }
-
+      const unitPrice = safeNumber(product.unitPrice);
       const newItem: CartItem = {
         cartId: nanoid(8),
         productId: product.id,
-        product: { ...product },
+        product: { ...product, unitPrice },
         quantity,
-        unitPrice: product.unitPrice,
-        total: quantity * product.unitPrice,
+        unitPrice,
+        total: quantity * unitPrice,
         discount,
       };
-
       return { cartItems: [...state.cartItems, newItem] };
     });
   },
@@ -238,7 +297,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       cartItems: state.cartItems
         .map((i) =>
           i.cartId === cartId
-            ? { ...i, quantity, total: quantity * i.unitPrice, discount }
+            ? { ...i, quantity, total: quantity * safeNumber(i.unitPrice), discount }
             : i
         )
         .filter((i) => i.quantity > 0),
@@ -250,14 +309,14 @@ export const useAppStore = create<AppStore>((set, get) => ({
   clearCart: () => set({ cartItems: [] }),
   getCartTotal: () => {
     const items = get().cartItems || [];
-    const subtotal = items.reduce((sum, i) => sum + i.total, 0);
-    const discount = items.reduce((sum, i) => sum + (i.discount || 0), 0);
+    const subtotal = items.reduce((sum, i) => sum + safeNumber(i.total), 0);
+    const discount = items.reduce((sum, i) => sum + safeNumber(i.discount), 0);
     const tax = (subtotal - discount) * 0.15;
     const total = subtotal - discount + tax;
     return { subtotal: subtotal - discount, tax, total };
   },
 
-  // Transactions – Backend handles stock
+  // ==================== TRANSACTIONS ====================
   transactions: [],
   fetchTransactions: async (startDate?: string, endDate?: string) => {
     try {
@@ -265,34 +324,63 @@ export const useAppStore = create<AppStore>((set, get) => ({
       if (startDate) params.append('startDate', startDate);
       if (endDate) params.append('endDate', endDate);
       const response = await api.get(`/transactions${params.toString() ? `?${params.toString()}` : ''}`);
-      set({ transactions: response.data });
+
+      set({
+        transactions: response.data.map((t: any) => ({
+          ...t,
+          subtotal: safeNumber(t.subtotal),
+          tax: safeNumber(t.tax),
+          total: safeNumber(t.total),
+          discount: safeNumber(t.discount),
+          items: (t.items || []).map((item: any) => ({
+            ...item,
+            quantity: safeNumber(item.quantity),
+            unitPrice: safeNumber(item.unitPrice),
+            total: safeNumber(item.total),
+            discount: safeNumber(item.discount),
+          })),
+        })),
+      });
     } catch (err) {
       console.error('Failed to fetch transactions');
     }
   },
-addTransaction: async (transaction) => {
-  try {
-    const response = await api.post('/transactions', {
-      ...transaction,
-      // Ensure customer data is included
-      customerName: transaction.customerName,
-      customerPhone: transaction.customerPhone
-    });
-    const savedTxn = response.data;
+  addTransaction: async (transaction) => {
+    try {
+      const formattedItems = (transaction.items || []).map((item: any) => ({
+        productId: item.productId || item.product?.id,
+        productName: item.product?.name || item.productName,
+        productSku: item.product?.sku || item.productSku,
+        productCategory: item.product?.category || item.productCategory,
+        quantity: safeNumber(item.quantity),
+        unitPrice: safeNumber(item.unitPrice),
+        total: safeNumber(item.total),
+        discount: safeNumber(item.discount),
+      }));
 
-    set((state) => ({
-      transactions: [savedTxn, ...state.transactions],
-      cartItems: [], // clear cart
-    }));
+      const payload = {
+        ...transaction,
+        items: formattedItems,
+        subtotal: safeNumber(transaction.subtotal),
+        tax: safeNumber(transaction.tax),
+        total: safeNumber(transaction.total),
+        discount: safeNumber(transaction.discount),
+      };
 
-    return savedTxn;
-  } catch (err: any) {
-    console.error('addTransaction error:', err.response?.data || err);
-    return null;
-  }
-},
+      const response = await api.post('/transactions', payload);
+      const savedTxn = response.data;
+      set((state) => ({
+        transactions: [savedTxn, ...state.transactions],
+        cartItems: [],
+      }));
+      return savedTxn;
+    } catch (err: any) {
+      console.error('addTransaction error:', err.response?.data || err);
+      return null;
+    }
+  },
 
-  // Inventory Logs
+  // ==================== INVENTORY LOGS ====================
   inventoryLogs: [],
   fetchInventoryLogs: async () => {
     try {
@@ -316,7 +404,7 @@ addTransaction: async (transaction) => {
     }
   },
 
-  // Suppliers
+  // ==================== SUPPLIERS ====================
   suppliers: [],
   fetchSuppliers: async () => {
     try {
@@ -355,30 +443,36 @@ addTransaction: async (transaction) => {
     }
   },
 
-  // Purchase Orders
+  // ==================== PURCHASE ORDERS ====================
   purchaseOrders: [],
   fetchPurchaseOrders: async () => {
     try {
       const response = await api.get('/purchase-orders');
-      const purchaseOrders = response.data.map((po: any) => ({
-        ...po,
-        id: String(po._id || po.id),
-      }));
-      set({ purchaseOrders });
+      set({
+        purchaseOrders: response.data.map((po: any) => ({
+          ...po,
+          id: String(po._id || po.id),
+          totalAmount: safeNumber(po.totalAmount),
+          items: (po.items || []).map((item: any) => ({
+            ...item,
+            quantity: safeNumber(item.quantity),
+            unitPrice: safeNumber(item.unitPrice),
+            total: safeNumber(item.total),
+          })),
+        })),
+      });
     } catch (err) {
       console.error('Failed to fetch purchase orders');
     }
   },
-
   addPurchaseOrder: async (po) => {
     try {
-      // Ensure all item data is properly formatted
-      const formattedItems = po.items.map((i: any) => ({
+      const formattedItems = (po.items || []).map((i: any) => ({
         productId: i.productId,
         productName: i.productName,
-        quantity: Number(i.quantity),
-        unitPrice: Number(i.unitPrice),
-        total: Number(i.total),
+        quantity: safeNumber(i.quantity),
+        unitPrice: safeNumber(i.unitPrice),
+        total: safeNumber(i.total),
         batchNumber: i.batchNumber || undefined,
         expiryDate: i.expiryDate || undefined,
       }));
@@ -387,50 +481,38 @@ addTransaction: async (transaction) => {
         orderNumber: po.orderNumber,
         supplierId: po.supplierId,
         items: formattedItems,
-        totalAmount: Number(po.totalAmount),
+        totalAmount: safeNumber(po.totalAmount),
         expectedDeliveryDate: po.expectedDeliveryDate,
       };
 
-      console.log('Sending PO payload:', JSON.stringify(payload, null, 2));
-
       const response = await api.post('/purchase-orders', payload);
       const savedPO = response.data;
-
       set((state) => ({
         purchaseOrders: [savedPO, ...state.purchaseOrders],
       }));
-
       return savedPO;
     } catch (err: any) {
       console.error('addPurchaseOrder error:', err.response?.data || err);
       return null;
     }
   },
-
   updatePurchaseOrder: async (id, updates) => {
     try {
-      console.log('Updating PO:', { id, updates });
-      
       const response = await api.put(`/purchase-orders/${id}`, updates);
       const updatedPO = response.data;
-
-      console.log('PO updated successfully:', updatedPO);
-
       set((state) => ({
         purchaseOrders: state.purchaseOrders.map((p) => {
-          // Try multiple ID fields for matching
           const poId = p.id || (p as any)._id;
           return poId === id ? updatedPO : p;
         }),
       }));
 
-      // If marked as received → update stock locally
       if (updates.status === 'received') {
         const po = updatedPO;
-        po.items.forEach(async (item: any) => {
+        (po.items || []).forEach(async (item: any) => {
           const product = get().products.find(p => p.id === item.productId);
           if (product) {
-            const newQty = product.quantity + item.quantity;
+            const newQty = safeNumber(product.quantity) + safeNumber(item.quantity);
             await get().updateProduct(item.productId, {
               quantity: newQty,
               batchNumber: item.batchNumber || product.batchNumber,
@@ -439,35 +521,214 @@ addTransaction: async (transaction) => {
           }
         });
       }
-
       return updatedPO;
     } catch (err: any) {
-      console.error('updatePurchaseOrder error:', {
-        id,
-        updates,
-        error: err.response?.data || err.message
-      });
+      console.error('updatePurchaseOrder error:', err.response?.data || err);
+      return null;
+    }
+  },
+
+  // ==================== LAB TEST TEMPLATES ====================
+  labTestTemplates: [],
+  fetchLabTestTemplates: async () => {
+    try {
+      const response = await api.get('/lab-tests/templates');
+      const normalized = response.data.map((template: any) => ({
+        ...template,
+        price: safeNumber(template.price),
+      }));
+      set({ labTestTemplates: normalized });
+      return normalized;
+    } catch (err: any) {
+      console.error('Failed to fetch lab test templates:', err.response?.data || err);
+      throw err;
+    }
+  },
+
+  // ==================== LAB TRANSACTIONS ====================
+  labTransactions: [],
+
+  fetchLabTransactions: async (filters) => {
+    try {
+      const params = new URLSearchParams();
+      if (filters?.status) params.append('status', filters.status);
+      if (filters?.paymentStatus) params.append('paymentStatus', filters.paymentStatus);
+      if (filters?.startDate) params.append('startDate', filters.startDate);
+      if (filters?.endDate) params.append('endDate', filters.endDate);
+      if (filters?.patientName) params.append('patientName', filters.patientName);
+
+      const response = await api.get(`/lab-transactions${params.toString() ? `?${params.toString()}` : ''}`);
+      const transactions = response.data.map(normalizeLabTransaction);
+      set({ labTransactions: transactions });
+    } catch (err) {
+      console.error('Failed to fetch lab transactions:', err);
+    }
+  },
+
+  fetchLabTransaction: async (id) => {
+    try {
+      const response = await api.get(`/lab-transactions/${id}`);
+      const transaction = normalizeLabTransaction(response.data);
+      return transaction;
+    } catch (err) {
+      console.error('Failed to fetch lab transaction:', err);
+      return null;
+    }
+  },
+
+  addLabTransaction: async (data) => {
+    try {
+      const response = await api.post('/lab-transactions', data);
+      const transaction = normalizeLabTransaction(response.data);
+      set((state) => ({
+        labTransactions: [transaction, ...state.labTransactions]
+      }));
+      return transaction;
+    } catch (err: any) {
+      console.error('Add lab transaction error:', err.response?.data || err);
+      return null;
+    }
+  },
+
+  updateLabTransaction: async (id, updates) => {
+    try {
+      const response = await api.put(`/lab-transactions/${id}`, updates);
+      const updated = normalizeLabTransaction(response.data);
+      set((state) => ({
+        labTransactions: state.labTransactions.map((t) =>
+          t.id === id ? updated : t
+        )
+      }));
+      return updated;
+    } catch (err: any) {
+      console.error('Update lab transaction error:', err.response?.data || err);
+      return null;
+    }
+  },
+
+  updateLabTest: async (testId, updates) => {
+    try {
+      const response = await api.put(`/lab-transactions/tests/${testId}`, updates);
+      const updated = response.data;
+      set((state) => ({
+        labTransactions: state.labTransactions.map((t) => ({
+          ...t,
+          labTests: (t.labTests || []).map((test) =>
+            test.id === testId ? { ...test, ...updated } : test
+          )
+        }))
+      }));
+      return updated;
+    } catch (err: any) {
+      console.error('Update lab test error:', err.response?.data || err);
+      return null;
+    }
+  },
+
+  addLabTestResults: async (testId, results) => {
+    try {
+      const response = await api.post(`/lab-transactions/tests/${testId}/results`, results);
+      const updated = response.data;
+      set((state) => ({
+        labTransactions: state.labTransactions.map((t) => ({
+          ...t,
+          labTests: (t.labTests || []).map((test) =>
+            test.id === testId ? { ...test, ...updated } : test
+          )
+        }))
+      }));
+      return updated;
+    } catch (err: any) {
+      console.error('Add results error:', err.response?.data || err);
+      return null;
+    }
+  },
+
+  reprintLabReceipt: async (id) => {
+    try {
+      const response = await api.post(`/lab-transactions/${id}/reprint`);
+      return response.data;
+    } catch (err: any) {
+      console.error('Reprint receipt error:', err.response?.data || err);
+      return null;
+    }
+  },
+
+  getLabTransactionStats: async () => {
+    try {
+      const response = await api.get('/lab-transactions/stats/summary');
+      return response.data;
+    } catch (err: any) {
+      console.error('Get lab stats error:', err.response?.data || err);
       return null;
     }
   },
 }));
 
-// Auto-fetch initial data
+// ==================== INIT STORE ====================
 export const initStore = async (userRole: string) => {
   const store = useAppStore.getState();
-  await store.fetchCompany();
-  await store.fetchProducts();
-  await store.fetchSuppliers();
+  const errors: string[] = [];
 
-  if (userRole === 'admin') {
-    await store.fetchUsers();
-    await store.fetchPurchaseOrders();
-    await store.fetchInventoryLogs();
-    await store.fetchTransactions();
-  }
+  console.log(`🚀 Initializing store for role: ${userRole}`);
 
-  if (userRole === 'admin' || userRole === 'officer') {
-    await store.fetchPurchaseOrders();
-    await store.fetchInventoryLogs();
+  try {
+    // BASE DATA (All Users)
+    await Promise.all([
+      store.fetchCompany().catch(e => errors.push('Company: ' + e.message)),
+      store.fetchProducts().catch(e => errors.push('Products: ' + e.message)),
+      store.fetchSuppliers().catch(e => errors.push('Suppliers: ' + e.message)),
+    ]);
+
+    // CASHIER
+    if (userRole === 'cashier' || userRole === 'admin') {
+      await store.fetchTransactions().catch(e => errors.push('Transactions: ' + e.message));
+    }
+
+    // OFFICER
+    if (userRole === 'officer') {
+      await Promise.all([
+        store.fetchLabTransactions().catch(e => errors.push('Lab Transactions: ' + e.message)),
+        store.fetchLabTestTemplates().catch(e => errors.push('Lab Templates: ' + e.message)),
+        store.fetchPurchaseOrders().catch(e => errors.push('Purchase Orders: ' + e.message)),
+        store.fetchInventoryLogs().catch(e => errors.push('Inventory Logs: ' + e.message)),
+        store.fetchTransactions().catch(e => errors.push('Transactions: ' + e.message)),
+      ]);
+    }
+
+    // LAB TECHNICIAN
+    if (userRole === 'lab') {
+      await Promise.all([
+        store.fetchLabTransactions().catch(e => errors.push('Lab Transactions: ' + e.message)),
+        store.fetchLabTestTemplates().catch(e => errors.push('Lab Templates: ' + e.message)),
+      ]);
+    }
+
+    // ADMIN
+    if (userRole === 'admin') {
+      await Promise.all([
+        store.fetchUsers().catch(e => errors.push('Users: ' + e.message)),
+        store.fetchTransactions().catch(e => errors.push('Transactions: ' + e.message)),
+        store.fetchPurchaseOrders().catch(e => errors.push('Purchase Orders: ' + e.message)),
+        store.fetchInventoryLogs().catch(e => errors.push('Inventory Logs: ' + e.message)),
+        store.fetchLabTransactions().catch(e => errors.push('Lab Transactions: ' + e.message)),
+        store.fetchLabTestTemplates().catch(e => errors.push('Lab Templates: ' + e.message)),
+      ]);
+    }
+
+    const state = useAppStore.getState();
+    console.log(`✅ Store initialized for: ${userRole}`);
+    console.log(`   Products: ${state.products.length}`);
+    console.log(`   Lab Tests: ${state.labTransactions.length}`);
+    console.log(`   Users: ${state.users.length}`);
+
+    if (errors.length > 0) {
+      console.warn('⚠️ Some data failed to load:', errors);
+    }
+
+    return { success: true, errors };
+  } catch (error: any) {
+    console.error('❌ Store initialization failed:', error);
+    return { success: false, errors: [error.message] };
   }
 };

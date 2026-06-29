@@ -19,7 +19,6 @@ function App() {
           if (user) {
             setCurrentUser(user);
             initStore(user.role);
-            // Removed navigation - let the routes handle redirection
           } else {
             localStorage.removeItem('auth_token');
           }
@@ -31,7 +30,7 @@ function App() {
     } else {
       setIsLoading(false);
     }
-  }, [setCurrentUser]); // Removed navigate from dependencies
+  }, [setCurrentUser]);
 
   if (isLoading) {
     return (

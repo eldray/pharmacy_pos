@@ -11,9 +11,13 @@ import { ProductManagement } from '../pages/ProductManagement';
 import { SupplierManagement } from '../pages/SupplierManagement';
 import { PurchaseOrderPage } from '../pages/PurchaseOrderPage';
 import { AnalyticsPage } from '../pages/AnalyticsPage';
-import { SalesPage } from '../pages/SalesPage'; // Add this import
+import { SalesPage } from '../pages/SalesPage';
 import InventoryPage from '../pages/InventoryPage';
 import { CompanySettings } from '../pages/CompanySettings';
+import { LabManagement } from '../pages/LabManagement';
+import { LabDetail } from '../pages/LabDetail';
+import { StaffManagement } from '../pages/StaffManagement';
+import { LabReports } from '../pages/LabReports';
 
 export const DashboardLayout: React.FC = () => {
   const { currentUser, logout, company } = useAppStore();
@@ -32,29 +36,34 @@ export const DashboardLayout: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div
+      className="min-h-screen theme-transition"
+      style={{ background: 'var(--color-bg-base)' }}
+    >
       {/* Fixed Sidebar */}
-      <Sidebar 
-        isOpen={sidebarOpen} 
+      <Sidebar
+        isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         currentPath={location.pathname}
         userRole={currentUser.role}
       />
 
-      {/* Main Content Area */}
+      {/* Main content — offset by sidebar width on lg+ */}
       <div className="lg:ml-64">
         {/* Fixed Navbar */}
-        <Navbar 
+        <Navbar
           onMenuClick={() => setSidebarOpen(true)}
           onLogout={handleLogout}
           user={currentUser}
           companyName={company?.name}
         />
 
-        {/* Scrollable Main Content */}
-        <main className="min-h-screen pt-16">
-          {/* Consistent padding container */}
-          <div className="p-6">
+        {/* Scrollable page content */}
+        <main
+          className="min-h-screen pt-16"
+          style={{ background: 'var(--color-bg-base)' }}
+        >
+          <div className="p-5 lg:p-6">
             <Routes>
               <Route index element={<DashboardHome />} />
               <Route path="pos" element={<POSInterface />} />
@@ -62,12 +71,17 @@ export const DashboardLayout: React.FC = () => {
               <Route path="suppliers" element={<SupplierManagement />} />
               <Route path="purchase-orders" element={<PurchaseOrderPage />} />
               <Route path="analytics" element={<AnalyticsPage />} />
-              <Route path="sales" element={<SalesPage />} /> {/* Add this route */}
+              <Route path="sales" element={<SalesPage />} />
               <Route path="profile" element={<ProfileSettings />} />
               <Route path="inventory" element={<InventoryPage />} />
+              <Route path="lab" element={<LabManagement />} />
+              <Route path="lab/:id" element={<LabDetail />} />
+              <Route path="lab-reports" element={<LabReports />} />
+
               {currentUser.role === 'admin' && (
                 <>
                   <Route path="settings" element={<CompanySettings />} />
+                  <Route path="users" element={<StaffManagement />} />
                 </>
               )}
             </Routes>

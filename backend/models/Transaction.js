@@ -1,7 +1,4 @@
-// models/Transaction.js
-
-const { sequelize, DataTypes } = require('../database');
-const User = require('./User');
+const { sequelize, DataTypes } = require('../config/database');
 
 const Transaction = sequelize.define('Transaction', {
   id: {
@@ -17,22 +14,13 @@ const Transaction = sequelize.define('Transaction', {
   cashierId: {
     type: DataTypes.INTEGER,
     allowNull: false,
-    references: {
-      model: User,
-      key: 'id'
-    }
+    references: { model: 'users', key: 'id' }
   },
   cashierName: DataTypes.STRING,
   items: {
-    type: DataTypes.TEXT,
+    type: DataTypes.JSONB,
     allowNull: false,
-    get() {
-      const value = this.getDataValue('items');
-      return value ? JSON.parse(value) : [];
-    },
-    set(value) {
-      this.setDataValue('items', JSON.stringify(value));
-    }
+    defaultValue: []
   },
   subtotal: {
     type: DataTypes.DECIMAL(10, 2),
@@ -62,6 +50,6 @@ const Transaction = sequelize.define('Transaction', {
   tableName: 'transactions'
 });
 
-Transaction.belongsTo(User, { foreignKey: 'cashierId', as: 'cashier' });
+// NO ASSOCIATIONS HERE - They are handled in models/index.js
 
 module.exports = Transaction;

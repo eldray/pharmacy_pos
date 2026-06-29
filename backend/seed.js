@@ -1,74 +1,109 @@
-const { sequelize } = require('./database');
-const User = require('./models/User');
-const Product = require('./models/Product');
-const Supplier = require('./models/Supplier');
-const Company = require('./models/Company');
+// ✅ FIX 1: Import from the central index, NOT individual files
+const { User, Product, Supplier, Company, LabTestTemplate } = require('./models');
+const fs = require('fs');
+const path = require('path');
+
+// Helper to load JSON data
+function loadJsonData(filename) {
+  const filePath = path.join(__dirname, 'data', filename);
+  try {
+    const data = fs.readFileSync(filePath, 'utf8');
+    return JSON.parse(data);
+  } catch (err) {
+    console.error(`Error loading ${filename}:`, err.message);
+    return null;
+  }
+}
 
 async function seedDatabase() {
   try {
-    console.log('Starting database seeding...');
+    console.log('🌱 Starting database seed...\n');
 
-    // Sync all models
-    await sequelize.sync({ force: true });
-    console.log('Database tables created');
+    // ❌ REMOVED: await sequelize.sync({ force: true });
+    // server.js already runs sequelize.sync(). 
+    // Running force:true here would wipe the database every time the Electron app starts!
 
-    // Create users
+    // ==================== SEED USERS ====================
     const users = await User.bulkCreate([
-      { name: 'Admin User', email: 'admin@pharmacy.com', password: 'admin123', role: 'admin' },
-      { name: 'John Cashier', email: 'cashier@pharmacy.com', password: 'cashier123', role: 'cashier' },
-      { name: 'Jane Officer', email: 'officer@pharmacy.com', password: 'officer123', role: 'officer' }
-    ]);
-    console.log(`Created ${users.length} users`);
+      {
+        name: 'Admin User',
+        email: 'admin@pharmacy.com',
+        password: 'admin123',
+        role: 'admin'
+      },
+      {
+        name: 'John Cashier',
+        email: 'cashier@pharmacy.com',
+        password: 'cashier123',
+        role: 'cashier'
+      },
+      {
+        name: 'Jane Officer',
+        email: 'officer@pharmacy.com',
+        password: 'officer123',
+        role: 'officer'
+      },
+      {
+        name: 'Dr. Sarah Lab',
+        email: 'lab@pharmacy.com',
+        password: 'lab123',
+        role: 'lab'
+      }
+    ], { individualHooks: true }); // individualHooks ensures the bcrypt hashing runs
+    console.log(`✅ Created ${users.length} users:`);
+    users.forEach(u => console.log(`   - ${u.name} (${u.role})`));
+    console.log('');
 
-    // Create suppliers
+    // ==================== SEED SUPPLIERS ====================
     const suppliers = await Supplier.bulkCreate([
-      { name: 'Pharma Inc', email: 'sales@pharmainc.com', phone: '+233555123456', address: '123 Pharmacy Street', city: 'Accra', country: 'Ghana' },
-      { name: 'Health Plus', email: 'info@healthplus.com', phone: '+233555654321', address: '456 Health Avenue', city: 'Kumasi', country: 'Ghana' }
-    ]);
-    console.log(`Created ${suppliers.length} suppliers`);
-
-    // Create products
-    const products = await Product.bulkCreate([
       {
-        name: 'Paracetamol 500mg',
-        description: 'Pain and fever relief',
-        sku: 'SKU-PAR001',
-        barcode: 'BAR-PAR001',
-        category: 'Pain Relief',
-        unitPrice: 2.50,
-        quantity: 100,
-        batchNumber: 'BATCH-001',
-        expiryDate: '2026-12-31',
-        supplier: 'Pharma Inc',
+        name: 'Pharma Inc',
+        email: 'sales@pharmainc.com',
+        phone: '+233555123456',
+        address: '123 Pharmacy Street',
+        city: 'Accra',
+        country: 'Ghana'
       },
       {
-        name: 'Amoxicillin 250mg',
-        description: 'Antibiotic capsule',
-        sku: 'SKU-AMO001',
-        barcode: 'BAR-AMO001',
-        category: 'Antibiotics',
-        unitPrice: 5.00,
-        quantity: 50,
-        batchNumber: 'BATCH-002',
-        expiryDate: '2025-11-30',
-        supplier: 'Pharma Inc',
+        name: 'Health Plus',
+        email: 'info@healthplus.com',
+        phone: '+233555654321',
+        address: '456 Health Avenue',
+        city: 'Kumasi',
+        country: 'Ghana'
       },
       {
-        name: 'Ibuprofen 400mg',
-        description: 'Anti-inflammatory',
-        sku: 'SKU-IBU001',
-        barcode: 'BAR-IBU001',
-        category: 'Pain Relief',
-        unitPrice: 3.75,
-        quantity: 75,
-        batchNumber: 'BATCH-003',
-        expiryDate: '2027-05-15',
-        supplier: 'Health Plus',
+        name: 'MediSupply Ltd',
+        email: 'orders@medisupply.com',
+        phone: '+233555789012',
+        address: '789 Medical Road',
+        city: 'Tema',
+        country: 'Ghana'
       }
     ]);
-    console.log(`Created ${products.length} products`);
+    console.log(`✅ Created ${suppliers.length} suppliers\n`);
 
-    // Create company settings
+    // ==================== SEED PRODUCTS FROM JSON ====================
+    const productsData = loadJsonData('products.json');
+    if (productsData && productsData.products) {
+      // ✅ FIX 2: The Product model uses `supplier: DataTypes.STRING`, 
+      // NOT `supplierId`. So we just pass the supplier string directly.
+      const products = await Product.bulkCreate(productsData.products);
+      console.log(`✅ Created ${products.length} products from JSON data\n`);
+    } else {
+      console.log('⚠️  No products.json found or invalid format\n');
+    }
+
+    // ==================== SEED LAB TEST TEMPLATES FROM JSON ====================
+    const labData = loadJsonData('lab-templates.json');
+    if (labData && labData.templates) {
+      const templates = await LabTestTemplate.bulkCreate(labData.templates);
+      console.log(`✅ Created ${templates.length} lab test templates from JSON data\n`);
+    } else {
+      console.log('⚠️  No lab-templates.json found or invalid format\n');
+    }
+
+    // ==================== SEED COMPANY ====================
     await Company.create({
       name: 'Pharmacy POS System',
       addressStreet: '123 Pharmacy Street',
@@ -79,19 +114,34 @@ async function seedDatabase() {
       taxRate: 15.0,
       receiptFooter: 'Thank you for your purchase!'
     });
-    console.log('Created company settings');
+    console.log('✅ Company settings created\n');
 
-    console.log('✅ Database seeded successfully!');
-    console.log('Default login credentials:');
-    console.log('Admin: admin@pharmacy.com / admin123');
-    console.log('Cashier: cashier@pharmacy.com / cashier123');
-    console.log('Officer: officer@pharmacy.com / officer123');
-    
+    // ==================== SUMMARY ====================
+    console.log('🎉 Seed completed successfully!\n');
+    console.log('📋 Default Login Credentials:');
+    console.log('   Admin:   admin@pharmacy.com   / admin123');
+    console.log('   Cashier: cashier@pharmacy.com / cashier123');
+    console.log('   Officer: officer@pharmacy.com / officer123');
+    console.log('   Lab:     lab@pharmacy.com     / lab123');
+
     return true;
-  } catch (error) {
-    console.error('❌ Seed error:', error);
-    throw error;
+  } catch (err) {
+    console.error('❌ Seed error:', err);
+    throw err;
   }
+}
+
+// Allow direct execution: node seed.js
+if (require.main === module) {
+  // If run directly from terminal, we need to sync first
+  const { sequelize } = require('./config/database');
+  sequelize.sync({ force: true })
+    .then(() => seedDatabase())
+    .then(() => process.exit(0))
+    .catch((err) => {
+      console.error('Seed failed:', err);
+      process.exit(1);
+    });
 }
 
 module.exports = seedDatabase;

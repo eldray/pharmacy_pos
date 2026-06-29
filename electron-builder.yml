@@ -1,9 +1,57 @@
 appId: com.pharmacypos.app
 productName: PharmacyPOS
+
 directories:
   output: release
   buildResources: build
 
+# Files bundled into the asar
+files:
+  - main.cjs
+  - preload.js
+  - package.json
+
+# Bundled alongside the asar (not compressed — needed at runtime)
+extraResources:
+  - from: backend
+    to: backend
+    filter:
+      - "**/*"
+      - "!*.log"
+      - "!*.db"           # No SQLite db needed anymore
+      - "!*.db-shm"
+      - "!*.db-wal"
+  - from: frontend/dist
+    to: frontend/dist
+
+asar: true
+asarUnpack:
+  - backend/node_modules/**/*   # native addons must be outside asar
+  - frontend/dist/**/*
+
+# PostgreSQL has no native addon to rebuild — safe to enable
+npmRebuild: false
+npmSkipBuildFromSource: false
+
+# ─── Windows ──────────────────────────────────────────────────────────────────
+win:
+  target:
+    - nsis
+    - portable
+  icon: build/icon.ico
+  artifactName: ${productName}-Setup-${version}-${arch}.${ext}
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico
+  installerHeaderIcon: build/icon.ico
+  shortcutName: PharmacyPOS
+
+# ─── Linux ────────────────────────────────────────────────────────────────────
 linux:
   target:
     - deb
@@ -19,9 +67,6 @@ linux:
     StartupNotify: true
     Terminal: false
     Type: Application
-    MimeType:
-  afterInstall: build/installer/linux/after-install.tpl
-  afterRemove: build/installer/linux/after-remove.tpl
 
 deb:
   depends:
@@ -34,12 +79,16 @@ deb:
     - libatspi2.0-0
     - libuuid1
     - libsecret-1-0
-    - libvips
     - libcups2
   compression: xz
   priority: optional
 
-npmRebuild: false
-npmSkipBuildFromSource: true
+# ─── Mac ──────────────────────────────────────────────────────────────────────
+mac:
+  target:
+    - dmg
+    - zip
+  category: public.app-category.business
+  icon: build/icon.icns
 
 publish: null

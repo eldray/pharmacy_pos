@@ -1,7 +1,4 @@
-// models/PurchaseOrder.js
-const { sequelize, DataTypes } = require('../database');
-const Supplier = require('./Supplier');
-const Product = require('./Product');
+const { sequelize, DataTypes } = require('../config/database');
 
 const PurchaseOrder = sequelize.define('PurchaseOrder', {
   id: {
@@ -17,21 +14,12 @@ const PurchaseOrder = sequelize.define('PurchaseOrder', {
   supplierId: {
     type: DataTypes.INTEGER,
     allowNull: false,
-    references: {
-      model: Supplier,
-      key: 'id'
-    }
+    references: { model: 'suppliers', key: 'id' }
   },
   items: {
-    type: DataTypes.TEXT,
+    type: DataTypes.JSONB,
     allowNull: false,
-    get() {
-      const value = this.getDataValue('items');
-      return value ? JSON.parse(value) : [];
-    },
-    set(value) {
-      this.setDataValue('items', JSON.stringify(value));
-    }
+    defaultValue: []
   },
   totalAmount: {
     type: DataTypes.DECIMAL(10, 2),
@@ -46,11 +34,12 @@ const PurchaseOrder = sequelize.define('PurchaseOrder', {
     defaultValue: DataTypes.NOW
   },
   expectedDeliveryDate: DataTypes.DATE,
-  deliveryDate: DataTypes.DATE
+  deliveryDate: DataTypes.DATE,
+  notes: DataTypes.TEXT
 }, {
   tableName: 'purchase_orders'
 });
 
-PurchaseOrder.belongsTo(Supplier, { foreignKey: 'supplierId' });
+// NO ASSOCIATIONS HERE - They are handled in models/index.js
 
 module.exports = PurchaseOrder;

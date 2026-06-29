@@ -1,4 +1,4 @@
-const { sequelize, DataTypes } = require('../database');
+const { sequelize, DataTypes } = require('../config/database');
 
 const User = sequelize.define('User', {
   id: {
@@ -14,16 +14,14 @@ const User = sequelize.define('User', {
     type: DataTypes.STRING,
     allowNull: false,
     unique: true,
-    validate: {
-      isEmail: true
-    }
+    validate: { isEmail: true }
   },
   password: {
     type: DataTypes.STRING,
     allowNull: false
   },
   role: {
-    type: DataTypes.ENUM('admin', 'cashier', 'officer'),
+    type: DataTypes.ENUM('admin', 'cashier', 'officer', 'lab'),
     allowNull: false,
     defaultValue: 'cashier'
   }
@@ -45,7 +43,7 @@ const User = sequelize.define('User', {
   }
 });
 
-User.prototype.comparePassword = async function(password) {
+User.prototype.comparePassword = async function (password) {
   const bcrypt = require('bcryptjs');
   return bcrypt.compare(password, this.password);
 };

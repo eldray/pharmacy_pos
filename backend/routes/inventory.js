@@ -1,4 +1,5 @@
 const express = require('express');
+const { Op } = require('sequelize');
 const InventoryLog = require('../models/InventoryLog');
 const Product = require('../models/Product');
 const User = require('../models/User');
@@ -9,38 +10,22 @@ const router = express.Router();
 // Get all logs
 router.get('/logs', auth, async (req, res) => {
   try {
-    const { Op } = require('sequelize');
     const { startDate, endDate, productId } = req.query;
-    
-    let where = {};
-    
+    const where = {};
+
     if (startDate && endDate) {
-      where.createdAt = {
-        [Op.gte]: new Date(startDate),
-        [Op.lte]: new Date(endDate)
-      };
+      where.createdAt = { [Op.gte]: new Date(startDate), [Op.lte]: new Date(endDate) };
     }
-    
-    if (productId) {
-      where.productId = productId;
-    }
-    
+    if (productId) where.productId = productId;
+
     const logs = await InventoryLog.findAll({
       where,
       include: [
-        { 
-          model: require('../models/Product'),
-          attributes: ['id', 'name', 'sku']
-        },
-        {
-          model: require('../models/User'),
-          as: 'user',
-          attributes: ['id', 'name', 'email']
-        }
+        { model: Product, attributes: ['id', 'name', 'sku'] },
+        { model: User, as: 'user', attributes: ['id', 'name', 'email'] }
       ],
       order: [['createdAt', 'DESC']]
     });
-    
     res.json(logs);
   } catch (err) {
     console.error('Get inventory logs error:', err);
@@ -53,23 +38,14 @@ router.post('/adjust/:productId', auth, adminAuth, async (req, res) => {
   try {
     const { quantity, notes } = req.body;
     const product = await Product.findByPk(req.params.productId);
-    
-    if (!product) {
-      return res.status(404).json({ msg: 'Product not found' });
-    }
+    if (!product) return res.status(404).json({ msg: 'Product not found' });
 
     const newQuantity = product.quantity + quantity;
-    if (newQuantity < 0) {
-      return res.status(400).json({ msg: 'Negative stock not allowed' });
-    }
+    if (newQuantity < 0) return res.status(400).json({ msg: 'Negative stock not allowed' });
 
-    // Update product quantity
     await product.update({ quantity: newQuantity });
 
-    // Get user info
     const user = await User.findByPk(req.user.userId);
-    
-    // Create inventory log
     const log = await InventoryLog.create({
       productId: product.id,
       productName: product.name,
@@ -77,31 +53,25 @@ router.post('/adjust/:productId', auth, adminAuth, async (req, res) => {
       quantity,
       userId: req.user.userId,
       userName: user.name,
-      notes,
+      notes
     });
 
     res.json({ product, log });
   } catch (err) {
     console.error('Adjust stock error:', err);
-    res.status(400).json({ msg: 'Invalid data' });
+    res.status(400).json({ msg: 'Invalid data', error: err.message });
   }
 });
 
 // Get low stock products
 router.get('/low-stock', auth, async (req, res) => {
   try {
-    const { threshold = 10 } = req.query;
-    
-    const lowStockProducts = await Product.findAll({
-      where: {
-        quantity: {
-          [require('sequelize').Op.lte]: parseInt(threshold)
-        }
-      },
+    const threshold = parseInt(req.query.threshold || '10');
+    const products = await Product.findAll({
+      where: { quantity: { [Op.lte]: threshold } },
       order: [['quantity', 'ASC']]
     });
-    
-    res.json(lowStockProducts);
+    res.json(products);
   } catch (err) {
     console.error('Get low stock error:', err);
     res.status(500).json({ msg: 'Server error' });

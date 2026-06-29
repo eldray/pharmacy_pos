@@ -29,3 +29,10 @@ node --max-old-space-size=4096 $(which electron-builder) --linux --x64
 # Rebuild for Electron
 cd backend
 npx electron-rebuild --version 38.7.2 --arch x64
+
+
+
+
+# Run as Administrator
+cd C:\Users\iMac\Desktop\hms\pharmacy_pos
+npm run build:win-portable

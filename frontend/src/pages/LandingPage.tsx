@@ -20,8 +20,8 @@ import {
   Pill,
 } from 'lucide-react';
 import { Login } from '../components/Login';
-import { Button } from '@/components/ui';
-import { Card } from '@/components/ui';
+import { Button } from '../components/ui';
+import { Card } from '../components/ui';
 
 export const LandingPage: React.FC = () => {
   const [showDemo, setShowDemo] = useState(false);
@@ -116,7 +116,7 @@ export const LandingPage: React.FC = () => {
               <Zap className="h-4 w-4 mr-2" />
               Trusted by 500+ pharmacies across Ghana
             </div>
-            
+
             <h1 className="text-5xl md:text-7xl font-bold text-gray-900 mb-6 leading-tight">
               Smarter
               <span className="block bg-gradient-to-r from-blue-600 via-purple-600 to-blue-600 bg-clip-text text-transparent">
@@ -124,9 +124,9 @@ export const LandingPage: React.FC = () => {
               </span>
               Management
             </h1>
-            
+
             <p className="text-xl md:text-2xl text-gray-600 mb-8 max-w-4xl mx-auto leading-relaxed">
-              The complete <strong className="font-semibold text-gray-900">Point of Sale & Inventory System</strong> built specifically for African pharmacies. 
+              The complete <strong className="font-semibold text-gray-900">Point of Sale & Inventory System</strong> built specifically for African pharmacies.
               Sell faster, track smarter, and grow your business with confidence.
             </p>
 
@@ -177,13 +177,12 @@ export const LandingPage: React.FC = () => {
             {features.map((feature, index) => {
               const Icon = feature.icon;
               return (
-                <Card 
+                <Card
                   key={index}
-                  className={`p-6 border-2 transition-all duration-300 hover:scale-105 cursor-pointer ${
-                    activeFeature === index 
-                      ? 'border-blue-500 shadow-xl shadow-blue-500/10' 
+                  className={`p-6 border-2 transition-all duration-300 hover:scale-105 cursor-pointer ${activeFeature === index
+                      ? 'border-blue-500 shadow-xl shadow-blue-500/10'
                       : 'border-gray-100 hover:border-blue-200'
-                  }`}
+                    }`}
                   onMouseEnter={() => setActiveFeature(index)}
                 >
                   <div className={`p-3 rounded-2xl w-fit bg-gradient-to-r ${feature.color} mb-4`}>
@@ -226,7 +225,7 @@ export const LandingPage: React.FC = () => {
               <p className="text-lg text-gray-600">
                 Our live demo shows you exactly how PharmacyPOS transforms daily operations
               </p>
-              
+
               <ul className="space-y-4">
                 {[
                   { Icon: Shield, text: 'Military-grade security for patient data' },
@@ -241,9 +240,9 @@ export const LandingPage: React.FC = () => {
                 ))}
               </ul>
 
-              <Button 
-                onClick={quickStart} 
-                size="lg" 
+              <Button
+                onClick={quickStart}
+                size="lg"
                 className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 mt-6"
               >
                 Launch Interactive Demo
@@ -303,18 +302,18 @@ export const LandingPage: React.FC = () => {
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
-            <Button 
-              size="lg" 
-              variant="secondary" 
+            <Button
+              size="lg"
+              variant="secondary"
               onClick={quickStart}
               className="bg-white text-blue-600 hover:bg-gray-100 shadow-lg"
             >
               <Play className="h-5 w-5 mr-2" />
               Start Free Demo
             </Button>
-            <Button 
-              size="lg" 
-              variant="outline" 
+            <Button
+              size="lg"
+              variant="outline"
               className="border-white text-white hover:bg-white/10"
             >
               <Download className="h-5 w-5 mr-2" />
@@ -352,7 +351,7 @@ export const LandingPage: React.FC = () => {
                 Empowering African pharmacies with modern, reliable management solutions.
               </p>
             </div>
-            
+
             {['Product', 'Support', 'Company'].map((title, index) => (
               <div key={index}>
                 <h4 className="font-bold text-lg mb-4">{title}</h4>
@@ -368,7 +367,7 @@ export const LandingPage: React.FC = () => {
               </div>
             ))}
           </div>
-          
+
           <div className="border-t border-gray-800 pt-8 text-center text-gray-400">
             <p>© 2025 PharmacyPOS. Built with ❤️ for African pharmacies. All rights reserved.</p>
           </div>

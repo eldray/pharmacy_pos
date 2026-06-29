@@ -1,0 +1,431 @@
+{
+    "templates": [
+        {
+            "name": "Complete Blood Count (CBC)",
+            "category": "Hematology",
+            "description": "Complete blood count with differential",
+            "price": 50.00,
+            "sampleType": "Blood",
+            "resultFields": [
+                {
+                    "name": "WBC",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "RBC",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "Hemoglobin",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "Hematocrit",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "Platelets",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "Neutrophils",
+                    "type": "number",
+                    "required": false
+                },
+                {
+                    "name": "Lymphocytes",
+                    "type": "number",
+                    "required": false
+                },
+                {
+                    "name": "Monocytes",
+                    "type": "number",
+                    "required": false
+                },
+                {
+                    "name": "Eosinophils",
+                    "type": "number",
+                    "required": false
+                },
+                {
+                    "name": "Basophils",
+                    "type": "number",
+                    "required": false
+                }
+            ],
+            "defaultReferenceRanges": {
+                "WBC": "4.5-11.0 x10^3/µL",
+                "RBC": "4.2-5.4 x10^6/µL",
+                "Hemoglobin": "12.0-16.0 g/dL",
+                "Hematocrit": "36-48%",
+                "Platelets": "150-400 x10^3/µL"
+            },
+            "instructions": "Collect EDTA whole blood. Mix thoroughly before analysis."
+        },
+        {
+            "name": "Malaria Test",
+            "category": "Infectious Disease",
+            "description": "Rapid diagnostic test for malaria",
+            "price": 25.00,
+            "sampleType": "Blood",
+            "resultFields": [
+                {
+                    "name": "Result",
+                    "type": "text",
+                    "required": true
+                },
+                {
+                    "name": "Species",
+                    "type": "text",
+                    "required": false
+                },
+                {
+                    "name": "Parasite Density",
+                    "type": "text",
+                    "required": false
+                }
+            ],
+            "defaultReferenceRanges": {
+                "Result": "Negative/Positive"
+            },
+            "instructions": "Collect capillary blood. Test within 24 hours of collection."
+        },
+        {
+            "name": "Blood Glucose",
+            "category": "Biochemistry",
+            "description": "Fasting or random blood glucose test",
+            "price": 15.00,
+            "sampleType": "Blood",
+            "resultFields": [
+                {
+                    "name": "Glucose Level",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "Fasting Status",
+                    "type": "text",
+                    "required": false
+                }
+            ],
+            "defaultReferenceRanges": {
+                "Glucose Level": "70-100 mg/dL (fasting)"
+            },
+            "instructions": "For fasting blood sugar, patient should fast for 8-12 hours."
+        },
+        {
+            "name": "Urinalysis",
+            "category": "Urine",
+            "description": "Complete urine analysis",
+            "price": 30.00,
+            "sampleType": "Urine",
+            "resultFields": [
+                {
+                    "name": "Appearance",
+                    "type": "text",
+                    "required": true
+                },
+                {
+                    "name": "Color",
+                    "type": "text",
+                    "required": true
+                },
+                {
+                    "name": "pH",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "Specific Gravity",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "Protein",
+                    "type": "text",
+                    "required": true
+                },
+                {
+                    "name": "Glucose",
+                    "type": "text",
+                    "required": true
+                },
+                {
+                    "name": "Ketones",
+                    "type": "text",
+                    "required": false
+                },
+                {
+                    "name": "Blood",
+                    "type": "text",
+                    "required": false
+                },
+                {
+                    "name": "Leukocytes",
+                    "type": "text",
+                    "required": false
+                },
+                {
+                    "name": "Nitrites",
+                    "type": "text",
+                    "required": false
+                }
+            ],
+            "defaultReferenceRanges": {
+                "pH": "4.5-8.0",
+                "Specific Gravity": "1.005-1.030",
+                "Protein": "Negative",
+                "Glucose": "Negative"
+            },
+            "instructions": "Collect midstream urine sample in sterile container."
+        },
+        {
+            "name": "COVID-19 Rapid Test",
+            "category": "Infectious Disease",
+            "description": "Rapid antigen test for COVID-19",
+            "price": 40.00,
+            "sampleType": "Nasal Swab",
+            "resultFields": [
+                {
+                    "name": "Result",
+                    "type": "text",
+                    "required": true
+                },
+                {
+                    "name": "Test Method",
+                    "type": "text",
+                    "required": false
+                }
+            ],
+            "defaultReferenceRanges": {
+                "Result": "Negative/Positive"
+            },
+            "instructions": "Collect nasal swab sample. Test according to manufacturer instructions."
+        },
+        {
+            "name": "Lipid Profile",
+            "category": "Biochemistry",
+            "description": "Complete lipid panel",
+            "price": 60.00,
+            "sampleType": "Blood",
+            "resultFields": [
+                {
+                    "name": "Total Cholesterol",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "LDL Cholesterol",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "HDL Cholesterol",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "Triglycerides",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "VLDL Cholesterol",
+                    "type": "number",
+                    "required": false
+                }
+            ],
+            "defaultReferenceRanges": {
+                "Total Cholesterol": "<200 mg/dL",
+                "LDL Cholesterol": "<130 mg/dL",
+                "HDL Cholesterol": ">40 mg/dL",
+                "Triglycerides": "<150 mg/dL"
+            },
+            "instructions": "Patient must fast for 12 hours before sample collection."
+        },
+        {
+            "name": "Liver Function Test (LFT)",
+            "category": "Biochemistry",
+            "description": "Complete liver function panel",
+            "price": 55.00,
+            "sampleType": "Blood",
+            "resultFields": [
+                {
+                    "name": "ALT",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "AST",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "ALP",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "GGT",
+                    "type": "number",
+                    "required": false
+                },
+                {
+                    "name": "Total Bilirubin",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "Direct Bilirubin",
+                    "type": "number",
+                    "required": false
+                },
+                {
+                    "name": "Albumin",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "Total Protein",
+                    "type": "number",
+                    "required": true
+                }
+            ],
+            "defaultReferenceRanges": {
+                "ALT": "10-40 U/L",
+                "AST": "10-34 U/L",
+                "ALP": "44-147 U/L",
+                "Total Bilirubin": "0.3-1.0 mg/dL",
+                "Albumin": "3.4-5.4 g/dL",
+                "Total Protein": "6.0-8.0 g/dL"
+            },
+            "instructions": "Collect fasting sample. Avoid alcohol for 24 hours before test."
+        },
+        {
+            "name": "Renal Function Test",
+            "category": "Biochemistry",
+            "description": "Kidney function panel",
+            "price": 50.00,
+            "sampleType": "Blood",
+            "resultFields": [
+                {
+                    "name": "Creatinine",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "BUN",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "BUN/Creatinine Ratio",
+                    "type": "number",
+                    "required": false
+                },
+                {
+                    "name": "Uric Acid",
+                    "type": "number",
+                    "required": false
+                },
+                {
+                    "name": "Sodium",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "Potassium",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "Chloride",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "Bicarbonate",
+                    "type": "number",
+                    "required": true
+                }
+            ],
+            "defaultReferenceRanges": {
+                "Creatinine": "0.7-1.3 mg/dL",
+                "BUN": "7-20 mg/dL",
+                "Sodium": "136-145 mmol/L",
+                "Potassium": "3.5-5.0 mmol/L",
+                "Chloride": "96-106 mmol/L",
+                "Bicarbonate": "22-28 mmol/L"
+            },
+            "instructions": "Patient should be well hydrated before sample collection."
+        },
+        {
+            "name": "Thyroid Function Test (TFT)",
+            "category": "Endocrinology",
+            "description": "Complete thyroid panel",
+            "price": 65.00,
+            "sampleType": "Blood",
+            "resultFields": [
+                {
+                    "name": "TSH",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "Free T3",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "Free T4",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "Total T3",
+                    "type": "number",
+                    "required": false
+                },
+                {
+                    "name": "Total T4",
+                    "type": "number",
+                    "required": false
+                }
+            ],
+            "defaultReferenceRanges": {
+                "TSH": "0.4-4.0 mIU/L",
+                "Free T3": "2.3-4.2 pg/mL",
+                "Free T4": "0.8-1.8 ng/dL"
+            },
+            "instructions": "No special preparation required. Inform patient of any interfering medications."
+        },
+        {
+            "name": "Pregnancy Test",
+            "category": "Reproductive Health",
+            "description": "HCG pregnancy test",
+            "price": 20.00,
+            "sampleType": "Urine/Blood",
+            "resultFields": [
+                {
+                    "name": "Result",
+                    "type": "text",
+                    "required": true
+                },
+                {
+                    "name": "HCG Level",
+                    "type": "number",
+                    "required": false
+                }
+            ],
+            "defaultReferenceRanges": {
+                "Result": "Negative/Positive"
+            },
+            "instructions": "Collect first morning urine sample for best results."
+        }
+    ]
+}

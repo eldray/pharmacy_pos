@@ -1,1 +1,172 @@
 @import "tailwindcss";
+
+@layer base {
+
+    /* Apply theme variables to base elements */
+    html {
+        background-color: var(--color-bg-base);
+        color: var(--color-text-primary);
+        transition: background-color var(--transition-slow), color var(--transition-slow);
+    }
+
+    body {
+        background-color: var(--color-bg-base);
+        color: var(--color-text-primary);
+        font-family: system-ui, -apple-system, sans-serif;
+    }
+
+    /* Apply theme to all elements */
+    * {
+        border-color: var(--color-border);
+    }
+
+    /* Scrollbar theming */
+    ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+        background: var(--color-border-strong);
+        border-radius: var(--radius-full);
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+        background: var(--color-text-muted);
+    }
+}
+
+@layer components {
+
+    /* Card component */
+    .card {
+        background-color: var(--color-bg-surface);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-card);
+        transition: background-color var(--transition-slow), border-color var(--transition-slow);
+    }
+
+    /* Input styles */
+    .input-theme {
+        background-color: var(--color-input-bg);
+        border: 2px solid var(--color-input-border);
+        border-radius: var(--radius-md);
+        color: var(--color-input-text);
+        transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+    }
+
+    .input-theme::placeholder {
+        color: var(--color-input-placeholder);
+    }
+
+    .input-theme:focus {
+        border-color: var(--color-input-border-focus);
+        box-shadow: 0 0 0 3px var(--color-input-ring);
+        outline: none;
+    }
+
+    /* Button - Primary */
+    .btn-primary {
+        background: var(--gradient-accent);
+        color: var(--color-accent-fg);
+        border-radius: var(--radius-md);
+        font-weight: 600;
+        padding: 0.5rem 1.5rem;
+        transition: opacity var(--transition-fast), transform var(--transition-fast);
+    }
+
+    .btn-primary:hover {
+        opacity: 0.92;
+        transform: translateY(-1px);
+    }
+
+    .btn-primary:disabled {
+        opacity: 0.50;
+        cursor: not-allowed;
+        transform: none;
+    }
+
+    /* Status badges */
+    .badge-success {
+        background-color: var(--color-success-light);
+        color: var(--color-success-text);
+    }
+
+    .badge-warning {
+        background-color: var(--color-warning-light);
+        color: var(--color-warning-text);
+    }
+
+    .badge-danger {
+        background-color: var(--color-danger-light);
+        color: var(--color-danger-text);
+    }
+
+    .badge-info {
+        background-color: var(--color-info-light);
+        color: var(--color-info-text);
+    }
+
+    /* Role badges */
+    .badge-admin {
+        background-color: var(--color-role-admin-bg);
+        color: var(--color-role-admin);
+    }
+
+    .badge-cashier {
+        background-color: var(--color-role-cashier-bg);
+        color: var(--color-role-cashier);
+    }
+
+    .badge-officer {
+        background-color: var(--color-role-officer-bg);
+        color: var(--color-role-officer);
+    }
+
+    .badge-lab {
+        background-color: var(--color-role-lab-bg);
+        color: var(--color-role-lab);
+    }
+
+    /* Theme transition helper */
+    .theme-transition {
+        transition:
+            background-color var(--transition-slow),
+            border-color var(--transition-slow),
+            color var(--transition-slow),
+            box-shadow var(--transition-slow);
+    }
+}
+
+@layer utilities {
+
+    /* Utility classes from theme */
+    .text-primary {
+        color: var(--color-text-primary);
+    }
+
+    .text-secondary {
+        color: var(--color-text-secondary);
+    }
+
+    .text-muted {
+        color: var(--color-text-muted);
+    }
+
+    .bg-surface {
+        background-color: var(--color-bg-surface);
+    }
+
+    .bg-base {
+        background-color: var(--color-bg-base);
+    }
+
+    .border-theme {
+        border-color: var(--color-border);
+    }
+}

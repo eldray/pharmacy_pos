@@ -1,5 +1,4 @@
-// models/Supplier.js
-const { sequelize, DataTypes } = require('../database');
+const { sequelize, DataTypes } = require('../config/database');
 
 const Supplier = sequelize.define('Supplier', {
   id: {
@@ -14,9 +13,7 @@ const Supplier = sequelize.define('Supplier', {
   email: {
     type: DataTypes.STRING,
     allowNull: false,
-    validate: {
-      isEmail: true
-    }
+    validate: { isEmail: true }
   },
   phone: DataTypes.STRING,
   address: DataTypes.TEXT,

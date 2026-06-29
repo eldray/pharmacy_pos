@@ -1,7 +1,4 @@
-// models/InventoryLog.js
-const { sequelize, DataTypes } = require('../database');
-const User = require('./User');
-const Product = require('./Product');
+const { sequelize, DataTypes } = require('../config/database');
 
 const InventoryLog = sequelize.define('InventoryLog', {
   id: {
@@ -12,10 +9,7 @@ const InventoryLog = sequelize.define('InventoryLog', {
   productId: {
     type: DataTypes.INTEGER,
     allowNull: false,
-    references: {
-      model: Product,
-      key: 'id'
-    }
+    references: { model: 'products', key: 'id' }
   },
   productName: DataTypes.STRING,
   type: {
@@ -30,10 +24,7 @@ const InventoryLog = sequelize.define('InventoryLog', {
   userId: {
     type: DataTypes.INTEGER,
     allowNull: false,
-    references: {
-      model: User,
-      key: 'id'
-    }
+    references: { model: 'users', key: 'id' }
   },
   userName: DataTypes.STRING,
   notes: DataTypes.TEXT
@@ -41,7 +32,6 @@ const InventoryLog = sequelize.define('InventoryLog', {
   tableName: 'inventory_logs'
 });
 
-InventoryLog.belongsTo(Product, { foreignKey: 'productId' });
-InventoryLog.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+// NO ASSOCIATIONS HERE - They are handled in models/index.js
 
 module.exports = InventoryLog;

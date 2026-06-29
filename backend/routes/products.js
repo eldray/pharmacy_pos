@@ -1,5 +1,5 @@
-// routes/products.js
 const express = require('express');
+const { Op } = require('sequelize');
 const Product = require('../models/Product');
 const { auth, adminAuth } = require('../middleware/auth');
 
@@ -12,6 +12,27 @@ router.get('/', auth, async (req, res) => {
     res.json(products);
   } catch (err) {
     console.error('Error fetching products:', err);
+    res.status(500).json({ msg: 'Server error' });
+  }
+});
+
+// Search products — must be BEFORE /:id to avoid route collision
+// Op.iLike: case-insensitive LIKE — PostgreSQL only (Op.like is case-sensitive in PG)
+router.get('/search/:query', auth, async (req, res) => {
+  try {
+    const { query } = req.params;
+    const products = await Product.findAll({
+      where: {
+        [Op.or]: [
+          { barcode: { [Op.iLike]: `%${query}%` } },
+          { name: { [Op.iLike]: `%${query}%` } },
+          { sku: { [Op.iLike]: `%${query}%` } }
+        ]
+      }
+    });
+    res.json(products);
+  } catch (err) {
+    console.error('Search error:', err);
     res.status(500).json({ msg: 'Server error' });
   }
 });
@@ -34,7 +55,7 @@ router.post('/', auth, adminAuth, async (req, res) => {
     res.status(201).json(product);
   } catch (err) {
     console.error('Create product error:', err);
-    res.status(400).json({ msg: 'Invalid data' });
+    res.status(400).json({ msg: 'Invalid data', error: err.message });
   }
 });
 
@@ -43,11 +64,10 @@ router.put('/:id', auth, adminAuth, async (req, res) => {
   try {
     const product = await Product.findByPk(req.params.id);
     if (!product) return res.status(404).json({ msg: 'Product not found' });
-    
     await product.update(req.body);
     res.json(product);
   } catch (err) {
-    res.status(400).json({ msg: 'Invalid data' });
+    res.status(400).json({ msg: 'Invalid data', error: err.message });
   }
 });
 
@@ -56,33 +76,9 @@ router.delete('/:id', auth, adminAuth, async (req, res) => {
   try {
     const product = await Product.findByPk(req.params.id);
     if (!product) return res.status(404).json({ msg: 'Product not found' });
-    
     await product.destroy();
     res.json({ msg: 'Product deleted' });
   } catch (err) {
-    res.status(500).json({ msg: 'Server error' });
-  }
-});
-
-// Search products
-router.get('/search/:query', auth, async (req, res) => {
-  try {
-    const { Op } = require('sequelize');
-    const { query } = req.params;
-    
-    const products = await Product.findAll({
-      where: {
-        [Op.or]: [
-          { barcode: { [Op.like]: `%${query}%` } },
-          { name: { [Op.like]: `%${query}%` } },
-          { sku: { [Op.like]: `%${query}%` } }
-        ]
-      }
-    });
-    
-    res.json(products);
-  } catch (err) {
-    console.error('Search error:', err);
     res.status(500).json({ msg: 'Server error' });
   }
 });

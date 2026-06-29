@@ -1,0 +1,20 @@
+# PharmacyPOS Setup Guide
+
+## Prerequisites
+1. Install PostgreSQL from: https://www.postgresql.org/download/windows/
+2. Remember the password you set during installation
+
+## Configuration
+1. Edit `backend/.env` file:
+   - Change `DB_PASSWORD` to your PostgreSQL password
+   - Change `JWT_SECRET` to a unique secret key
+
+2. Run PharmacyPOS.exe
+   - The database will be created automatically
+   - Initial admin user: admin@pharmacy.com / admin123
+
+## Default Users
+- Admin: admin@pharmacy.com / admin123
+- Cashier: cashier@pharmacy.com / cashier123
+- Officer: officer@pharmacy.com / officer123
+- Lab: lab@pharmacy.com / lab123
