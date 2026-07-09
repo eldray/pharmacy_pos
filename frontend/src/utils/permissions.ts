@@ -2,7 +2,7 @@
 
 import { useAppStore } from "../store";
 
-export type UserRole = 'admin' | 'cashier' | 'officer' | 'lab';
+export type UserRole = 'admin' | 'cashier' | 'pharmacist' | 'lab';
 
 export interface Permission {
     canManageUsers: boolean;
@@ -39,7 +39,7 @@ export const getPermissions = (role: UserRole): Permission => {
                 canManageCompany: true,
             };
 
-        case 'officer':
+        case 'pharmacist':
             return {
                 canManageUsers: false,
                 canManageProducts: true,

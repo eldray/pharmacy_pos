@@ -2,7 +2,7 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
 
-type BadgeVariant = 'default' | 'success' | 'warning' | 'destructive' | 'info' | 'admin' | 'cashier' | 'officer' | 'lab';
+type BadgeVariant = 'default' | 'success' | 'warning' | 'destructive' | 'info' | 'admin' | 'cashier' | 'pharmacist' | 'lab';
 
 interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
   variant?: BadgeVariant;
@@ -40,7 +40,7 @@ const variantStyles: Record<BadgeVariant, React.CSSProperties> = {
     backgroundColor: 'var(--color-role-cashier-bg)',
     color: 'var(--color-role-cashier)',
   },
-  officer: {
+  pharmacist: {
     backgroundColor: 'var(--color-role-officer-bg)',
     color: 'var(--color-role-officer)',
   },

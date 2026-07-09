@@ -76,7 +76,7 @@ export const Login: React.FC = () => {
   const getRoleIcon = (role: string) => {
     switch (role) {
       case 'admin': return <Shield style={{ width: 14, height: 14 }} />;
-      case 'officer': return <TrendingUp style={{ width: 14, height: 14 }} />;
+      case 'pharmacist': return <TrendingUp style={{ width: 14, height: 14 }} />;
       case 'cashier': return <ShoppingCart style={{ width: 14, height: 14 }} />;
       case 'lab': return <FlaskConical style={{ width: 14, height: 14 }} />;
       default: return <User style={{ width: 14, height: 14 }} />;
@@ -86,7 +86,7 @@ export const Login: React.FC = () => {
   const getRoleDescription = (role: string) => {
     switch (role) {
       case 'admin': return 'Full system access';
-      case 'officer': return 'Inventory & operations';
+      case 'pharmacist': return 'Inventory & operations';
       case 'cashier': return 'Point of sale';
       case 'lab': return 'Laboratory management';
       default: return '';

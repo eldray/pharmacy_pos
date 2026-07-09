@@ -6,6 +6,7 @@ import {
   Edit2,
   Plus,
   Minus,
+  RotateCcw,
   Search,
   Calendar,
   Tag,
@@ -58,6 +59,11 @@ const InventoryPage: React.FC = () => {
   const [showAdjustmentModal, setShowAdjustmentModal] = useState(false);
   const [showDisposalModal, setShowDisposalModal] = useState(false);
   const [isAdjusting, setIsAdjusting] = useState(false);
+  // Last adjustment, for the Undo affordance.
+  const [lastAdjustment, setLastAdjustment] = useState<
+    { productId: string; productName: string; delta: number; prevQty: number } | null
+  >(null);
+  const [undoing, setUndoing] = useState(false);
   const [disposalQty, setDisposalQty] = useState(0);
   const [disposalReason, setDisposalReason] = useState('');
 
@@ -329,16 +335,52 @@ const InventoryPage: React.FC = () => {
           notes: adjustmentNotes || `Manual adjustment: ${adjustmentQty > 0 ? '+' : ''}${adjustmentQty}`,
         });
 
+        // Remember this adjustment so it can be undone.
+        setLastAdjustment({
+          productId: selectedProduct.id,
+          productName: selectedProduct.name,
+          delta: adjustmentQty,
+          prevQty: selectedProduct.quantity,
+        });
+
         setShowAdjustmentModal(false);
         setAdjustmentQty(0);
         setAdjustmentNotes('');
-        fetchProducts();
+        fetchProducts(true);
         fetchInventoryLogs();
       }
     } catch (err) {
       alert('Adjustment failed');
     } finally {
       setIsAdjusting(false);
+    }
+  };
+
+  // Reverse the last adjustment: restore the previous quantity and log a
+  // compensating adjustment entry (audit-friendly — nothing is erased).
+  const handleUndoAdjustment = async () => {
+    if (!lastAdjustment) return;
+    setUndoing(true);
+    try {
+      const updated = await updateProduct(lastAdjustment.productId, { quantity: lastAdjustment.prevQty });
+      if (updated) {
+        await addInventoryLog({
+          productId: lastAdjustment.productId,
+          productName: lastAdjustment.productName,
+          type: 'adjustment',
+          quantity: -lastAdjustment.delta,
+          userId: currentUser?.id || '',
+          userName: currentUser?.name || '',
+          notes: `Undo of manual adjustment (${lastAdjustment.delta > 0 ? '+' : ''}${lastAdjustment.delta})`,
+        });
+        setLastAdjustment(null);
+        fetchProducts(true);
+        fetchInventoryLogs();
+      }
+    } catch {
+      alert('Undo failed');
+    } finally {
+      setUndoing(false);
     }
   };
 

@@ -236,7 +236,7 @@ export const ProductHistoryModal: React.FC<ProductHistoryModalProps> = ({
                                             <th className="px-4 py-3 text-left text-xs font-semibold uppercase" style={{ color: 'var(--color-text-muted)' }}>Transaction</th>
                                             <th className="px-4 py-3 text-left text-xs font-semibold uppercase" style={{ color: 'var(--color-text-muted)' }}>Customer</th>
                                             <th className="px-4 py-3 text-center text-xs font-semibold uppercase" style={{ color: 'var(--color-text-muted)' }}>Qty</th>
-                                            <th className="px-4 py-3 text-right text-xs font-semibold uppercase" style={{ color: 'var(--color-text-muted)' }}>Unit Price</th>
+                                            <th className="px-4 py-3 text-right text-xs font-semibold uppercase" style={{ color: 'var(--color-text-muted)' }}>Selling Price</th>
                                             <th className="px-4 py-3 text-right text-xs font-semibold uppercase" style={{ color: 'var(--color-text-muted)' }}>Total</th>
                                             <th className="px-4 py-3 text-left text-xs font-semibold uppercase" style={{ color: 'var(--color-text-muted)' }}>Status</th>
                                             <th className="px-4 py-3 text-left text-xs font-semibold uppercase" style={{ color: 'var(--color-text-muted)' }}>Date</th>

@@ -1,6 +1,5 @@
 // src/components/POSInterface.tsx
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { useReactToPrint } from 'react-to-print';
 import {
   Search, ShoppingCart, Trash2, DollarSign,
   Plus, Minus, X
@@ -8,6 +7,7 @@ import {
 import { useAppStore } from '../store';
 import { Product, PaymentMethod, Transaction } from '../types';
 import { ReceiptModal } from './ReceiptModal';
+import { useBarcodeScanner } from '../hooks/useBarcodeScanner';
 
 const safeNumber = (value: unknown): number => {
   const n = Number(value);
@@ -102,7 +102,7 @@ const ProductCard: React.FC<{ product: Product; onSelect: (p: Product) => void }
 });
 ProductCard.displayName = 'ProductCard';
 
-/* ─── Field — compact labeled input with HARD-CODED padding ────────────── */
+/* ─── Field — compact labeled input ────────────────────────────── */
 const Field: React.FC<
   React.InputHTMLAttributes<HTMLInputElement> & { label?: string }
 > = ({ label, ...props }) => (
@@ -192,8 +192,8 @@ export const POSInterface: React.FC = () => {
   const [formError, setFormError] = useState('');
   const [editingQtyIndex, setEditingQtyIndex] = useState<string | null>(null);
 
-  // ─── Print Ref ───────────────────────────────────────────────────────────
-  const receiptPrintRef = useRef<HTMLDivElement>(null);
+  // ─── Refs ────────────────────────────────────────────────────────────────
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   const {
     fetchProducts, products,
@@ -203,53 +203,101 @@ export const POSInterface: React.FC = () => {
 
   useEffect(() => { fetchProducts(); }, [fetchProducts]);
 
-  // ─── Print Handler ──────────────────────────────────────────────────────
-  const handlePrintReceipt = useReactToPrint({
-    content: () => receiptPrintRef.current,
-    documentTitle: `Receipt-${lastTransaction?.transactionNumber || 'Unknown'}`,
-    pageStyle: `
-      @page {
-        size: A4;
-        margin: 10mm;
-      }
-      @media print {
-        body {
-          background: white !important;
-          margin: 0 !important;
-          padding: 0 !important;
-        }
-        .no-print {
-          display: none !important;
-        }
-        .print-content {
-          display: block !important;
-        }
-        .fixed.inset-0 {
-          display: none !important;
-        }
-      }
-    `,
-    onBeforeGetContent: () => {
-      setShowReceipt(false);
-      return Promise.resolve();
-    },
-    onAfterPrint: () => {
-      console.log('Receipt printed successfully');
-    }
-  });
+  // ─── Print Handler ─────────────────────────────────────────────────────
+  const handlePrintReceipt = () => {
+    if (!lastTransaction) return;
+    const tx = lastTransaction;
+    const sub = Number(tx.subtotal);
+    const txAmt = Number(tx.tax);
+    const displayTaxRate = sub > 0 && !isNaN(txAmt)
+      ? Math.round((txAmt / sub) * 100 * 100) / 100
+      : 15;
+
+    const items = Array.isArray(tx.items) ? tx.items : [];
+    const itemRows = items.map((item: any) =>
+      `<div class="item-row">
+        <span class="item-name">${item?.product?.name || item?.productName || 'Unknown'}</span>
+        <span class="item-qty">${item?.quantity || 0}</span>
+        <span class="item-price">${(Number(item?.unitPrice) || 0).toFixed(2)}</span>
+        <span class="item-total">${(Number(item?.total) || 0).toFixed(2)}</span>
+      </div>`
+    ).join('');
+
+    const html = `<!DOCTYPE html><html><head>
+      <title>Receipt - ${tx.transactionNumber || 'N/A'}</title>
+      <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family:'Courier New',monospace; font-size:9pt; max-width:72mm; margin:0 auto; padding:4mm 2mm; line-height:1.4; color:#000; background:#fff; }
+        .header { text-align:center; border-bottom:1px dashed #000; padding-bottom:4mm; margin-bottom:3mm; }
+        .company-name { font-size:12pt; font-weight:bold; text-transform:uppercase; letter-spacing:1px; }
+        .company-details { font-size:7pt; color:#666; margin-top:1mm; }
+        .divider { border-bottom:1px dashed #000; margin:2mm 0; }
+        .row { display:flex; justify-content:space-between; padding:0.5mm 0; }
+        .items-header { display:flex; border-bottom:1px solid #000; padding-bottom:1mm; margin-bottom:1mm; font-weight:bold; font-size:8pt; }
+        .item-row { display:flex; padding:0.5mm 0; border-bottom:1px dotted #ccc; }
+        .item-name { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .item-qty { width:24px; text-align:center; }
+        .item-price { width:44px; text-align:right; }
+        .item-total { width:44px; text-align:right; font-weight:bold; }
+        .totals { margin-top:2mm; padding-top:2mm; border-top:1px dashed #000; }
+        .total-final { font-size:11pt; font-weight:bold; border-top:2px solid #000; padding-top:1mm; margin-top:1mm; }
+        .footer { text-align:center; margin-top:3mm; padding-top:3mm; border-top:1px dashed #000; font-size:7pt; color:#666; }
+        @media print { body { margin:0; padding:3mm 2mm; } }
+      </style>
+    </head><body>
+      <div class="header">
+        <div class="company-name">${tx.cashierName || 'PHARMACY POS'}</div>
+      </div>
+      <div class="row"><span>Receipt:</span><span>${tx.transactionNumber || 'N/A'}</span></div>
+      <div class="row"><span>Date:</span><span>${new Date(tx.createdAt).toLocaleString()}</span></div>
+      <div class="row"><span>Cashier:</span><span>${tx.cashierName || 'N/A'}</span></div>
+      <div class="row"><span>Payment:</span><span>${(tx.paymentMethod || 'N/A').toUpperCase()}</span></div>
+      ${tx.paymentReference ? `<div class="row"><span>Ref:</span><span>${tx.paymentReference}</span></div>` : ''}
+      <div class="divider"></div>
+      <div class="items-header">
+        <span class="item-name">Item</span>
+        <span class="item-qty">Qty</span>
+        <span class="item-price">Price</span>
+        <span class="item-total">Total</span>
+      </div>
+      ${itemRows || '<div style="text-align:center;padding:2mm;color:#999;">No items</div>'}
+      <div class="divider"></div>
+      <div class="totals">
+        <div class="row"><span>Subtotal:</span><span>GHS ${(Number(tx.subtotal) || 0).toFixed(2)}</span></div>
+        ${(Number(tx.discount) || 0) > 0 ? `<div class="row" style="color:#006600;"><span>Discount:</span><span>-GHS ${(Number(tx.discount) || 0).toFixed(2)}</span></div>` : ''}
+        <div class="row"><span>VAT ${displayTaxRate}%:</span><span>GHS ${(Number(tx.tax) || 0).toFixed(2)}</span></div>
+        <div class="row total-final"><span>TOTAL:</span><span>GHS ${(Number(tx.total) || 0).toFixed(2)}</span></div>
+      </div>
+      <div class="footer">
+        <div>Thank you for your purchase!</div>
+        <div style="margin-top:1mm;">Keep this receipt for returns.</div>
+      </div>
+    </body></html>`;
+
+    const win = window.open('', '_blank', 'width=320,height=600');
+    if (!win) { alert('Please allow pop-ups to print the receipt.'); return; }
+    win.document.open();
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    win.onload = () => { win.print(); win.onafterprint = () => win.close(); };
+    setTimeout(() => { if (!win.closed) { win.print(); win.onafterprint = () => win.close(); } }, 400);
+  };
 
   // ─── Get top selling products ──────────────────────────────────────────
   const topSellingProducts = useMemo(() => {
     if (transactions.length > 0) {
       const salesCount: Record<string, number> = {};
-      
+
       transactions.forEach(tx => {
-        tx.items.forEach(item => {
-          const productId = item.productId;
-          if (productId) {
-            salesCount[productId] = (salesCount[productId] || 0) + item.quantity;
-          }
-        });
+        if (tx.items && Array.isArray(tx.items)) {
+          tx.items.forEach(item => {
+            const productId = item.productId;
+            if (productId) {
+              salesCount[productId] = (salesCount[productId] || 0) + item.quantity;
+            }
+          });
+        }
       });
 
       const sorted = Object.entries(salesCount)
@@ -260,7 +308,7 @@ export const POSInterface: React.FC = () => {
 
       return sorted;
     }
-    
+
     return products.slice(0, 12);
   }, [transactions, products]);
 
@@ -288,6 +336,16 @@ export const POSInterface: React.FC = () => {
     else updateCartItem(cartId, qty);
   };
 
+  const handleScan = React.useCallback((code: string) => {
+    const product =
+      products.find((p) => p.barcode === code) ||
+      products.find((p) => p.sku === code);
+    if (product) handleAddProduct(product);
+    else setFormError(`No product found for scanned code "${code}".`);
+  }, [products, handleAddProduct]);
+
+  useBarcodeScanner(handleScan);
+
   const handleQtyInputChange = (cartId: string, value: string) => {
     const qty = parseInt(value);
     if (isNaN(qty)) return;
@@ -301,9 +359,18 @@ export const POSInterface: React.FC = () => {
 
   const handlePayment = async () => {
     setFormError('');
-    if (cartItems.length === 0) { setFormError('Cart is empty — add a product before checking out.'); return; }
-    if (selectedPayment !== 'cash' && !mobileMoneyNumber) { setFormError('Please enter a mobile money number.'); return; }
-    if (selectedPayment !== 'cash' && mobileMoneyNumber.length < 10) { setFormError('Please enter a valid phone number.'); return; }
+    if (cartItems.length === 0) {
+      setFormError('Cart is empty — add a product before checking out.');
+      return;
+    }
+    if (selectedPayment !== 'cash' && !mobileMoneyNumber) {
+      setFormError('Please enter a mobile money number.');
+      return;
+    }
+    if (selectedPayment !== 'cash' && mobileMoneyNumber.length < 10) {
+      setFormError('Please enter a valid phone number.');
+      return;
+    }
 
     setPaymentLoading(true);
     try {
@@ -323,6 +390,7 @@ export const POSInterface: React.FC = () => {
         unitPrice: i.unitPrice,
         total: i.total,
         discount: i.discount || 0,
+        cartId: i.cartId,
       }));
 
       const txn = await addTransaction({
@@ -342,7 +410,20 @@ export const POSInterface: React.FC = () => {
         const receiptTransaction = {
           ...txn,
           items: transactionItems,
+          transactionNumber: txn.transactionNumber || `INV-${Date.now()}`,
+          createdAt: txn.createdAt || new Date().toISOString(),
+          subtotal: subtotal,
+          tax: tax,
+          total: finalTotal,
+          discount: discountAmount,
+          paymentMethod: selectedPayment,
+          paymentReference: selectedPayment !== 'cash'
+            ? `${selectedPayment.toUpperCase()}-${mobileMoneyNumber}` : undefined,
+          customerName: customerName || undefined,
+          customerPhone: customerPhone || undefined,
         };
+
+        console.log('📋 Setting receipt transaction:', receiptTransaction);
         setLastTransaction(receiptTransaction);
         setShowReceipt(true);
         clearCart();
@@ -353,14 +434,34 @@ export const POSInterface: React.FC = () => {
       } else {
         setFormError('Transaction failed. Please try again.');
       }
-    } catch {
+    } catch (err) {
+      console.error('Payment error:', err);
       setFormError('Payment failed. Please try again.');
     } finally {
       setPaymentLoading(false);
     }
   };
 
-  // ─── Determine which products to show ──────────────────────────────────
+  const handlePaymentRef = useRef(handlePayment);
+  handlePaymentRef.current = handlePayment;
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'F2' || ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k')) {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+        searchInputRef.current?.select();
+      } else if (e.key === 'F9') {
+        e.preventDefault();
+        handlePaymentRef.current();
+      } else if (e.key === 'Escape' && document.activeElement === searchInputRef.current) {
+        setSearchQuery('');
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   const displayedProducts = useMemo(() => {
     if (searchQuery.trim()) {
       return searchResults;
@@ -384,7 +485,6 @@ export const POSInterface: React.FC = () => {
     );
   }
 
-  /* ─── Shared input style ──────────────────────────────────────────────── */
   const inputStyle: React.CSSProperties = {
     background: 'var(--color-input-bg)',
     border: '1px solid var(--color-input-border)',
@@ -422,6 +522,9 @@ export const POSInterface: React.FC = () => {
             style={{ fontSize: '11px', marginTop: 2, color: 'var(--color-text-muted)' }}
           >
             {products.length} products available
+            <span className="hidden md:inline" style={{ marginLeft: 8, opacity: 0.75 }}>
+              · <kbd>F2</kbd> search · <kbd>F9</kbd> pay · <kbd>Esc</kbd> clear
+            </span>
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -491,6 +594,7 @@ export const POSInterface: React.FC = () => {
               style={{ left: 12, width: 16, height: 16, color: 'var(--color-text-muted)' }}
             />
             <input
+              ref={searchInputRef}
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -665,7 +769,7 @@ export const POSInterface: React.FC = () => {
                   </div>
                 ) : (
                   <>
-                    {/* Cart items - Larger display */}
+                    {/* Cart items */}
                     <div className="overflow-y-auto" style={{ maxHeight: 'calc(100vh - 400px)', margin: '0 -4px' }}>
                       {cartItems.map((item) => (
                         <div
@@ -906,29 +1010,16 @@ export const POSInterface: React.FC = () => {
 
       {/* ─── RECEIPT MODAL ────────────────────────────────────────────────── */}
       {showReceipt && lastTransaction && (
-        <>
-          {/* Modal Overlay */}
-          <ReceiptModal
-            transaction={lastTransaction}
-            customerName={customerName}
-            customerPhone={customerPhone}
-            onClose={() => setShowReceipt(false)}
-            onPrint={handlePrintReceipt}
-          />
-          
-          {/* Hidden print content for react-to-print */}
-          <div style={{ display: 'none' }}>
-            <div ref={receiptPrintRef}>
-              <ReceiptModal
-                transaction={lastTransaction}
-                customerName={customerName}
-                customerPhone={customerPhone}
-                onClose={() => {}}
-                onPrint={() => {}}
-              />
-            </div>
-          </div>
-        </>
+        <ReceiptModal
+          transaction={lastTransaction}
+          customerName={customerName}
+          customerPhone={customerPhone}
+          onClose={() => {
+            setShowReceipt(false);
+            setLastTransaction(null);
+          }}
+          onPrint={handlePrintReceipt}
+        />
       )}
     </div>
   );

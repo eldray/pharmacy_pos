@@ -22,7 +22,7 @@ export function validateEmail(email: string): string | null {
   return null;
 }
 
-// Product form: name, category, unit price.
+// Product form: name, category, selling price.
 export function validateProduct(v: { name: string; category: string; unitPrice: string | number }): ValidationErrors {
   const e: ValidationErrors = {};
   if (!String(v.name || '').trim()) e.name = 'Product name is required';
@@ -30,7 +30,7 @@ export function validateProduct(v: { name: string; category: string; unitPrice: 
 
   const price = parseFloat(String(v.unitPrice));
   if (v.unitPrice === '' || v.unitPrice === null || v.unitPrice === undefined || isNaN(price)) {
-    e.unitPrice = 'Unit price is required';
+    e.unitPrice = 'Selling price is required';
   } else if (price < 0) {
     e.unitPrice = 'Price cannot be negative';
   }

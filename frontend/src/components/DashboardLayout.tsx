@@ -6,9 +6,7 @@ import { useIdleLogout } from '../hooks/useIdleLogout';
 import { Navbar } from './Navbar';
 import { Sidebar } from './Sidebar';
 
-// Routed pages are code-split (React.lazy) so heavy screens — the recharts
-// dashboard, analytics, lab reports — load on demand instead of bloating the
-// initial bundle. Named exports are unwrapped to the default lazy() expects.
+// Code-split imports
 const ProfileSettings = React.lazy(() => import('./ProfileSettings').then(m => ({ default: m.ProfileSettings })));
 const DashboardHome = React.lazy(() => import('./DashboardHome').then(m => ({ default: m.DashboardHome })));
 const POSInterface = React.lazy(() => import('./POSInterface').then(m => ({ default: m.POSInterface })));
@@ -23,6 +21,10 @@ const LabManagement = React.lazy(() => import('../pages/LabManagement').then(m =
 const LabDetail = React.lazy(() => import('../pages/LabDetail').then(m => ({ default: m.LabDetail })));
 const StaffManagement = React.lazy(() => import('../pages/StaffManagement').then(m => ({ default: m.StaffManagement })));
 const LabReports = React.lazy(() => import('../pages/LabReports').then(m => ({ default: m.LabReports })));
+const ControlledReport = React.lazy(() => import('../pages/ControlledReport').then(m => ({ default: m.ControlledReport })));
+const ProfitReport = React.lazy(() => import('../pages/ProfitReport').then(m => ({ default: m.ProfitReport })));
+const Preferences = React.lazy(() => import('../pages/Preferences').then(m => ({ default: m.Preferences })));
+const HelpSupport = React.lazy(() => import('../pages/HelpSupport').then(m => ({ default: m.HelpSupport })));
 
 export const DashboardLayout: React.FC = () => {
   const { currentUser, logout, company } = useAppStore();
@@ -64,7 +66,7 @@ export const DashboardLayout: React.FC = () => {
           }}
         >
           <span style={{ fontSize: '0.8rem', color: 'var(--color-text-primary)' }}>
-            You’ll be signed out soon due to inactivity.
+            You'll be signed out soon due to inactivity.
           </span>
           <button
             onClick={stayActive}
@@ -91,7 +93,7 @@ export const DashboardLayout: React.FC = () => {
         userRole={currentUser.role}
       />
 
-      {/* Main content — offset by sidebar width on lg+ (matches --sidebar-width token) */}
+      {/* Main content — offset by sidebar width on lg+ */}
       <div
         className="layout-content-shell"
         style={{ minHeight: '100vh' }}
@@ -129,35 +131,47 @@ export const DashboardLayout: React.FC = () => {
                 </div>
               }
             >
-            <Routes>
-              <Route index element={<DashboardHome />} />
-              <Route path="pos" element={<POSInterface />} />
-              <Route path="products" element={<ProductManagement />} />
-              <Route path="suppliers" element={<SupplierManagement />} />
-              <Route path="purchase-orders" element={<PurchaseOrderPage />} />
-              <Route path="analytics" element={<AnalyticsPage />} />
-              <Route path="sales" element={<SalesPage />} />
-              <Route path="profile" element={<ProfileSettings />} />
-              <Route path="inventory" element={<InventoryPage />} />
-              <Route path="lab" element={<LabManagement />} />
-              <Route path="lab/:id" element={<LabDetail />} />
-              <Route path="lab-reports" element={<LabReports />} />
+              <Routes>
+                {/* Main Routes */}
+                <Route index element={<DashboardHome />} />
+                <Route path="pos" element={<POSInterface />} />
+                <Route path="products" element={<ProductManagement />} />
+                <Route path="suppliers" element={<SupplierManagement />} />
+                <Route path="purchase-orders" element={<PurchaseOrderPage />} />
+                <Route path="analytics" element={<AnalyticsPage />} />
+                <Route path="sales" element={<SalesPage />} />
+                <Route path="inventory" element={<InventoryPage />} />
 
-              {currentUser.role === 'admin' && (
-                <>
-                  <Route path="settings" element={<CompanySettings />} />
-                  <Route path="users" element={<StaffManagement />} />
-                </>
-              )}
-            </Routes>
+                {/* Lab Routes */}
+                <Route path="lab" element={<LabManagement />} />
+                <Route path="lab/:id" element={<LabDetail />} />
+                <Route path="lab-reports" element={<LabReports />} />
+
+                {/* Report Routes */}
+                <Route path="controlled-report" element={<ControlledReport />} />
+                {currentUser.role === 'admin' && (
+                  <Route path="profit-report" element={<ProfitReport />} />
+                )}
+
+                {/* Settings & User Routes */}
+                <Route path="profile" element={<ProfileSettings />} />
+                <Route path="preferences" element={<Preferences />} />
+                <Route path="help" element={<HelpSupport />} />
+
+                {/* Admin Only Routes */}
+                {currentUser.role === 'admin' && (
+                  <>
+                    <Route path="settings" element={<CompanySettings />} />
+                    <Route path="users" element={<StaffManagement />} />
+                  </>
+                )}
+              </Routes>
             </React.Suspense>
           </div>
         </main>
       </div>
 
-      {/* Scoped layout rule: content shell offsets by the actual sidebar width
-          token on large screens, and sits flush on mobile where the sidebar
-          becomes an off-canvas drawer. Keep this in sync with Sidebar.tsx. */}
+      {/* Scoped layout rule */}
       <style>{`
         .layout-content-shell {
           margin-left: 0;

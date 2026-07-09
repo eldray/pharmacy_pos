@@ -204,12 +204,12 @@ export const PurchaseOrderPage: React.FC = () => {
         jsonData.forEach((row: any, index: number) => {
           const productName = row['Product Name'] || row['Product'] || row['ProductName'];
           const quantity = parseInt(row['Quantity'] || row['Qty'] || 0);
-          const unitPrice = parseFloat(row['Unit Price'] || row['Price'] || row['UnitPrice'] || 0);
+          const unitPrice = parseFloat(row['Cost Price'] || row['Unit Price'] || row['Price'] || row['UnitPrice'] || 0);
           const batchNumber = row['Batch Number'] || row['Batch'] || row['BatchNo'] || '';
           const expiryDate = row['Expiry Date'] || row['Expiry'] || '';
 
           if (!productName || !quantity || !unitPrice) {
-            errors.push(`Row ${index + 2}: Missing product name, quantity, or unit price`);
+            errors.push(`Row ${index + 2}: Missing product name, quantity, or cost price`);
             return;
           }
 
@@ -279,7 +279,7 @@ export const PurchaseOrderPage: React.FC = () => {
 
   const addItemToPO = () => {
     if (!newItem.productId || !newItem.quantity || !newItem.unitPrice) {
-      alert('Please fill in product, quantity, and unit price');
+      alert('Please fill in product, quantity, and cost price');
       return;
     }
 
@@ -496,7 +496,7 @@ export const PurchaseOrderPage: React.FC = () => {
 
   // Excel template download
   const downloadExcelTemplate = () => {
-    const headers = ['Product Name', 'Quantity', 'Unit Price', 'Batch Number', 'Expiry Date'];
+    const headers = ['Product Name', 'Quantity', 'Cost Price', 'Batch Number', 'Expiry Date'];
     const sampleData = [
       ['Paracetamol 500mg', 100, 2.50, 'BATCH-001', '2025-12-31'],
       ['Amoxicillin 250mg', 50, 3.75, 'BATCH-002', '2025-10-15'],
@@ -932,7 +932,7 @@ export const PurchaseOrderPage: React.FC = () => {
               </div>
               <div>
                 <label className="block text-sm font-semibold mb-1" style={{ color: 'var(--color-text-primary)' }}>
-                  Unit Price *
+                  Cost Price *
                 </label>
                 <input
                   type="number"
@@ -1030,7 +1030,7 @@ export const PurchaseOrderPage: React.FC = () => {
                       <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase" style={{ color: 'var(--color-text-muted)' }}>#</th>
                       <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase" style={{ color: 'var(--color-text-muted)' }}>Product</th>
                       <th className="px-4 py-2.5 text-center text-xs font-semibold uppercase" style={{ color: 'var(--color-text-muted)' }}>Qty</th>
-                      <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase" style={{ color: 'var(--color-text-muted)' }}>Unit Price</th>
+                      <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase" style={{ color: 'var(--color-text-muted)' }}>Cost Price</th>
                       <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase" style={{ color: 'var(--color-text-muted)' }}>Total</th>
                       <th className="px-4 py-2.5 text-center text-xs font-semibold uppercase" style={{ color: 'var(--color-text-muted)' }}>Batch</th>
                       <th className="px-4 py-2.5 text-center text-xs font-semibold uppercase" style={{ color: 'var(--color-text-muted)' }}>Actions</th>
@@ -1227,7 +1227,7 @@ export const PurchaseOrderPage: React.FC = () => {
                   <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase" style={{ color: 'var(--color-text-muted)' }}>#</th>
                   <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase" style={{ color: 'var(--color-text-muted)' }}>Product</th>
                   <th className="px-4 py-2.5 text-center text-xs font-semibold uppercase" style={{ color: 'var(--color-text-muted)' }}>Qty</th>
-                  <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase" style={{ color: 'var(--color-text-muted)' }}>Unit Price</th>
+                  <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase" style={{ color: 'var(--color-text-muted)' }}>Cost Price</th>
                   <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase" style={{ color: 'var(--color-text-muted)' }}>Total</th>
                   <th className="px-4 py-2.5 text-center text-xs font-semibold uppercase" style={{ color: 'var(--color-text-muted)' }}>Batch</th>
                   <th className="px-4 py-2.5 text-center text-xs font-semibold uppercase" style={{ color: 'var(--color-text-muted)' }}>Expiry</th>

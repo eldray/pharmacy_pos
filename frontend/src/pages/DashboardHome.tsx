@@ -428,7 +428,7 @@ export const DashboardHome: React.FC = () => {
       });
     }
 
-    if (role === 'admin' || role === 'officer') {
+    if (role === 'admin' || role === 'pharmacist') {
       actions.push({
         to: '/dashboard/products',
         label: 'Add Product',

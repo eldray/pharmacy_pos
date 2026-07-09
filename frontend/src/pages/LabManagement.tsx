@@ -250,7 +250,7 @@ export const LabManagement: React.FC = () => {
     }
 
     // Check if user can request lab tests
-    const canRequestLab = currentUser?.role === 'admin' || currentUser?.role === 'lab' || currentUser?.role === 'officer';
+    const canRequestLab = currentUser?.role === 'admin' || currentUser?.role === 'lab' || currentUser?.role === 'pharmacist';
 
     // Get date filter label for display
     const getDateFilterLabel = () => {

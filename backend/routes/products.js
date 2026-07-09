@@ -6,13 +6,28 @@ const { recordAudit } = require('../utils/audit');
 
 const router = express.Router();
 
-// Get all products
+// Get all products.
+// Backward-compatible: returns a plain array by default. If a `page` query
+// param is present, returns a paginated payload { data, pagination } instead.
 router.get('/', auth, async (req, res) => {
   try {
-    const products = await Product.findAll({
-      where: { deletedAt: null }, // Exclude soft-deleted
-      order: [['createdAt', 'DESC']]
-    });
+    const order = [['createdAt', 'DESC']];
+
+    if (req.query.page !== undefined) {
+      const page = Math.max(1, parseInt(req.query.page) || 1);
+      const limit = Math.min(200, Math.max(1, parseInt(req.query.limit) || 50));
+      const { count, rows } = await Product.findAndCountAll({
+        order,
+        limit,
+        offset: (page - 1) * limit,
+      });
+      return res.json({
+        data: rows,
+        pagination: { total: count, page, limit, pages: Math.ceil(count / limit) },
+      });
+    }
+
+    const products = await Product.findAll({ order });
     res.json(products);
   } catch (err) {
     console.error('Error fetching products:', err);

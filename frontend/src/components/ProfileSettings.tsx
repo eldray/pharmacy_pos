@@ -74,7 +74,7 @@ export const ProfileSettings: React.FC = () => {
         return 'badge-admin';
       case 'cashier':
         return 'badge-cashier';
-      case 'officer':
+      case 'pharmacist':
         return 'badge-officer';
       case 'lab':
         return 'badge-lab';

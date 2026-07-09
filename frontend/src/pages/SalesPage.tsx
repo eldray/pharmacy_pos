@@ -61,8 +61,10 @@ export const SalesPage: React.FC = () => {
   const printRef = useRef<HTMLDivElement>(null);
 
   // ─── Print Handler using react-to-print ─────────────────────────────────
+  // react-to-print v3 API: contentRef + onAfterPrint. The print target is a
+  // separate hidden <ReceiptContent>, independent of the visible modal.
   const handlePrint = useReactToPrint({
-    content: () => printRef.current,
+    contentRef: printRef,
     documentTitle: `Receipt-${selectedTransaction?.transactionNumber || 'Unknown'}`,
     pageStyle: `
       @page {
@@ -78,19 +80,8 @@ export const SalesPage: React.FC = () => {
         .no-print {
           display: none !important;
         }
-        .print-content {
-          display: block !important;
-        }
-        .fixed.inset-0 {
-          display: none !important;
-        }
       }
     `,
-    onBeforeGetContent: () => {
-      // Close the modal before printing
-      setShowReceiptModal(false);
-      return Promise.resolve();
-    },
     onAfterPrint: () => {
       console.log('Print completed');
     }
@@ -350,9 +341,8 @@ export const SalesPage: React.FC = () => {
                 <button
                   key={range}
                   onClick={() => handleDateRangeChange(range)}
-                  className={`px-2.5 py-1.5 rounded-lg text-[0.72rem] font-semibold transition-all duration-200 whitespace-nowrap ${
-                    dateRange === range ? 'btn-accent' : 'btn-ghost'
-                  }`}
+                  className={`px-2.5 py-1.5 rounded-lg text-[0.72rem] font-semibold transition-all duration-200 whitespace-nowrap ${dateRange === range ? 'btn-accent' : 'btn-ghost'
+                    }`}
                 >
                   {range.charAt(0).toUpperCase() + range.slice(1)}
                 </button>
@@ -567,7 +557,7 @@ export const SalesPage: React.FC = () => {
 
                   {/* TOTAL ROW */}
                   {searchedTransactions.length > 0 && (
-                    <tr 
+                    <tr
                       className="border-t-2 border-theme-strong"
                       style={{ background: 'var(--color-bg-subtle)' }}
                     >
@@ -628,19 +618,18 @@ export const SalesPage: React.FC = () => {
         }
       `}</style>
 
-// ─── HIDDEN PRINT CONTENT ──────────────────────────────────────────────────
-{/* Use ReceiptContent here, not ReceiptModal - no modal wrapper! */}
-<div style={{ display: 'none' }}>
-  <div ref={printRef}>
-    {selectedTransaction && (
-      <ReceiptContent
-        transaction={selectedTransaction}
-        customerName={selectedTransaction.customerName || undefined}
-        customerPhone={selectedTransaction.customerPhone || undefined}
-      />
-    )}
-  </div>
-</div>
+      {/* Use ReceiptContent here, not ReceiptModal - no modal wrapper! */}
+      <div style={{ display: 'none' }}>
+        <div ref={printRef}>
+          {selectedTransaction && (
+            <ReceiptContent
+              transaction={selectedTransaction}
+              customerName={selectedTransaction.customerName || undefined}
+              customerPhone={selectedTransaction.customerPhone || undefined}
+            />
+          )}
+        </div>
+      </div>
     </div>
   );
 };

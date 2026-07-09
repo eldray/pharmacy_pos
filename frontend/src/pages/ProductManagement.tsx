@@ -35,6 +35,7 @@ export const ProductManagement: React.FC = () => {
     description: '',
     category: '',
     unitPrice: '',
+    schedule: 'none',
   });
   // When true, the category field shows a free-text input for a new category.
   const [addingCategory, setAddingCategory] = useState(false);
@@ -114,6 +115,7 @@ export const ProductManagement: React.FC = () => {
       description: '',
       category: '',
       unitPrice: '',
+      schedule: 'none',
     });
     setShowModal(true);
   };
@@ -126,6 +128,7 @@ export const ProductManagement: React.FC = () => {
       description: product.description || '',
       category: product.category,
       unitPrice: product.unitPrice.toString(),
+      schedule: product.schedule || 'none',
     });
     setShowModal(true);
   };
@@ -196,6 +199,7 @@ export const ProductManagement: React.FC = () => {
         description: formData.description || undefined,
         category,
         unitPrice: parseFloat(formData.unitPrice),
+        schedule: formData.schedule || 'none',
       };
 
       let success = false;
@@ -484,6 +488,7 @@ export const ProductManagement: React.FC = () => {
                   <p className="text-lg font-bold" style={{ color: 'var(--color-accent-text)' }}>
                     GHS {product.unitPrice.toFixed(2)}
                   </p>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>Selling Price</p>
                   <div className="mt-1">
                     {getStockBadge(product.quantity)}
                   </div>
@@ -548,6 +553,7 @@ export const ProductManagement: React.FC = () => {
                       <p className="text-base font-bold" style={{ color: 'var(--color-accent-text)' }}>
                         GHS {product.unitPrice.toFixed(2)}
                       </p>
+                      <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>Selling Price</p>
                     </td>
                     <td className="px-4 py-3">
                       <p className="text-base font-semibold text-primary tabular-nums">{product.quantity}</p>
@@ -727,7 +733,7 @@ export const ProductManagement: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-primary mb-2">Unit Price (GHS) *</label>
+                  <label className="block text-sm font-semibold text-primary mb-2">Selling Price (GHS) *</label>
                   <input
                     type="number"
                     step="0.01"
@@ -741,6 +747,24 @@ export const ProductManagement: React.FC = () => {
                     onBlur={onFieldBlur}
                     required
                   />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-primary mb-2">Controlled Substance</label>
+                  <select
+                    value={formData.schedule}
+                    onChange={(e) => setFormData({ ...formData, schedule: e.target.value })}
+                    className="input-base w-full text-sm"
+                    style={fieldStyle}
+                    onFocus={onFieldFocus}
+                    onBlur={onFieldBlur}
+                  >
+                    <option value="none">No — normal / OTC</option>
+                    <option value="II">Schedule II</option>
+                    <option value="III">Schedule III</option>
+                    <option value="IV">Schedule IV</option>
+                    <option value="V">Schedule V</option>
+                  </select>
                 </div>
 
                 <div className="md:col-span-2">

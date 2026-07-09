@@ -1,5 +1,5 @@
 // User Roles
-export type UserRole = 'admin' | 'cashier' | 'officer' | 'lab';
+export type UserRole = 'admin' | 'cashier' | 'pharmacist' | 'lab';
 
 // User type
 export interface User {
@@ -19,10 +19,12 @@ export interface Product {
   barcode: string;
   category: string;
   unitPrice: number;
+  cost?: number; // cost price for COGS / profit reporting
   quantity: number;
   batchNumber?: string;
   expiryDate?: string; // ISO date string
   supplier?: string;
+  schedule?: string; // controlled-substance schedule: 'none' | 'II'..'V'
   createdAt: string;
   updatedAt: string;
 }

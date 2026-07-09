@@ -3,7 +3,7 @@ import React from 'react';
 import {
   X, LayoutDashboard, ShoppingCart, Package, Truck,
   FileText, BarChart3, Settings, Receipt, Warehouse,
-  Store, FlaskConical, UserCog, ChevronRight
+  Store, FlaskConical, UserCog, ChevronRight, ShieldAlert, TrendingUp
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 
@@ -22,15 +22,17 @@ interface MenuItem {
 }
 
 const menuItems: MenuItem[] = [
-  { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard', roles: ['admin', 'cashier', 'officer', 'lab'] },
+  { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard', roles: ['admin', 'cashier', 'pharmacist', 'lab'] },
   { icon: ShoppingCart, label: 'Point of Sale', path: '/dashboard/pos', roles: ['admin', 'cashier'] },
-  { icon: Receipt, label: 'Sales', path: '/dashboard/sales', roles: ['admin', 'cashier', 'officer'] },
-  { icon: Package, label: 'Products', path: '/dashboard/products', roles: ['admin', 'officer'] },
-  { icon: Warehouse, label: 'Inventory', path: '/dashboard/inventory', roles: ['admin', 'officer'] },
-  { icon: Truck, label: 'Suppliers', path: '/dashboard/suppliers', roles: ['admin', 'officer'] },
-  { icon: FileText, label: 'Purchase Orders', path: '/dashboard/purchase-orders', roles: ['admin', 'officer'] },
+  { icon: Receipt, label: 'Sales', path: '/dashboard/sales', roles: ['admin', 'cashier', 'pharmacist'] },
+  { icon: Package, label: 'Products', path: '/dashboard/products', roles: ['admin', 'pharmacist'] },
+  { icon: Warehouse, label: 'Inventory', path: '/dashboard/inventory', roles: ['admin', 'pharmacist'] },
+  { icon: Truck, label: 'Suppliers', path: '/dashboard/suppliers', roles: ['admin', 'pharmacist'] },
+  { icon: FileText, label: 'Purchase Orders', path: '/dashboard/purchase-orders', roles: ['admin', 'pharmacist'] },
   { icon: BarChart3, label: 'Analytics', path: '/dashboard/analytics', roles: ['admin'] },
-  { icon: FlaskConical, label: 'Laboratory', path: '/dashboard/lab', roles: ['admin', 'lab', 'officer'] },
+  { icon: TrendingUp, label: 'Profit Report', path: '/dashboard/profit-report', roles: ['admin'] },
+  { icon: ShieldAlert, label: 'Controlled Report', path: '/dashboard/controlled-report', roles: ['admin', 'pharmacist'] },
+  { icon: FlaskConical, label: 'Laboratory', path: '/dashboard/lab', roles: ['admin', 'lab', 'pharmacist'] },
   { icon: FileText, label: 'Lab Reports', path: '/dashboard/lab-reports', roles: ['admin', 'lab'] },
   { icon: UserCog, label: 'Staff Management', path: '/dashboard/users', roles: ['admin'] },
   { icon: Settings, label: 'Settings', path: '/dashboard/settings', roles: ['admin'] },
@@ -48,7 +50,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, userRole }) =
   const sections: { title?: string; items: MenuItem[] }[] = [
     { items: filtered.filter((i) => ['/dashboard', '/dashboard/pos', '/dashboard/sales'].includes(i.path)) },
     { title: 'Catalog', items: filtered.filter((i) => ['/dashboard/products', '/dashboard/inventory', '/dashboard/suppliers', '/dashboard/purchase-orders'].includes(i.path)) },
-    { title: 'Operations', items: filtered.filter((i) => ['/dashboard/analytics', '/dashboard/lab', '/dashboard/lab-reports'].includes(i.path)) },
+    { title: 'Operations', items: filtered.filter((i) => ['/dashboard/analytics', '/dashboard/profit-report', '/dashboard/controlled-report', '/dashboard/lab', '/dashboard/lab-reports'].includes(i.path)) },
     { title: 'System', items: filtered.filter((i) => ['/dashboard/users', '/dashboard/settings'].includes(i.path)) },
   ].filter((s) => s.items.length > 0);
 

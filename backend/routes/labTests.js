@@ -62,7 +62,7 @@ router.delete('/templates/:id', auth, adminAuth, async (req, res) => {
 
 // ==================== LAB TESTS ====================
 
-// Get all lab tests - accessible by lab, admin, officer
+// Get all lab tests - accessible by lab, admin, pharmacist
 router.get('/', auth, async (req, res) => {
     try {
         const { status, startDate, endDate, patientName, testType } = req.query;
@@ -125,7 +125,7 @@ router.get('/:id', auth, async (req, res) => {
     }
 });
 
-// Create lab test request - accessible by cashier, admin, officer
+// Create lab test request - accessible by cashier, admin, pharmacist
 // backend/routes/labTests.js - Update the POST route
 router.post('/', auth, async (req, res) => {
     try {

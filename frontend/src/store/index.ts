@@ -87,6 +87,10 @@ interface AppStore {
   addLabTestResults: (testId: string, results: any) => Promise<LabTest | null>;
   reprintLabReceipt: (id: string) => Promise<any>;
   getLabTransactionStats: () => Promise<any>;
+
+  // Reports
+  getControlledReport: (startDate?: string, endDate?: string) => Promise<any>;
+  getProfitReport: (startDate?: string, endDate?: string) => Promise<any>;
 }
 
 // ==================== HELPERS ====================
@@ -696,6 +700,35 @@ export const useAppStore = create<AppStore>((set, get) => ({
       return null;
     }
   },
+
+  // ==================== REPORTS ====================
+  getControlledReport: async (startDate, endDate) => {
+    try {
+      const params = new URLSearchParams();
+      if (startDate) params.append('startDate', startDate);
+      if (endDate) params.append('endDate', endDate);
+      const qs = params.toString();
+      const response = await api.get(`/transactions/reports/controlled${qs ? `?${qs}` : ''}`);
+      return response.data;
+    } catch (err: any) {
+      console.error('Get controlled report error:', err.response?.data || err);
+      return null;
+    }
+  },
+
+  getProfitReport: async (startDate, endDate) => {
+    try {
+      const params = new URLSearchParams();
+      if (startDate) params.append('startDate', startDate);
+      if (endDate) params.append('endDate', endDate);
+      const qs = params.toString();
+      const response = await api.get(`/transactions/reports/profit${qs ? `?${qs}` : ''}`);
+      return response.data;
+    } catch (err: any) {
+      console.error('Get profit report error:', err.response?.data || err);
+      return null;
+    }
+  },
 }));
 
 // ==================== INIT STORE ====================
@@ -718,8 +751,8 @@ export const initStore = async (userRole: string) => {
       await store.fetchTransactions().catch(e => errors.push('Transactions: ' + e.message));
     }
 
-    // OFFICER
-    if (userRole === 'officer') {
+    // PHARMACIST
+    if (userRole === 'pharmacist') {
       await Promise.all([
         store.fetchLabTransactions().catch(e => errors.push('Lab Transactions: ' + e.message)),
         store.fetchLabTestTemplates().catch(e => errors.push('Lab Templates: ' + e.message)),

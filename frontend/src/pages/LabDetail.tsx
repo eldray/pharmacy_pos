@@ -44,7 +44,7 @@ import { useAppStore } from '../store';
 import { Card } from '../components/ui/Card';
 import { LabResultEntry } from '../components/LabResultEntry';
 import { LabResultPrint } from '../components/LabResultPrint';
-import { ReceiptModal } from '../components/ReceiptModal';
+import { ReceiptModal, ReceiptContent } from '../components/ReceiptModal';
 
 export const LabDetail: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -127,7 +127,7 @@ export const LabDetail: React.FC = () => {
                 }
             }
         `,
-        onBeforeGetContent: () => {
+        onBeforePrint: () => {
             setShowPrintModal(false);
             return Promise.resolve();
         }
@@ -158,7 +158,7 @@ export const LabDetail: React.FC = () => {
                 }
             }
         `,
-        onBeforeGetContent: () => {
+        onBeforePrint: () => {
             setShowReceiptModal(false);
             return Promise.resolve();
         }
@@ -1213,17 +1213,14 @@ export const LabDetail: React.FC = () => {
 
             {/* ── HIDDEN PRINT CONTENT FOR RECEIPT ────────────────────────── */}
             <div style={{ position: 'absolute', left: '-9999px', top: '-9999px', width: '1px', height: '1px', overflow: 'hidden' }}>
-                <div ref={printReceiptRef}>
-                    {transaction && (
-                        <ReceiptModal
-                            transaction={receiptTransaction}
-                            customerName={transaction.patientName}
-                            customerPhone={transaction.patientPhone}
-                            onClose={() => {}}
-                            onPrint={() => {}}
-                        />
-                    )}
-                </div>
+                {transaction && (
+                    <ReceiptContent
+                        ref={printReceiptRef}
+                        transaction={receiptTransaction}
+                        customerName={transaction.patientName}
+                        customerPhone={transaction.patientPhone}
+                    />
+                )}
             </div>
 
             <div style={{ position: 'absolute', left: '-9999px', top: '-9999px', width: '1px', height: '1px', overflow: 'hidden' }}>

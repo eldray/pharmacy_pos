@@ -29,7 +29,7 @@ import {
 import { useAppStore } from '../store';
 import { User as UserType, UserRole } from '../types';
 import { Card } from '../components/ui/Card';
-import { validateUser, PASSWORD_RULE } from '../lib/validation';
+import { SkeletonRows } from '../components/ui/Skeleton';
 import { validateUser, PASSWORD_RULE } from '../lib/validation';
 
 export const StaffManagement: React.FC = () => {
@@ -94,14 +94,14 @@ export const StaffManagement: React.FC = () => {
         const config = {
             admin: { cls: 'badge-admin' },
             cashier: { cls: 'badge-cashier' },
-            officer: { cls: 'badge-officer' },
+            pharmacist: { cls: 'badge-officer' },
             lab: { cls: 'badge-lab' },
         };
         const { cls } = config[role] || { cls: 'badge-secondary' };
         const labels = {
             admin: 'Admin',
             cashier: 'Cashier',
-            officer: 'Officer',
+            pharmacist: 'Pharmacist',
             lab: 'Lab Tech'
         };
         return (
@@ -115,7 +115,7 @@ export const StaffManagement: React.FC = () => {
         switch (role) {
             case 'admin': return <Shield className="h-4 w-4" />;
             case 'cashier': return <User className="h-4 w-4" />;
-            case 'officer': return <Award className="h-4 w-4" />;
+            case 'pharmacist': return <Award className="h-4 w-4" />;
             case 'lab': return <FlaskConical className="h-4 w-4" />;
             default: return <User className="h-4 w-4" />;
         }
@@ -125,7 +125,7 @@ export const StaffManagement: React.FC = () => {
         switch (role) {
             case 'admin': return 'var(--color-role-admin)';
             case 'cashier': return 'var(--color-role-cashier)';
-            case 'officer': return 'var(--color-role-officer)';
+            case 'pharmacist': return 'var(--color-role-officer)';
             case 'lab': return 'var(--color-role-lab)';
             default: return 'var(--color-text-muted)';
         }
@@ -211,17 +211,9 @@ export const StaffManagement: React.FC = () => {
         total: users.length,
         admin: users.filter(u => u.role === 'admin').length,
         cashier: users.filter(u => u.role === 'cashier').length,
-        officer: users.filter(u => u.role === 'officer').length,
+        pharmacist: users.filter(u => u.role === 'pharmacist').length,
         lab: users.filter(u => u.role === 'lab').length,
     };
-
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center h-64">
-                <Loader2 className="h-8 w-8 animate-spin" style={{ color: 'var(--color-accent)' }} />
-            </div>
-        );
-    }
 
     return (
         <div className="space-y-6 pb-6">
@@ -257,8 +249,8 @@ export const StaffManagement: React.FC = () => {
                     <p className="text-xs text-secondary">Cashiers</p>
                 </Card>
                 <Card className="p-3 text-center" style={{ borderColor: 'var(--color-role-officer)' }}>
-                    <p className="text-xl font-bold tabular-nums" style={{ color: 'var(--color-role-officer)' }}>{stats.officer}</p>
-                    <p className="text-xs text-secondary">Officers</p>
+                    <p className="text-xl font-bold tabular-nums" style={{ color: 'var(--color-role-officer)' }}>{stats.pharmacist}</p>
+                    <p className="text-xs text-secondary">Pharmacists</p>
                 </Card>
                 <Card className="p-3 text-center" style={{ borderColor: 'var(--color-role-lab)' }}>
                     <p className="text-xl font-bold tabular-nums" style={{ color: 'var(--color-role-lab)' }}>{stats.lab}</p>
@@ -294,7 +286,7 @@ export const StaffManagement: React.FC = () => {
                             <option value="all">All Roles</option>
                             <option value="admin">Admin</option>
                             <option value="cashier">Cashier</option>
-                            <option value="officer">Officer</option>
+                            <option value="pharmacist">Pharmacist</option>
                             <option value="lab">Lab Tech</option>
                         </select>
                     </div>
@@ -315,7 +307,9 @@ export const StaffManagement: React.FC = () => {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-theme">
-                            {filteredUsers.length === 0 ? (
+                            {loading ? (
+                                <SkeletonRows rows={5} cols={5} />
+                            ) : filteredUsers.length === 0 ? (
                                 <tr>
                                     <td colSpan={5} className="px-6 py-12 text-center">
                                         <Users className="h-12 w-12 text-muted mx-auto mb-3" />
@@ -435,8 +429,8 @@ export const StaffManagement: React.FC = () => {
                         <form onSubmit={handleSubmit} className="p-6 space-y-4">
                             {message && (
                                 <div className={`p-3 rounded-xl flex items-start gap-2 text-sm border ${message.type === 'success'
-                                        ? 'border-success text-success-text bg-success-light'
-                                        : 'border-danger text-danger-text bg-danger-light'
+                                    ? 'border-success text-success-text bg-success-light'
+                                    : 'border-danger text-danger-text bg-danger-light'
                                     }`}>
                                     {message.type === 'success' ? (
                                         <CheckCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
@@ -526,7 +520,7 @@ export const StaffManagement: React.FC = () => {
                                     required
                                 >
                                     <option value="cashier">Cashier</option>
-                                    <option value="officer">Inventory Officer</option>
+                                    <option value="pharmacist">Pharmacist</option>
                                     <option value="lab">Lab Technician</option>
                                     <option value="admin">Administrator</option>
                                 </select>
@@ -537,7 +531,7 @@ export const StaffManagement: React.FC = () => {
                                 }}>
                                     {formData.role === 'admin' && '🔑 Full access to all system features'}
                                     {formData.role === 'cashier' && '🛒 Point of sale and customer service only'}
-                                    {formData.role === 'officer' && '📦 Inventory and purchase order management'}
+                                    {formData.role === 'pharmacist' && '📦 Inventory and purchase order management'}
                                     {formData.role === 'lab' && '🔬 Laboratory test management and results'}
                                 </div>
                             </div>

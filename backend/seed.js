@@ -41,10 +41,10 @@ async function seedDatabase() {
         role: 'cashier'
       },
       {
-        name: 'Jane Officer',
-        email: 'officer@pharmacy.com',
-        password: 'officer123',
-        role: 'officer'
+        name: 'Jane Pharmacist',
+        email: 'pharmacist@pharmacy.com',
+        password: 'pharmacist123',
+        role: 'pharmacist'
       },
       {
         name: 'Dr. Sarah Lab',
@@ -263,7 +263,7 @@ async function seedDatabase() {
     console.log('📋 Default Login Credentials:');
     console.log('   Admin:   admin@pharmacy.com   / admin123');
     console.log('   Cashier: cashier@pharmacy.com / cashier123');
-    console.log('   Officer: officer@pharmacy.com / officer123');
+    console.log('   Pharmacist: pharmacist@pharmacy.com / pharmacist123');
     console.log('   Lab:     lab@pharmacy.com     / lab123');
 
     return true;

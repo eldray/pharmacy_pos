@@ -65,10 +65,10 @@ export const getDemoUsers = () => [
     name: 'Cashier User'
   },
   {
-    email: 'officer@pharmacy.com',
-    password: 'officer123',
-    role: 'officer',
-    name: 'Officer User'
+    email: 'pharmacist@pharmacy.com',
+    password: 'pharmacist123',
+    role: 'pharmacist',
+    name: 'Pharmacist User'
   },
   {
     email: 'lab@pharmacy.com',
