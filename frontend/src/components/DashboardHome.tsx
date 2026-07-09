@@ -18,11 +18,11 @@ import {
 } from 'recharts';
 
 /* ─── Date Filter Button ───────────────────────────────────────────────────── */
-const DateFilterBtn: React.FC<{ 
-  label: string; 
-  value: string; 
-  active: boolean; 
-  onClick: () => void 
+const DateFilterBtn: React.FC<{
+  label: string;
+  value: string;
+  active: boolean;
+  onClick: () => void
 }> = ({ label, value, active, onClick }) => (
   <button
     onClick={onClick}
@@ -388,7 +388,7 @@ export const DashboardHome: React.FC = () => {
   const stats = React.useMemo(() => {
     const totalRevenue = filteredTransactions.reduce((sum, t) => sum + t.total, 0);
     const totalTransactions = filteredTransactions.length;
-    
+
     const today = new Date().toDateString();
     const todaySales = filteredTransactions
       .filter((t) => new Date(t.createdAt).toDateString() === today)
@@ -635,29 +635,29 @@ export const DashboardHome: React.FC = () => {
         <Calendar style={{ width: '14px', height: '14px', color: 'var(--color-text-muted)' }} />
         <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--color-text-secondary)' }}>Show:</span>
         <div style={{ display: 'flex', gap: '4px' }}>
-          <DateFilterBtn 
-            label="Today" 
-            value="today" 
-            active={dateFilter === 'today'} 
-            onClick={() => setDateFilter('today')} 
+          <DateFilterBtn
+            label="Today"
+            value="today"
+            active={dateFilter === 'today'}
+            onClick={() => setDateFilter('today')}
           />
-          <DateFilterBtn 
-            label="Week" 
-            value="week" 
-            active={dateFilter === 'week'} 
-            onClick={() => setDateFilter('week')} 
+          <DateFilterBtn
+            label="Week"
+            value="week"
+            active={dateFilter === 'week'}
+            onClick={() => setDateFilter('week')}
           />
-          <DateFilterBtn 
-            label="Month" 
-            value="month" 
-            active={dateFilter === 'month'} 
-            onClick={() => setDateFilter('month')} 
+          <DateFilterBtn
+            label="Month"
+            value="month"
+            active={dateFilter === 'month'}
+            onClick={() => setDateFilter('month')}
           />
-          <DateFilterBtn 
-            label="All" 
-            value="all" 
-            active={dateFilter === 'all'} 
-            onClick={() => setDateFilter('all')} 
+          <DateFilterBtn
+            label="All"
+            value="all"
+            active={dateFilter === 'all'}
+            onClick={() => setDateFilter('all')}
           />
         </div>
         <span style={{
@@ -709,7 +709,7 @@ export const DashboardHome: React.FC = () => {
         />
       </div>
 
-      {/* ── Charts Section ─────────────────────────────────────────────── */}
+      {/* ─── Charts Section (3 columns) ─────────────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-3" style={{ gap: '12px' }}>
         {/* Daily Sales Chart */}
         <div className="card" style={{ padding: 0, overflow: 'hidden', background: 'var(--color-bg-surface)', border: '1px solid var(--color-border)', borderRadius: '10px' }}>
@@ -764,6 +764,116 @@ export const DashboardHome: React.FC = () => {
                 </PieChart>
               </ResponsiveContainer>
             )}
+          </div>
+        </div>
+
+        {/* ─── Top Products Chart (NEW) ────────────────────────────────────────── */}
+        <div className="card" style={{ padding: 0, overflow: 'hidden', background: 'var(--color-bg-surface)', border: '1px solid var(--color-border)', borderRadius: '10px' }}>
+          <SectionHeader icon={Package} title="Top Selling Products" linkTo="/dashboard/products" />
+          <div style={{ padding: '4px 20px 16px 20px' }}>
+            {(() => {
+              const productSales: Record<string, { name: string; quantity: number; revenue: number }> = {};
+
+              filteredTransactions.forEach(tx => {
+                if (tx.items && Array.isArray(tx.items)) {
+                  tx.items.forEach((item: any) => {
+                    const productId = item.productId;
+                    const productName = item.product?.name || item.productName || 'Unknown';
+                    if (productId) {
+                      if (!productSales[productId]) {
+                        productSales[productId] = { name: productName, quantity: 0, revenue: 0 };
+                      }
+                      productSales[productId].quantity += item.quantity || 0;
+                      productSales[productId].revenue += item.total || 0;
+                    }
+                  });
+                }
+              });
+
+              const topProducts = Object.entries(productSales)
+                .map(([id, data]) => ({ id, ...data }))
+                .sort((a, b) => b.revenue - a.revenue)
+                .slice(0, 5);
+
+              if (topProducts.length === 0) {
+                return (
+                  <div className="text-center" style={{ padding: '16px 0' }}>
+                    <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', margin: 0 }}>No product sales data yet</p>
+                  </div>
+                );
+              }
+
+              const maxRevenue = Math.max(...topProducts.map(p => p.revenue));
+
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', paddingTop: '4px' }}>
+                  {topProducts.map((product, index) => {
+                    const percentage = maxRevenue > 0 ? (product.revenue / maxRevenue) * 100 : 0;
+                    const colors = ['var(--color-accent)', 'var(--color-success)', 'var(--color-warning)', 'var(--color-role-lab)', 'var(--color-info)'];
+
+                    return (
+                      <div key={product.id} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <span style={{
+                          fontSize: '10px',
+                          fontWeight: 600,
+                          color: 'var(--color-text-muted)',
+                          width: '20px',
+                          textAlign: 'center',
+                        }}>
+                          #{index + 1}
+                        </span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
+                            <span style={{
+                              fontSize: '11px',
+                              fontWeight: 500,
+                              color: 'var(--color-text-primary)',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}>
+                              {product.name}
+                            </span>
+                            <span style={{
+                              fontSize: '10px',
+                              fontWeight: 600,
+                              color: 'var(--color-accent-text)',
+                              fontVariantNumeric: 'tabular-nums',
+                            }}>
+                              GHS {product.revenue.toFixed(2)}
+                            </span>
+                          </div>
+                          <div style={{
+                            height: '6px',
+                            borderRadius: '4px',
+                            background: 'var(--color-bg-subtle)',
+                            overflow: 'hidden',
+                          }}>
+                            <div style={{
+                              height: '100%',
+                              borderRadius: '4px',
+                              width: `${percentage}%`,
+                              background: colors[index % colors.length],
+                              transition: 'width 0.6s ease',
+                            }} />
+                          </div>
+                        </div>
+                        <span style={{
+                          fontSize: '9px',
+                          fontWeight: 500,
+                          color: 'var(--color-text-muted)',
+                          width: '30px',
+                          textAlign: 'right',
+                          fontVariantNumeric: 'tabular-nums',
+                        }}>
+                          {product.quantity}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </div>
         </div>
       </div>
