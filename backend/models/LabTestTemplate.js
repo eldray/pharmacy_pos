@@ -29,6 +29,12 @@ const LabTestTemplate = sequelize.define('LabTestTemplate', {
         type: DataTypes.STRING,
         allowNull: true
     },
+    insurancePrice: {
+        type: DataTypes.DECIMAL(10, 2),
+        allowNull: true,
+        defaultValue: null,
+        comment: 'Fixed amount the insurer pays for this test (used when provider.coverageType = fixed)'
+    },
     defaultReferenceRanges: {
         type: DataTypes.JSONB,
         allowNull: true,

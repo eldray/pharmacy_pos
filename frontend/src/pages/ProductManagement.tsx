@@ -35,6 +35,8 @@ export const ProductManagement: React.FC = () => {
     description: '',
     category: '',
     unitPrice: '',
+    sellingPrice: '',
+    insurancePrice: '',
     schedule: 'none',
   });
   // When true, the category field shows a free-text input for a new category.
@@ -115,6 +117,12 @@ export const ProductManagement: React.FC = () => {
       description: '',
       category: '',
       unitPrice: '',
+      sellingPrice: '',
+      insurancePrice: '',
+      packageType: 'Box',
+      dispensingUnit: 'Tablet',
+      unitsPerPackage: '100',
+      packagePrice: '',
       schedule: 'none',
     });
     setShowModal(true);
@@ -128,6 +136,12 @@ export const ProductManagement: React.FC = () => {
       description: product.description || '',
       category: product.category,
       unitPrice: product.unitPrice.toString(),
+      sellingPrice: (product.sellingPrice || '').toString(),
+      insurancePrice: (product.insurancePrice || '').toString(),
+      packageType: product.packageType || 'Box',
+      dispensingUnit: product.dispensingUnit || 'Tablet',
+      unitsPerPackage: (product.unitsPerPackage || 1).toString(),
+      packagePrice: (product.packagePrice || '').toString(),
       schedule: product.schedule || 'none',
     });
     setShowModal(true);
@@ -199,6 +213,12 @@ export const ProductManagement: React.FC = () => {
         description: formData.description || undefined,
         category,
         unitPrice: parseFloat(formData.unitPrice),
+        sellingPrice: formData.sellingPrice ? parseFloat(formData.sellingPrice) : undefined,
+        insurancePrice: formData.insurancePrice ? parseFloat(formData.insurancePrice) : undefined,
+        packageType: formData.packageType || 'Box',
+        dispensingUnit: formData.dispensingUnit || 'Tablet',
+        unitsPerPackage: parseInt(formData.unitsPerPackage) || 1,
+        packagePrice: formData.packagePrice ? parseFloat(formData.packagePrice) : undefined,
         schedule: formData.schedule || 'none',
       };
 
@@ -733,19 +753,138 @@ export const ProductManagement: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-primary mb-2">Selling Price (GHS) *</label>
+                  <label className="block text-sm font-semibold text-primary mb-2">Single Unit Price (GHS) *</label>
                   <input
                     type="number"
                     step="0.01"
                     min="0"
                     value={formData.unitPrice}
                     onChange={(e) => setFormData({ ...formData, unitPrice: e.target.value })}
-                    placeholder="0.00"
+                    placeholder="e.g. 0.15 (Per Tablet/Unit)"
                     className="input-base w-full text-sm"
                     style={fieldStyle}
                     onFocus={onFieldFocus}
                     onBlur={onFieldBlur}
                     required
+                  />
+                </div>
+
+                {/* Selling Price */}
+                <div>
+                  <label className="block text-sm font-semibold text-primary mb-2">Selling Price (GHS)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={formData.sellingPrice}
+                    onChange={(e) => setFormData({ ...formData, sellingPrice: e.target.value })}
+                    placeholder="e.g. 2.50 (Patient-facing retail price)"
+                    className="input-base w-full text-sm"
+                    style={fieldStyle}
+                    onFocus={onFieldFocus}
+                    onBlur={onFieldBlur}
+                  />
+                </div>
+
+                {/* Insurance Price */}
+                <div>
+                  <label className="block text-sm font-semibold text-primary mb-2">Insurance Price (GHS)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={formData.insurancePrice}
+                    onChange={(e) => setFormData({ ...formData, insurancePrice: e.target.value })}
+                    placeholder="e.g. 2.00 (Insurer-agreed reimbursement)"
+                    className="input-base w-full text-sm"
+                    style={fieldStyle}
+                    onFocus={onFieldFocus}
+                    onBlur={onFieldBlur}
+                  />
+                </div>
+
+                {/* Live Co-Pay Badge */}
+                {formData.sellingPrice && formData.insurancePrice && (() => {
+                  const sell = parseFloat(formData.sellingPrice) || 0;
+                  const ins = parseFloat(formData.insurancePrice) || 0;
+                  const copay = Math.max(0, sell - ins);
+                  const copayPct = sell > 0 ? ((copay / sell) * 100).toFixed(1) : '0';
+                  return (
+                    <div className="md:col-span-2">
+                      <div style={{ background: 'var(--color-info-light)', border: '1px solid var(--color-info)', borderRadius: '8px', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-info-text)' }}>💡 Co-Pay Preview</span>
+                        <span style={{ fontSize: '13px', color: 'var(--color-info-text)' }}>Insurance covers: <strong>GHS {ins.toFixed(2)}</strong></span>
+                        <span style={{ fontSize: '13px', color: 'var(--color-info-text)' }}>Patient pays: <strong>GHS {copay.toFixed(2)} ({copayPct}%)</strong></span>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                <div>
+                  <label className="block text-sm font-semibold text-primary mb-2">Bulk Package Type</label>
+                  <select
+                    value={formData.packageType}
+                    onChange={(e) => setFormData({ ...formData, packageType: e.target.value })}
+                    className="input-base w-full text-sm"
+                    style={fieldStyle}
+                    onFocus={onFieldFocus}
+                    onBlur={onFieldBlur}
+                  >
+                    <option value="Box">Box</option>
+                    <option value="Bottle">Bottle</option>
+                    <option value="Pack">Pack</option>
+                    <option value="Jar">Jar</option>
+                    <option value="Strip">Strip</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-primary mb-2">Dispensing Unit Type</label>
+                  <select
+                    value={formData.dispensingUnit}
+                    onChange={(e) => setFormData({ ...formData, dispensingUnit: e.target.value })}
+                    className="input-base w-full text-sm"
+                    style={fieldStyle}
+                    onFocus={onFieldFocus}
+                    onBlur={onFieldBlur}
+                  >
+                    <option value="Tablet">Tablet</option>
+                    <option value="Capsule">Capsule</option>
+                    <option value="Strip">Strip</option>
+                    <option value="Sachet">Sachet</option>
+                    <option value="ml">ml (Liquid)</option>
+                    <option value="Piece">Piece</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-primary mb-2">Units per Bulk Package</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={formData.unitsPerPackage}
+                    onChange={(e) => setFormData({ ...formData, unitsPerPackage: e.target.value })}
+                    placeholder="e.g. 100 tablets per box"
+                    className="input-base w-full text-sm"
+                    style={fieldStyle}
+                    onFocus={onFieldFocus}
+                    onBlur={onFieldBlur}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-primary mb-2">Bulk Package Price (GHS)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={formData.packagePrice}
+                    onChange={(e) => setFormData({ ...formData, packagePrice: e.target.value })}
+                    placeholder="e.g. 12.00 (Per Box)"
+                    className="input-base w-full text-sm"
+                    style={fieldStyle}
+                    onFocus={onFieldFocus}
+                    onBlur={onFieldBlur}
                   />
                 </div>
 

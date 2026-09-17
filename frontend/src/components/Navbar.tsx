@@ -4,6 +4,7 @@ import { Menu, Bell, User, LogOut, Store, ChevronDown, Package, HelpCircle, Sett
 import { Link } from 'react-router-dom';
 import { ThemeToggle } from './ui/ThemeToggle';
 import { useAppStore } from '../store';
+import api from '../api/api';
 
 interface NavbarProps {
   onMenuClick: () => void;
@@ -12,7 +13,6 @@ interface NavbarProps {
   companyName?: string;
 }
 
-// ─── Notification helpers ──────────────────────────────────────────────────
 interface Notification {
   id: string;
   type: 'low_stock' | 'out_of_stock' | 'expiry' | 'expired';
@@ -49,58 +49,65 @@ export const Navbar: React.FC<NavbarProps> = ({
   const menuRef = useRef<HTMLDivElement>(null);
 
   const { products } = useAppStore();
+  const [liveAlerts, setLiveAlerts] = useState<Notification[]>([]);
 
-  // ─── Build alert list from live product data ───────────────────────────
+  // Lab techs don't need stock/expiry alerts — hide the bell entirely for them.
+  const showAlerts = user.role !== 'lab_tech';
+
+  useEffect(() => {
+    if (!showAlerts) return;
+    fetchAlerts();
+    const timer = setInterval(fetchAlerts, 10000);
+    return () => clearInterval(timer);
+  }, [showAlerts]);
+
+  const fetchAlerts = async () => {
+    try {
+      const res = await api.get('/alerts');
+      if (res.data?.notifications) {
+        setLiveAlerts(
+          res.data.notifications.map((n: any) => ({
+            id: n.id,
+            type: n.type === 'danger' ? 'expired' : n.type === 'warning' ? 'low_stock' : 'low_stock',
+            title: n.title,
+            desc: n.message,
+            dot: n.type === 'danger' ? 'var(--color-danger)' : n.type === 'warning' ? 'var(--color-warning)' : 'var(--color-info)',
+          }))
+        );
+      }
+    } catch {
+      // Fallback silently — local product-derived alerts will be used.
+    }
+  };
+
   const allNotifications = useMemo((): Notification[] => {
+    if (!showAlerts) return [];
+    if (liveAlerts.length > 0) return liveAlerts;
     const now = new Date();
     const in30days = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
     const notes: Notification[] = [];
 
     products.forEach((p) => {
       if (p.quantity === 0) {
-        notes.push({
-          id: `out_${p.id}`,
-          type: 'out_of_stock',
-          title: 'Out of Stock',
-          desc: `${p.name} — no units remaining`,
-          dot: 'var(--color-danger)',
-        });
+        notes.push({ id: `out_${p.id}`, type: 'out_of_stock', title: 'Out of Stock', desc: `${p.name} — no units remaining`, dot: 'var(--color-danger)' });
       } else if (p.quantity < 20) {
-        notes.push({
-          id: `low_${p.id}`,
-          type: 'low_stock',
-          title: 'Low Stock',
-          desc: `${p.name} — ${p.quantity} unit${p.quantity !== 1 ? 's' : ''} left`,
-          dot: 'var(--color-warning)',
-        });
+        notes.push({ id: `low_${p.id}`, type: 'low_stock', title: 'Low Stock', desc: `${p.name} — ${p.quantity} unit${p.quantity !== 1 ? 's' : ''} left`, dot: 'var(--color-warning)' });
       }
 
       if (p.expiryDate) {
         const expiry = new Date(p.expiryDate);
         if (expiry < now) {
           const days = Math.abs(Math.ceil((expiry.getTime() - now.getTime()) / 86400000));
-          notes.push({
-            id: `exp_${p.id}`,
-            type: 'expired',
-            title: 'Expired',
-            desc: `${p.name} — expired ${days} day${days !== 1 ? 's' : ''} ago`,
-            dot: 'var(--color-danger)',
-          });
+          notes.push({ id: `exp_${p.id}`, type: 'expired', title: 'Expired', desc: `${p.name} — expired ${days} day${days !== 1 ? 's' : ''} ago`, dot: 'var(--color-danger)' });
         } else if (expiry <= in30days) {
           const days = Math.ceil((expiry.getTime() - now.getTime()) / 86400000);
-          notes.push({
-            id: `exp_${p.id}`,
-            type: 'expiry',
-            title: 'Expiring Soon',
-            desc: `${p.name} — expires in ${days} day${days !== 1 ? 's' : ''}`,
-            dot: 'var(--color-warning)',
-          });
+          notes.push({ id: `exp_${p.id}`, type: 'expiry', title: 'Expiring Soon', desc: `${p.name} — expires in ${days} day${days !== 1 ? 's' : ''}`, dot: 'var(--color-warning)' });
         }
       }
     });
 
     return notes;
-  }, [products]);
+  }, [products, liveAlerts, showAlerts]);
 
   const unread = allNotifications.filter((n) => !dismissed.has(n.id));
   const unreadCount = unread.length;
@@ -128,13 +135,10 @@ export const Navbar: React.FC<NavbarProps> = ({
     saveDismissed(new Set());
   };
 
-  // ─── Close on outside click ────────────────────────────────────────────
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (notifRef.current && !notifRef.current.contains(e.target as Node))
-        setShowNotifications(false);
-      if (menuRef.current && !menuRef.current.contains(e.target as Node))
-        setShowUserMenu(false);
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) setShowNotifications(false);
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setShowUserMenu(false);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
@@ -157,21 +161,11 @@ export const Navbar: React.FC<NavbarProps> = ({
       ? <Calendar style={{ width: 12, height: 12 }} />
       : <Package style={{ width: 12, height: 12 }} />;
 
-  // Helper function for mouse enter/leave handlers
   const handleMouseEnter = (e: React.MouseEvent<HTMLElement>) => {
     (e.currentTarget as HTMLElement).style.background = 'var(--color-bg-subtle)';
   };
-
   const handleMouseLeave = (e: React.MouseEvent<HTMLElement>) => {
     (e.currentTarget as HTMLElement).style.background = 'transparent';
-  };
-
-  const handleMouseEnterColor = (color: string) => (e: React.MouseEvent<HTMLElement>) => {
-    (e.currentTarget as HTMLElement).style.background = color;
-  };
-
-  const handleMouseLeaveColor = (color: string) => (e: React.MouseEvent<HTMLElement>) => {
-    (e.currentTarget as HTMLElement).style.background = color;
   };
 
   return (
@@ -185,16 +179,12 @@ export const Navbar: React.FC<NavbarProps> = ({
       }}
     >
       <div className="flex items-center justify-between h-full" style={{ padding: '0 20px' }}>
-
         {/* Left */}
         <div className="flex items-center" style={{ gap: '12px' }}>
           <button
             onClick={onMenuClick}
             className="lg:hidden flex items-center justify-center"
-            style={{
-              width: 36, height: 36, borderRadius: '6px', background: 'transparent',
-              border: 'none', color: 'var(--color-text-secondary)', cursor: 'pointer', padding: 4,
-            }}
+            style={{ width: 36, height: 36, borderRadius: '6px', background: 'transparent', border: 'none', color: 'var(--color-text-secondary)', cursor: 'pointer', padding: 4 }}
             onMouseEnter={handleMouseEnter}
             onMouseLeave={handleMouseLeave}
           >
@@ -216,189 +206,140 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         {/* Right */}
         <div className="flex items-center" style={{ gap: '10px' }}>
-
-          {/* Theme toggle */}
           <div className="flex items-center justify-center" style={{ width: 36, height: 36 }}>
             <ThemeToggle />
           </div>
 
-          {/* ─── Notifications Bell ──────────────────────────────────── */}
-          <div className="relative" ref={notifRef}>
-            <button
-              onClick={() => { setShowNotifications(!showNotifications); setShowUserMenu(false); }}
-              className="relative flex items-center justify-center"
-              title="Notifications"
-              style={{
-                width: 36, height: 36, borderRadius: '6px', background: 'transparent',
-                border: 'none', color: 'var(--color-text-secondary)', cursor: 'pointer', padding: 4,
-              }}
-              onMouseEnter={handleMouseEnter}
-              onMouseLeave={handleMouseLeave}
-            >
-              <Bell style={{ width: 16, height: 16 }} />
-              {unreadCount > 0 && (
-                <span
-                  className="absolute -top-0.5 -right-0.5 flex items-center justify-center"
+          {/* Notifications — hidden for lab_tech */}
+          {showAlerts && (
+            <div className="relative" ref={notifRef}>
+              <button
+                onClick={() => { setShowNotifications(!showNotifications); setShowUserMenu(false); }}
+                className="relative flex items-center justify-center"
+                title="Notifications"
+                style={{ width: 36, height: 36, borderRadius: '6px', background: 'transparent', border: 'none', color: 'var(--color-text-secondary)', cursor: 'pointer', padding: 4 }}
+                onMouseEnter={handleMouseEnter}
+                onMouseLeave={handleMouseLeave}
+              >
+                <Bell style={{ width: 16, height: 16 }} />
+                {unreadCount > 0 && (
+                  <span
+                    className="absolute -top-0.5 -right-0.5 flex items-center justify-center"
+                    style={{
+                      minWidth: 18, height: 18, borderRadius: '9999px',
+                      fontSize: '8px', fontWeight: 700, padding: '0 3px',
+                      background: 'var(--color-danger)', color: '#fff',
+                      border: '2px solid var(--color-navbar-bg)',
+                    }}
+                  >
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
+                )}
+              </button>
+
+              {showNotifications && (
+                <div
+                  className="absolute top-full right-0"
                   style={{
-                    minWidth: 18, height: 18, borderRadius: '9999px',
-                    fontSize: '8px', fontWeight: 700, padding: '0 3px',
-                    background: 'var(--color-danger)', color: '#fff',
-                    border: '2px solid var(--color-navbar-bg)',
+                    marginTop: 8, width: 360, borderRadius: 12, zIndex: 30,
+                    background: 'var(--color-bg-elevated)',
+                    border: '1px solid var(--color-border)',
+                    boxShadow: 'var(--shadow-xl)',
+                    transformOrigin: 'top right',
+                    animation: 'dropdownFadeIn 0.15s ease',
+                    overflow: 'hidden',
                   }}
                 >
-                  {unreadCount > 99 ? '99+' : unreadCount}
-                </span>
-              )}
-            </button>
-
-            {/* ─── Dropdown ───────────────────────────────────────────── */}
-            {showNotifications && (
-              <div
-                className="absolute top-full right-0"
-                style={{
-                  marginTop: 8, width: 360, borderRadius: 12, zIndex: 30,
-                  background: 'var(--color-bg-elevated)',
-                  border: '1px solid var(--color-border)',
-                  boxShadow: 'var(--shadow-xl)',
-                  transformOrigin: 'top right',
-                  animation: 'dropdownFadeIn 0.15s ease',
-                  overflow: 'hidden',
-                }}
-              >
-                {/* Header */}
-                <div
-                  className="flex items-center justify-between"
-                  style={{ padding: '13px 16px', borderBottom: '1px solid var(--color-border)' }}
-                >
-                  <div className="flex items-center" style={{ gap: 8 }}>
-                    <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--color-text-primary)' }}>
-                      Notifications
-                    </span>
-                    {unreadCount > 0 && (
-                      <span style={{
-                        fontSize: '10px', padding: '1px 7px', borderRadius: 99,
-                        fontWeight: 600, background: 'var(--color-danger-light)', color: 'var(--color-danger)',
-                      }}>
-                        {unreadCount} unread
+                  <div className="flex items-center justify-between" style={{ padding: '13px 16px', borderBottom: '1px solid var(--color-border)' }}>
+                    <div className="flex items-center" style={{ gap: 8 }}>
+                      <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--color-text-primary)' }}>
+                        Notifications
                       </span>
+                      {unreadCount > 0 && (
+                        <span style={{ fontSize: '10px', padding: '1px 7px', borderRadius: 99, fontWeight: 600, background: 'var(--color-danger-light)', color: 'var(--color-danger)' }}>
+                          {unreadCount} unread
+                        </span>
+                      )}
+                    </div>
+                    {unreadCount > 0 && (
+                      <button
+                        onClick={markAllRead}
+                        style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '11px', fontWeight: 600, cursor: 'pointer', color: 'var(--color-accent-text)', background: 'none', border: 'none' }}
+                      >
+                        <CheckCheck style={{ width: 12, height: 12 }} />
+                        Mark all read
+                      </button>
                     )}
                   </div>
-                  {unreadCount > 0 && (
-                    <button
-                      onClick={markAllRead}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 4,
-                        fontSize: '11px', fontWeight: 600, cursor: 'pointer',
-                        color: 'var(--color-accent-text)', background: 'none', border: 'none',
-                      }}
-                    >
-                      <CheckCheck style={{ width: 12, height: 12 }} />
-                      Mark all read
-                    </button>
-                  )}
-                </div>
 
-                {/* List */}
-                <div style={{ maxHeight: 340, overflowY: 'auto' }}>
-                  {unread.length === 0 ? (
-                    <div style={{ padding: '28px 16px', textAlign: 'center' }}>
-                      <Bell style={{ width: 26, height: 26, margin: '0 auto 8px', opacity: 0.2, display: 'block' }} />
-                      <p style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
-                        All caught up — no new alerts.
+                  <div style={{ maxHeight: 340, overflowY: 'auto' }}>
+                    {unread.length === 0 ? (
+                      <div style={{ padding: '28px 16px', textAlign: 'center' }}>
+                        <Bell style={{ width: 26, height: 26, margin: '0 auto 8px', opacity: 0.2, display: 'block' }} />
+                        <p style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
+                          All caught up — no new alerts.
+                        </p>
+                      </div>
+                    ) : (
+                      unread.map((n, i) => (
+                        <div
+                          key={n.id}
+                          className="flex items-start transition-colors duration-100"
+                          style={{
+                            gap: 10, padding: '10px 16px',
+                            borderBottom: i < unread.length - 1 ? '1px solid var(--color-border)' : 'none',
+                          }}
+                          onMouseEnter={handleMouseEnter}
+                          onMouseLeave={handleMouseLeave}
+                        >
+                          <span style={{ width: 7, height: 7, borderRadius: 99, marginTop: 5, flexShrink: 0, background: n.dot }} />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center" style={{ gap: 5, marginBottom: 1 }}>
+                              <span style={{ color: n.dot, display: 'flex' }}>{notifIcon(n.type)}</span>
+                              <p style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-primary)' }}>{n.title}</p>
+                            </div>
+                            <p className="truncate" style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>{n.desc}</p>
+                          </div>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); dismiss(n.id); }}
+                            title="Dismiss"
+                            style={{ flexShrink: 0, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)', padding: 2, borderRadius: 4, display: 'flex', alignItems: 'center' }}
+                            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = 'var(--color-text-primary)'; }}
+                            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = 'var(--color-text-muted)'; }}
+                          >
+                            <X style={{ width: 12, height: 12 }} />
+                          </button>
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                  {allNotifications.length > 0 && unread.length === 0 && (
+                    <div style={{ padding: '9px 16px', borderTop: '1px solid var(--color-border)', textAlign: 'center' }}>
+                      <p style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
+                        {allNotifications.length} alert{allNotifications.length !== 1 ? 's' : ''} dismissed —{' '}
+                        <button onClick={restoreAll} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-accent-text)', fontSize: '11px', fontWeight: 600 }}>
+                          restore all
+                        </button>
                       </p>
                     </div>
-                  ) : (
-                    unread.map((n, i) => (
-                      <div
-                        key={n.id}
-                        className="flex items-start transition-colors duration-100"
-                        style={{
-                          gap: 10, padding: '10px 16px',
-                          borderBottom: i < unread.length - 1 ? '1px solid var(--color-border)' : 'none',
-                        }}
-                        onMouseEnter={handleMouseEnter}
-                        onMouseLeave={handleMouseLeave}
-                      >
-                        {/* Colour dot */}
-                        <span style={{
-                          width: 7, height: 7, borderRadius: 99, marginTop: 5,
-                          flexShrink: 0, background: n.dot,
-                        }} />
+                  )}
 
-                        {/* Icon + text */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center" style={{ gap: 5, marginBottom: 1 }}>
-                            <span style={{ color: n.dot, display: 'flex' }}>
-                              {notifIcon(n.type)}
-                            </span>
-                            <p style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-primary)' }}>
-                              {n.title}
-                            </p>
-                          </div>
-                          <p className="truncate" style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>
-                            {n.desc}
-                          </p>
-                        </div>
-
-                        {/* Dismiss × */}
-                        <button
-                          onClick={(e) => { e.stopPropagation(); dismiss(n.id); }}
-                          title="Dismiss"
-                          style={{
-                            flexShrink: 0, background: 'none', border: 'none',
-                            cursor: 'pointer', color: 'var(--color-text-muted)',
-                            padding: 2, borderRadius: 4,
-                            display: 'flex', alignItems: 'center',
-                          }}
-                          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = 'var(--color-text-primary)'; }}
-                          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = 'var(--color-text-muted)'; }}
-                        >
-                          <X style={{ width: 12, height: 12 }} />
-                        </button>
-                      </div>
-                    ))
+                  {allNotifications.length === 0 && (
+                    <div style={{ padding: '9px 16px', borderTop: '1px solid var(--color-border)', textAlign: 'center' }}>
+                      <p style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
+                        No stock or expiry issues detected.
+                      </p>
+                    </div>
                   )}
                 </div>
+              )}
+            </div>
+          )}
 
-                {/* Footer — restore link when all dismissed */}
-                {allNotifications.length > 0 && unread.length === 0 && (
-                  <div style={{
-                    padding: '9px 16px', borderTop: '1px solid var(--color-border)',
-                    textAlign: 'center',
-                  }}>
-                    <p style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
-                      {allNotifications.length} alert{allNotifications.length !== 1 ? 's' : ''} dismissed —{' '}
-                      <button
-                        onClick={restoreAll}
-                        style={{
-                          background: 'none', border: 'none', cursor: 'pointer',
-                          color: 'var(--color-accent-text)', fontSize: '11px', fontWeight: 600,
-                        }}
-                      >
-                        restore all
-                      </button>
-                    </p>
-                  </div>
-                )}
+          <div className="hidden sm:block" style={{ width: 1, height: 28, background: 'var(--color-border)', margin: '0 4px' }} />
 
-                {allNotifications.length === 0 && (
-                  <div style={{ padding: '9px 16px', borderTop: '1px solid var(--color-border)', textAlign: 'center' }}>
-                    <p style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
-                      No stock or expiry issues detected.
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Divider */}
-          <div
-            className="hidden sm:block"
-            style={{ width: 1, height: 28, background: 'var(--color-border)', margin: '0 4px' }}
-          />
-
-          {/* ─── User menu ───────────────────────────────────────────── */}
+          {/* User menu */}
           <div className="relative" ref={menuRef}>
             <button
               onClick={() => { setShowUserMenu(!showUserMenu); setShowNotifications(false); }}
@@ -409,42 +350,22 @@ export const Navbar: React.FC<NavbarProps> = ({
                 border: 'none', color: 'var(--color-text-primary)',
               }}
               onMouseEnter={(e) => {
-                if (!showUserMenu) {
-                  (e.currentTarget as HTMLElement).style.background = 'var(--color-bg-subtle)';
-                }
+                if (!showUserMenu) (e.currentTarget as HTMLElement).style.background = 'var(--color-bg-subtle)';
               }}
               onMouseLeave={(e) => {
-                if (!showUserMenu) {
-                  (e.currentTarget as HTMLElement).style.background = 'transparent';
-                }
+                if (!showUserMenu) (e.currentTarget as HTMLElement).style.background = 'transparent';
               }}
             >
-              <div
-                className="flex items-center justify-center flex-shrink-0"
-                style={{
-                  width: 34, height: 34, borderRadius: '6px',
-                  background: 'var(--color-accent-light)', color: 'var(--color-accent-text)',
-                  fontWeight: 700, fontSize: '12px', letterSpacing: '0.3px',
-                }}
-              >
+              <div className="flex items-center justify-center flex-shrink-0" style={{ width: 34, height: 34, borderRadius: '6px', background: 'var(--color-accent-light)', color: 'var(--color-accent-text)', fontWeight: 700, fontSize: '12px', letterSpacing: '0.3px' }}>
                 {initials}
               </div>
               <div className="hidden sm:block text-left">
-                <p style={{ fontSize: '13px', fontWeight: 600, lineHeight: 1, color: 'var(--color-text-primary)' }}>
-                  {user.name}
-                </p>
+                <p style={{ fontSize: '13px', fontWeight: 600, lineHeight: 1, color: 'var(--color-text-primary)' }}>{user.name}</p>
                 <p className="capitalize" style={{ fontSize: '10px', marginTop: 2, color: 'var(--color-text-muted)' }}>
-                  {user.role}
+                  {user.role.replace('_', ' ')}
                 </p>
               </div>
-              <ChevronDown
-                className="hidden sm:block"
-                style={{
-                  width: 14, height: 14, color: 'var(--color-text-muted)',
-                  transform: showUserMenu ? 'rotate(180deg)' : 'rotate(0deg)',
-                  transition: 'transform 0.2s ease',
-                }}
-              />
+              <ChevronDown className="hidden sm:block" style={{ width: 14, height: 14, color: 'var(--color-text-muted)', transform: showUserMenu ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease' }} />
             </button>
 
             {showUserMenu && (
@@ -460,12 +381,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                 }}
               >
                 <div style={{ padding: '20px 24px 16px 24px', borderBottom: '1px solid var(--color-border)' }}>
-                  <p className="truncate" style={{ fontSize: '15px', fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: '6px' }}>
-                    {user.name}
-                  </p>
-                  <p className="truncate" style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>
-                    {user.email || user.role}
-                  </p>
+                  <p className="truncate" style={{ fontSize: '15px', fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: '6px' }}>{user.name}</p>
+                  <p className="truncate" style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>{user.email || user.role}</p>
                 </div>
 
                 <div style={{ padding: '8px 0' }}>
@@ -479,10 +396,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       to={to}
                       onClick={closeAll}
                       className="flex items-center transition-colors duration-100"
-                      style={{
-                        gap: '14px', padding: '12px 24px', fontSize: '14px',
-                        color: 'var(--color-text-secondary)', textDecoration: 'none',
-                      }}
+                      style={{ gap: '14px', padding: '12px 24px', fontSize: '14px', color: 'var(--color-text-secondary)', textDecoration: 'none' }}
                       onMouseEnter={(e) => {
                         const el = e.currentTarget as HTMLElement;
                         el.style.background = 'var(--color-bg-subtle)';
@@ -504,10 +418,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <button
                     onClick={() => { closeAll(); onLogout(); }}
                     className="w-full flex items-center transition-colors duration-100 cursor-pointer"
-                    style={{
-                      gap: '14px', padding: '12px 24px', fontSize: '14px',
-                      color: 'var(--color-danger)', background: 'transparent', border: 'none',
-                    }}
+                    style={{ gap: '14px', padding: '12px 24px', fontSize: '14px', color: 'var(--color-danger)', background: 'transparent', border: 'none' }}
                     onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--color-danger-light)'; }}
                     onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
                   >

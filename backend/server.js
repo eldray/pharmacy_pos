@@ -91,6 +91,14 @@ app.use('/api/inventory', require('./routes/inventory'));
 app.use('/api/lab-tests', require('./routes/labTests'));
 app.use('/api/lab-transactions', require('./routes/labTransactions'));
 app.use('/api/audit-logs', require('./routes/auditLogs'));
+app.use('/api/branches', require('./routes/branches'));
+app.use('/api/staff', require('./routes/staff'));
+app.use('/api/orders', require('./routes/orders'));
+app.use('/api/insurance', require('./routes/insurance'));
+app.use('/api/alerts', require('./routes/alerts'));
+app.use('/api/customers', require('./routes/customers'));
+app.use('/api/lab-service-orders', require('./routes/lab-service-orders'));
+app.use('/api/backup', require('./routes/backup'));
 
 // ==================== ERROR HANDLING ====================
 // ==================== SERVE FRONTEND (ELECTRON) ====================
@@ -177,31 +185,36 @@ const startServer = async () => {
     await sequelize.authenticate();
     console.log('✅ PostgreSQL connected');
 
-    // ✅ FIXED: Use sync() without alter for safety
-    // Change to sync({ alter: true }) ONLY during active development
-    await sequelize.sync();
-    console.log('✅ Schema synchronised');
-
-    // Apply any pending migrations (indexes on existing tables, incremental
-    // schema changes sync() can't make). Runs after sync so a fresh DB has its
-    // base tables first; migrations are written to be idempotent.
+    // Step 3: Run migrations (replaces sync()).
+    //
+    // Why not sync()?
+    //   sync() recreates indexes every startup — Postgres rejects duplicates
+    //   with error 42P07. Migrations run once and are tracked, so they're
+    //   safe on every restart, and they're the industry-standard way to
+    //   manage schema changes in production.
+    console.log('📦 Running database migrations...');
     const { migrate } = require('./migrate');
-    await migrate('up');
+    const migrationResult = await migrate('up');
+    console.log(
+      migrationResult.applied > 0
+        ? `✅ Applied ${migrationResult.applied} migration(s)`
+        : '✅ Database schema is up to date'
+    );
 
-    // ✅ FIXED: Import from models/index.js to load associations
+    // Step 4: Seed if the database has no users.
     const { User } = require('./models');
     const count = await User.count();
     if (count === 0) {
-      console.log('Empty database — seeding...');
+      console.log('🌱 Empty database — running seed...');
       const seed = require('./seed');
       await seed();
+      console.log('✅ Seeding complete');
     } else {
       console.log(`✅ Database has ${count} user(s) — skipping seed`);
     }
 
     console.log('🎉 Database initialization complete!');
     console.log(`✅ Server ready on http://${HOST}:${PORT}`);
-
     app.listen(PORT, HOST, () => {
       console.log(`✅ Server running on http://${HOST}:${PORT}`);
       console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);

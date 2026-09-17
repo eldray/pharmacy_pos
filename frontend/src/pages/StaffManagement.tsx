@@ -1,570 +1,803 @@
 // src/pages/StaffManagement.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
-    Users,
-    UserPlus,
-    Search,
-    Edit2,
-    Trash2,
-    User,
-    Mail,
-    Shield,
-    Phone,
-    Calendar,
-    MoreVertical,
-    FlaskConical,
-    X,
-    Eye,
-    EyeOff,
-    CheckCircle,
-    AlertCircle,
-    Filter,
-    UserCheck,
-    UserX,
-    Clock,
-    Award,
-    Briefcase,
-    Loader2
+  Users, UserPlus, Building, Search, X, Loader2, Edit2,
+  Ban, CheckCircle, Trash2, ShieldCheck, AlertCircle,
 } from 'lucide-react';
+import api, { getErrorMessage } from '../api/api';
 import { useAppStore } from '../store';
-import { User as UserType, UserRole } from '../types';
-import { Card } from '../components/ui/Card';
-import { SkeletonRows } from '../components/ui/Skeleton';
-import { validateUser, PASSWORD_RULE } from '../lib/validation';
+import { User, Branch, StaffProfile } from '../types';
+
+const VALID_ROLES = ['admin', 'manager', 'pharmacist_sales', 'cashier', 'lab_tech'] as const;
+type ValidRole = typeof VALID_ROLES[number];
+
+const ROLE_LABELS: Record<ValidRole, string> = {
+  admin: 'Administrator',
+  manager: 'Manager',
+  pharmacist_sales: 'Pharmacist (Sales)',
+  cashier: 'Cashier',
+  lab_tech: 'Lab Technician',
+};
+
+type UserRow = User & { staffProfile?: StaffProfile | null };
 
 export const StaffManagement: React.FC = () => {
-    const { currentUser, users, fetchUsers, addUser, updateUser } = useAppStore();
-    const [loading, setLoading] = useState(true);
-    const [searchQuery, setSearchQuery] = useState('');
-    const [roleFilter, setRoleFilter] = useState<string>('all');
-    const [showModal, setShowModal] = useState(false);
-    const [editingUser, setEditingUser] = useState<UserType | null>(null);
-    const [showPassword, setShowPassword] = useState(false);
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const [formData, setFormData] = useState({
-        name: '',
-        email: '',
-        password: '',
-        role: 'cashier' as UserRole,
-    });
-    const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const { currentUser, fetchUsers } = useAppStore();
+  const isAdmin = currentUser?.role === 'admin';
+  const canManage = ['admin', 'manager'].includes(currentUser?.role || '');
 
-    // --- Shared field style ---
-    const fieldStyle: React.CSSProperties = {
-        background: 'var(--color-input-bg)',
-        border: '1px solid var(--color-input-border)',
-        borderRadius: 'var(--radius-md)',
-        color: 'var(--color-input-text)',
-        outline: 'none',
-        fontSize: '0.875rem',
-        padding: '10px 14px',
-        width: '100%',
-        transition: 'border-color 100ms ease, box-shadow 100ms ease',
-    };
+  const [users, setUsers] = useState<UserRow[]>([]);
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [roleFilter, setRoleFilter] = useState<'all' | ValidRole>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'blocked'>('all');
+  const [success, setSuccess] = useState('');
+  const [error, setError] = useState('');
 
-    const onFieldFocus = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => {
-        e.currentTarget.style.borderColor = 'var(--color-input-border-focus)';
-        e.currentTarget.style.boxShadow = '0 0 0 2px var(--color-input-ring)';
-    };
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [editingUser, setEditingUser] = useState<UserRow | null>(null);
+  const [profileForUser, setProfileForUser] = useState<UserRow | null>(null);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-    const onFieldBlur = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => {
-        e.currentTarget.style.borderColor = 'var(--color-input-border)';
-        e.currentTarget.style.boxShadow = 'none';
-    };
+  const fetchData = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const [usersRes, branchesRes] = await Promise.all([
+        api.get('/users'),
+        api.get('/branches'),
+      ]);
+      setUsers(usersRes.data || []);
+      setBranches(branchesRes.data || []);
+    } catch (err) {
+      console.error('Staff load error:', err);
+      setError(getErrorMessage(err));
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
-    useEffect(() => {
-        loadUsers();
-    }, []);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
-    const loadUsers = async () => {
-        setLoading(true);
-        await fetchUsers();
-        setLoading(false);
-    };
+  const handleBlockToggle = async (user: UserRow) => {
+    const nextStatus = user.status === 'blocked' ? 'active' : 'blocked';
+    const verb = nextStatus === 'blocked' ? 'Block' : 'Unblock';
+    if (!window.confirm(`${verb} user "${user.name}"?`)) return;
 
-    // Filter users
-    const filteredUsers = users.filter(user => {
-        const matchesSearch = user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            user.email.toLowerCase().includes(searchQuery.toLowerCase());
-        const matchesRole = roleFilter === 'all' || user.role === roleFilter;
-        return matchesSearch && matchesRole;
-    });
+    setActionLoading(user.id);
+    try {
+      await api.patch(`/users/${user.id}/status`, { status: nextStatus });
+      setSuccess(`User ${nextStatus === 'blocked' ? 'blocked' : 'unblocked'} successfully.`);
+      await fetchData();
+      await fetchUsers().catch(() => { });
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setActionLoading(null);
+      setTimeout(() => setSuccess(''), 3000);
+    }
+  };
 
-    const getRoleBadge = (role: UserRole) => {
-        const config = {
-            admin: { cls: 'badge-admin' },
-            cashier: { cls: 'badge-cashier' },
-            pharmacist: { cls: 'badge-officer' },
-            lab: { cls: 'badge-lab' },
-        };
-        const { cls } = config[role] || { cls: 'badge-secondary' };
-        const labels = {
-            admin: 'Admin',
-            cashier: 'Cashier',
-            pharmacist: 'Pharmacist',
-            lab: 'Lab Tech'
-        };
-        return (
-            <span className={`badge ${cls} text-sm px-3 py-1.5`}>
-                {labels[role] || role}
-            </span>
-        );
-    };
+  const handleDelete = async (user: UserRow) => {
+    if (!window.confirm(
+      `Delete user "${user.name}" permanently?\n\n` +
+      `This removes their login AND HR profile. Transaction history is preserved but will reference a deleted user.\n\n` +
+      `Consider "Block" instead if you just want to disable their login.`
+    )) return;
 
-    const getRoleIcon = (role: UserRole) => {
-        switch (role) {
-            case 'admin': return <Shield className="h-4 w-4" />;
-            case 'cashier': return <User className="h-4 w-4" />;
-            case 'pharmacist': return <Award className="h-4 w-4" />;
-            case 'lab': return <FlaskConical className="h-4 w-4" />;
-            default: return <User className="h-4 w-4" />;
-        }
-    };
+    setActionLoading(user.id);
+    try {
+      await api.delete(`/users/${user.id}`);
+      setSuccess('User deleted.');
+      await fetchData();
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setActionLoading(null);
+      setTimeout(() => setSuccess(''), 3000);
+    }
+  };
 
-    const getRoleColor = (role: UserRole) => {
-        switch (role) {
-            case 'admin': return 'var(--color-role-admin)';
-            case 'cashier': return 'var(--color-role-cashier)';
-            case 'pharmacist': return 'var(--color-role-officer)';
-            case 'lab': return 'var(--color-role-lab)';
-            default: return 'var(--color-text-muted)';
-        }
-    };
-
-    const openCreateModal = () => {
-        setEditingUser(null);
-        setFormData({ name: '', email: '', password: '', role: 'cashier' });
-        setShowPassword(false);
-        setMessage(null);
-        setShowModal(true);
-    };
-
-    const openEditModal = (user: UserType) => {
-        setEditingUser(user);
-        setFormData({
-            name: user.name,
-            email: user.email,
-            password: '',
-            role: user.role,
-        });
-        setShowPassword(false);
-        setMessage(null);
-        setShowModal(true);
-    };
-
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setMessage(null);
-
-        // Client-side validation mirrors the backend rules (incl. password policy).
-        const errors = validateUser(formData, !editingUser);
-        const firstError = Object.values(errors)[0];
-        if (firstError) {
-            setMessage({ type: 'error', text: firstError });
-            return;
-        }
-
-        setIsSubmitting(true);
-        try {
-            let success = false;
-            if (editingUser) {
-                const updates: any = {
-                    name: formData.name,
-                    email: formData.email,
-                    role: formData.role,
-                };
-                if (formData.password) updates.password = formData.password;
-                success = !!(await updateUser(editingUser.id, updates));
-            } else {
-                success = !!(await addUser(formData));
-            }
-
-            if (success) {
-                setMessage({ type: 'success', text: editingUser ? 'User updated successfully!' : 'User added successfully!' });
-                setTimeout(() => {
-                    setShowModal(false);
-                    loadUsers();
-                }, 1000);
-            } else {
-                setMessage({ type: 'error', text: 'Failed to save user. Please try again.' });
-            }
-        } catch (error) {
-            setMessage({ type: 'error', text: 'An error occurred. Please try again.' });
-        } finally {
-            setIsSubmitting(false);
-        }
-    };
-
-    const handleDelete = async (user: UserType) => {
-        if (user.id === currentUser?.id) {
-            alert('You cannot delete your own account');
-            return;
-        }
-
-        if (window.confirm(`Are you sure you want to delete ${user.name}?`)) {
-            // Implement delete - you'll need to add this to your store
-            alert('Delete functionality to be implemented');
-        }
-    };
-
-    const stats = {
-        total: users.length,
-        admin: users.filter(u => u.role === 'admin').length,
-        cashier: users.filter(u => u.role === 'cashier').length,
-        pharmacist: users.filter(u => u.role === 'pharmacist').length,
-        lab: users.filter(u => u.role === 'lab').length,
-    };
-
+  const filtered = users.filter((u) => {
+    const term = searchTerm.toLowerCase();
+    if (roleFilter !== 'all' && u.role !== roleFilter) return false;
+    if (statusFilter !== 'all' && u.status !== statusFilter) return false;
+    if (!term) return true;
     return (
-        <div className="space-y-6 pb-6">
-            {/* Header - Clean & Simple (matching AnalyticsPage) */}
-            <div className="mb-5">
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                    <div>
-                        <h1 className="text-base font-bold" style={{ color: 'var(--color-text-primary)' }}>Staff Management</h1>
-                        <p className="text-[0.72rem] mt-0.5" style={{ color: 'var(--color-text-muted)' }}>Manage your pharmacy staff and their access levels</p>
-                    </div>
-                    <button
-                        onClick={openCreateModal}
-                        className="btn-accent flex items-center gap-2 px-4 py-1.5 text-[0.75rem]"
-                    >
-                        <UserPlus className="h-4 w-4" />
-                        Add Staff
-                    </button>
-                </div>
-            </div>
-
-            {/* Stats - Clean cards with theme colors */}
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                <Card className="p-3 text-center">
-                    <p className="text-xl font-bold text-primary tabular-nums">{stats.total}</p>
-                    <p className="text-xs text-secondary">Total Staff</p>
-                </Card>
-                <Card className="p-3 text-center" style={{ borderColor: 'var(--color-role-admin)' }}>
-                    <p className="text-xl font-bold tabular-nums" style={{ color: 'var(--color-role-admin)' }}>{stats.admin}</p>
-                    <p className="text-xs text-secondary">Admins</p>
-                </Card>
-                <Card className="p-3 text-center" style={{ borderColor: 'var(--color-role-cashier)' }}>
-                    <p className="text-xl font-bold tabular-nums" style={{ color: 'var(--color-role-cashier)' }}>{stats.cashier}</p>
-                    <p className="text-xs text-secondary">Cashiers</p>
-                </Card>
-                <Card className="p-3 text-center" style={{ borderColor: 'var(--color-role-officer)' }}>
-                    <p className="text-xl font-bold tabular-nums" style={{ color: 'var(--color-role-officer)' }}>{stats.pharmacist}</p>
-                    <p className="text-xs text-secondary">Pharmacists</p>
-                </Card>
-                <Card className="p-3 text-center" style={{ borderColor: 'var(--color-role-lab)' }}>
-                    <p className="text-xl font-bold tabular-nums" style={{ color: 'var(--color-role-lab)' }}>{stats.lab}</p>
-                    <p className="text-xs text-secondary">Lab Techs</p>
-                </Card>
-            </div>
-
-            {/* Search and Filter - Clean */}
-            <Card className="p-4">
-                <div className="flex flex-col sm:flex-row gap-4">
-                    <div className="relative flex-1">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted" />
-                        <input
-                            type="text"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder="Search by name or email..."
-                            className="input-base w-full pl-10 pr-4 text-sm"
-                            style={{ ...fieldStyle, paddingLeft: '2.5rem' }}
-                            onFocus={onFieldFocus}
-                            onBlur={onFieldBlur}
-                        />
-                    </div>
-                    <div className="flex gap-2">
-                        <select
-                            value={roleFilter}
-                            onChange={(e) => setRoleFilter(e.target.value)}
-                            className="input-base text-sm"
-                            style={fieldStyle}
-                            onFocus={onFieldFocus}
-                            onBlur={onFieldBlur}
-                        >
-                            <option value="all">All Roles</option>
-                            <option value="admin">Admin</option>
-                            <option value="cashier">Cashier</option>
-                            <option value="pharmacist">Pharmacist</option>
-                            <option value="lab">Lab Tech</option>
-                        </select>
-                    </div>
-                </div>
-            </Card>
-
-            {/* Staff List - Clean table */}
-            <Card>
-                <div className="overflow-x-auto">
-                    <table className="w-full min-w-[800px]">
-                        <thead className="bg-subtle border-b border-theme">
-                            <tr>
-                                <th className="px-6 py-3 text-left text-xs font-semibold text-secondary uppercase tracking-wider">Staff</th>
-                                <th className="px-6 py-3 text-left text-xs font-semibold text-secondary uppercase tracking-wider">Email</th>
-                                <th className="px-6 py-3 text-left text-xs font-semibold text-secondary uppercase tracking-wider">Role</th>
-                                <th className="px-6 py-3 text-left text-xs font-semibold text-secondary uppercase tracking-wider">Status</th>
-                                <th className="px-6 py-3 text-right text-xs font-semibold text-secondary uppercase tracking-wider">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-theme">
-                            {loading ? (
-                                <SkeletonRows rows={5} cols={5} />
-                            ) : filteredUsers.length === 0 ? (
-                                <tr>
-                                    <td colSpan={5} className="px-6 py-12 text-center">
-                                        <Users className="h-12 w-12 text-muted mx-auto mb-3" />
-                                        <p className="text-lg font-medium text-primary">No staff found</p>
-                                        <p className="text-sm text-secondary">
-                                            {searchQuery || roleFilter !== 'all' ? 'Try adjusting your filters' : 'Add your first staff member'}
-                                        </p>
-                                        {(searchQuery || roleFilter !== 'all') && (
-                                            <button
-                                                onClick={() => { setSearchQuery(''); setRoleFilter('all'); }}
-                                                className="mt-3 text-sm text-accent hover:text-accent-hover"
-                                            >
-                                                Clear filters
-                                            </button>
-                                        )}
-                                    </td>
-                                </tr>
-                            ) : (
-                                filteredUsers.map((user) => (
-                                    <tr key={user.id} className="hover:bg-subtle transition-colors group">
-                                        <td className="px-6 py-3">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-sm shadow-lg" style={{ background: 'var(--gradient-accent)' }}>
-                                                    {user.name.charAt(0).toUpperCase()}
-                                                </div>
-                                                <div>
-                                                    <p className="font-semibold text-primary group-hover:text-accent transition-colors">
-                                                        {user.name}
-                                                    </p>
-                                                    <p className="text-xs text-secondary flex items-center gap-1">
-                                                        <Clock className="h-3 w-3" />
-                                                        Joined {new Date(user.createdAt).toLocaleDateString()}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-3">
-                                            <div className="flex items-center gap-2 text-sm text-secondary">
-                                                <Mail className="h-4 w-4 text-muted" />
-                                                {user.email}
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-3">
-                                            <div className="flex items-center gap-2">
-                                                {getRoleIcon(user.role)}
-                                                {getRoleBadge(user.role)}
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-3">
-                                            {user.id === currentUser?.id ? (
-                                                <span className="badge badge-info text-sm px-3 py-1.5 inline-flex items-center gap-1">
-                                                    <UserCheck className="h-3 w-3" />
-                                                    You
-                                                </span>
-                                            ) : (
-                                                <span className="badge badge-success text-sm px-3 py-1.5 inline-flex items-center gap-1">
-                                                    <CheckCircle className="h-3 w-3" />
-                                                    Active
-                                                </span>
-                                            )}
-                                        </td>
-                                        <td className="px-6 py-3 text-right">
-                                            <div className="flex items-center justify-end gap-1">
-                                                <button
-                                                    onClick={() => openEditModal(user)}
-                                                    className="p-2 rounded-lg transition-all hover:bg-subtle"
-                                                    style={{ color: 'var(--color-text-secondary)' }}
-                                                    title="Edit"
-                                                >
-                                                    <Edit2 className="h-4 w-4" />
-                                                </button>
-                                                {user.id !== currentUser?.id && (
-                                                    <button
-                                                        onClick={() => handleDelete(user)}
-                                                        className="p-2 rounded-lg transition-all hover:bg-danger-light"
-                                                        style={{ color: 'var(--color-danger-text)' }}
-                                                        title="Delete"
-                                                    >
-                                                        <Trash2 className="h-4 w-4" />
-                                                    </button>
-                                                )}
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-            </Card>
-
-            {/* Staff Modal - Clean with theme colors */}
-            {showModal && (
-                <div className="fixed inset-0 bg-overlay flex items-center justify-center p-4 z-modal">
-                    <div className="surface-elevated rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto border-theme">
-                        {/* Modal Header */}
-                        <div className="sticky top-0 bg-brand text-white rounded-t-2xl px-6 py-4">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <h2 className="text-xl font-bold">
-                                        {editingUser ? 'Edit Staff' : 'Add New Staff'}
-                                    </h2>
-                                    <p className="text-white/80 text-sm">
-                                        {editingUser ? 'Update staff information' : 'Create a new staff account'}
-                                    </p>
-                                </div>
-                                <button
-                                    onClick={() => setShowModal(false)}
-                                    className="text-white/80 hover:text-white transition-colors p-2 hover:bg-white/10 rounded-xl"
-                                >
-                                    <X className="h-6 w-6" />
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Modal Body */}
-                        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-                            {message && (
-                                <div className={`p-3 rounded-xl flex items-start gap-2 text-sm border ${message.type === 'success'
-                                    ? 'border-success text-success-text bg-success-light'
-                                    : 'border-danger text-danger-text bg-danger-light'
-                                    }`}>
-                                    {message.type === 'success' ? (
-                                        <CheckCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
-                                    ) : (
-                                        <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
-                                    )}
-                                    {message.text}
-                                </div>
-                            )}
-
-                            <div>
-                                <label className="block text-sm font-medium text-primary mb-1.5">
-                                    Full Name *
-                                </label>
-                                <input
-                                    type="text"
-                                    value={formData.name}
-                                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                    className="input-base w-full text-sm"
-                                    style={fieldStyle}
-                                    onFocus={onFieldFocus}
-                                    onBlur={onFieldBlur}
-                                    placeholder="Enter full name"
-                                    required
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-primary mb-1.5">
-                                    Email Address *
-                                </label>
-                                <input
-                                    type="email"
-                                    value={formData.email}
-                                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                                    className="input-base w-full text-sm"
-                                    style={fieldStyle}
-                                    onFocus={onFieldFocus}
-                                    onBlur={onFieldBlur}
-                                    placeholder="Enter email address"
-                                    required
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-primary mb-1.5">
-                                    Password {!editingUser && '*'}
-                                </label>
-                                <div className="relative">
-                                    <input
-                                        type={showPassword ? 'text' : 'password'}
-                                        value={formData.password}
-                                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                                        placeholder={editingUser ? 'Leave blank to keep current' : 'Enter password'}
-                                        className="input-base w-full text-sm pr-10"
-                                        style={fieldStyle}
-                                        onFocus={onFieldFocus}
-                                        onBlur={onFieldBlur}
-                                        required={!editingUser}
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowPassword(!showPassword)}
-                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-secondary transition"
-                                    >
-                                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                                    </button>
-                                </div>
-                                {(!editingUser || formData.password) && (
-                                    <p className="mt-1.5 text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                                        {PASSWORD_RULE}
-                                    </p>
-                                )}
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-primary mb-1.5">
-                                    Role *
-                                </label>
-                                <select
-                                    value={formData.role}
-                                    onChange={(e) => setFormData({ ...formData, role: e.target.value as UserRole })}
-                                    className="input-base w-full text-sm"
-                                    style={fieldStyle}
-                                    onFocus={onFieldFocus}
-                                    onBlur={onFieldBlur}
-                                    required
-                                >
-                                    <option value="cashier">Cashier</option>
-                                    <option value="pharmacist">Pharmacist</option>
-                                    <option value="lab">Lab Technician</option>
-                                    <option value="admin">Administrator</option>
-                                </select>
-                                <div className={`mt-2 p-3 rounded-lg border text-xs`} style={{
-                                    borderColor: getRoleColor(formData.role),
-                                    background: 'var(--color-bg-subtle)',
-                                    color: 'var(--color-text-secondary)'
-                                }}>
-                                    {formData.role === 'admin' && '🔑 Full access to all system features'}
-                                    {formData.role === 'cashier' && '🛒 Point of sale and customer service only'}
-                                    {formData.role === 'pharmacist' && '📦 Inventory and purchase order management'}
-                                    {formData.role === 'lab' && '🔬 Laboratory test management and results'}
-                                </div>
-                            </div>
-
-                            {/* Actions */}
-                            <div className="flex gap-3 pt-4 border-t border-theme">
-                                <button
-                                    type="button"
-                                    onClick={() => setShowModal(false)}
-                                    className="flex-1 btn-ghost py-2.5 text-sm"
-                                    disabled={isSubmitting}
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    type="submit"
-                                    className="flex-1 btn-accent py-2.5 text-sm"
-                                    disabled={isSubmitting}
-                                >
-                                    {isSubmitting ? (
-                                        <>
-                                            <Loader2 className="h-4 w-4 mr-2 animate-spin inline" />
-                                            {editingUser ? 'Updating...' : 'Adding...'}
-                                        </>
-                                    ) : (
-                                        editingUser ? 'Update Staff' : 'Add Staff'
-                                    )}
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
-        </div>
+      u.name.toLowerCase().includes(term) ||
+      u.email.toLowerCase().includes(term) ||
+      (u.staffProfile?.employeeId || '').toLowerCase().includes(term) ||
+      (u.staffProfile?.department || '').toLowerCase().includes(term)
     );
+  });
+
+  return (
+    <div className="p-6 space-y-6">
+      {/* Header */}
+      <div className="flex justify-between items-center flex-wrap gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+            <Users className="w-7 h-7 text-indigo-600" /> HR & Staff Management
+          </h1>
+          <p className="text-gray-500">
+            Manage user accounts and their HR profiles. One row per user.
+          </p>
+        </div>
+        {isAdmin && (
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-lg flex items-center gap-2 font-medium shadow-sm transition"
+          >
+            <UserPlus className="w-5 h-5" /> Add New User
+          </button>
+        )}
+      </div>
+
+      {success && (
+        <div className="bg-emerald-50 text-emerald-700 p-4 rounded-lg border border-emerald-200 flex items-center gap-2">
+          <CheckCircle className="w-5 h-5" /> {success}
+        </div>
+      )}
+      {error && (
+        <div className="bg-rose-50 text-rose-700 p-4 rounded-lg border border-rose-200 flex items-center gap-2">
+          <AlertCircle className="w-5 h-5" /> {error}
+          <button onClick={() => setError('')} className="ml-auto text-rose-700">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Filters */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <Search className="w-5 h-5 absolute left-3 top-3 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search by name, email, employee ID, or department..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 border-gray-300"
+          />
+        </div>
+        <select
+          value={roleFilter}
+          onChange={(e) => setRoleFilter(e.target.value as any)}
+          className="border rounded-lg px-3 py-2 border-gray-300"
+        >
+          <option value="all">All Roles</option>
+          {VALID_ROLES.map((r) => (
+            <option key={r} value={r}>{ROLE_LABELS[r]}</option>
+          ))}
+        </select>
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value as any)}
+          className="border rounded-lg px-3 py-2 border-gray-300"
+        >
+          <option value="all">All Status</option>
+          <option value="active">Active</option>
+          <option value="blocked">Blocked</option>
+        </select>
+      </div>
+
+      {/* Table */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        {isLoading ? (
+          <div className="p-12 text-center">
+            <Loader2 className="w-8 h-8 animate-spin mx-auto text-indigo-600" />
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="p-12 text-center">
+            <Users className="w-12 h-12 mx-auto text-gray-300 mb-3" />
+            <p className="text-gray-500">No users match your filters.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse min-w-[900px]">
+              <thead>
+                <tr className="bg-gray-50 border-b text-gray-600 font-semibold text-sm">
+                  <th className="p-4">User</th>
+                  <th className="p-4">Role</th>
+                  <th className="p-4">HR Profile</th>
+                  <th className="p-4">Branch</th>
+                  <th className="p-4">Status</th>
+                  <th className="p-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {filtered.map((u) => {
+                  const profile = u.staffProfile;
+                  const isSelf = u.id === currentUser?.id;
+                  return (
+                    <tr key={u.id} className="hover:bg-gray-50/50">
+                      {/* User */}
+                      <td className="p-4">
+                        <div className="font-semibold text-gray-900">{u.name}</div>
+                        <div className="text-xs text-gray-500">{u.email}</div>
+                        {isSelf && (
+                          <span className="text-[10px] font-bold text-indigo-600">YOU</span>
+                        )}
+                      </td>
+
+                      {/* Role */}
+                      <td className="p-4">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700">
+                          {ROLE_LABELS[u.role as ValidRole] || u.role}
+                        </span>
+                      </td>
+
+                      {/* HR Profile */}
+                      <td className="p-4">
+                        {profile ? (
+                          <div className="text-sm">
+                            <div className="font-medium text-gray-800">{profile.designation}</div>
+                            <div className="text-xs text-gray-500">{profile.department}</div>
+                            <div className="text-xs font-mono text-indigo-600 mt-0.5">
+                              ID: {profile.employeeId}
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-gray-400 italic">Not linked</span>
+                        )}
+                      </td>
+
+                      {/* Branch */}
+                      <td className="p-4">
+                        {profile?.branch ? (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
+                            <Building className="w-3 h-3 mr-1" />
+                            {profile.branch.name}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-400">All branches</span>
+                        )}
+                      </td>
+
+                      {/* Status */}
+                      <td className="p-4">
+                        <span
+                          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${u.status === 'blocked'
+                            ? 'bg-rose-100 text-rose-800'
+                            : 'bg-emerald-100 text-emerald-800'
+                            }`}
+                        >
+                          {u.status === 'blocked' ? (
+                            <><Ban className="w-3 h-3" /> Blocked</>
+                          ) : (
+                            <><CheckCircle className="w-3 h-3" /> Active</>
+                          )}
+                        </span>
+                      </td>
+
+                      {/* Actions */}
+                      <td className="p-4">
+                        <div className="flex items-center gap-1 justify-end flex-wrap">
+                          {isAdmin && (
+                            <button
+                              onClick={() => setEditingUser(u)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded text-xs font-semibold btn-ghost"
+                              title="Edit user"
+                            >
+                              <Edit2 className="w-3 h-3" /> Edit
+                            </button>
+                          )}
+
+                          {canManage && (
+                            <button
+                              onClick={() => setProfileForUser(u)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded text-xs font-semibold"
+                              style={{
+                                background: 'var(--color-info-light)',
+                                color: 'var(--color-info-text)',
+                                border: '1px solid var(--color-info)',
+                              }}
+                              title={profile ? 'Edit HR profile' : 'Create HR profile'}
+                            >
+                              <ShieldCheck className="w-3 h-3" />
+                              {profile ? 'HR' : 'Link HR'}
+                            </button>
+                          )}
+
+                          {isAdmin && !isSelf && (
+                            <button
+                              onClick={() => handleBlockToggle(u)}
+                              disabled={actionLoading === u.id}
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded text-xs font-semibold"
+                              style={{
+                                background: u.status === 'blocked'
+                                  ? 'var(--color-success-light)'
+                                  : 'var(--color-warning-light)',
+                                color: u.status === 'blocked'
+                                  ? 'var(--color-success-text)'
+                                  : 'var(--color-warning-text)',
+                                border: `1px solid ${u.status === 'blocked' ? 'var(--color-success)' : 'var(--color-warning)'}`,
+                              }}
+                            >
+                              {u.status === 'blocked' ? (
+                                <><CheckCircle className="w-3 h-3" /> Unblock</>
+                              ) : (
+                                <><Ban className="w-3 h-3" /> Block</>
+                              )}
+                            </button>
+                          )}
+
+                          {isAdmin && !isSelf && (
+                            <button
+                              onClick={() => handleDelete(u)}
+                              disabled={actionLoading === u.id}
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded text-xs font-semibold"
+                              style={{
+                                background: 'var(--color-danger-light)',
+                                color: 'var(--color-danger-text)',
+                                border: '1px solid var(--color-danger)',
+                              }}
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Create user modal (with optional HR section) */}
+      {showCreateModal && (
+        <UserFormModal
+          mode="create"
+          branches={branches}
+          onClose={() => setShowCreateModal(false)}
+          onSaved={async () => {
+            setShowCreateModal(false);
+            setSuccess('User created successfully.');
+            await fetchData();
+            await fetchUsers().catch(() => { });
+            setTimeout(() => setSuccess(''), 3000);
+          }}
+        />
+      )}
+
+      {/* Edit user modal */}
+      {editingUser && (
+        <UserFormModal
+          mode="edit"
+          user={editingUser}
+          branches={branches}
+          onClose={() => setEditingUser(null)}
+          onSaved={async () => {
+            setEditingUser(null);
+            setSuccess('User updated successfully.');
+            await fetchData();
+            await fetchUsers().catch(() => { });
+            setTimeout(() => setSuccess(''), 3000);
+          }}
+        />
+      )}
+
+      {/* HR profile modal */}
+      {profileForUser && (
+        <StaffProfileModal
+          user={profileForUser}
+          existing={profileForUser.staffProfile}
+          branches={branches}
+          onClose={() => setProfileForUser(null)}
+          onSaved={async () => {
+            setProfileForUser(null);
+            setSuccess('HR profile saved.');
+            await fetchData();
+            setTimeout(() => setSuccess(''), 3000);
+          }}
+        />
+      )}
+    </div>
+  );
+};
+
+/* ═════════════════════════════════════════════════════════════════════
+   User Form Modal — create or edit
+   ═════════════════════════════════════════════════════════════════════ */
+const UserFormModal: React.FC<{
+  mode: 'create' | 'edit';
+  user?: UserRow;
+  branches: Branch[];
+  onClose: () => void;
+  onSaved: () => void;
+}> = ({ mode, user, branches, onClose, onSaved }) => {
+  const isEdit = mode === 'edit';
+
+  const [name, setName] = useState(user?.name || '');
+  const [email, setEmail] = useState(user?.email || '');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [role, setRole] = useState<ValidRole>((user?.role as ValidRole) || 'cashier');
+
+  // HR section (create only)
+  const [withProfile, setWithProfile] = useState(false);
+  const [employeeId, setEmployeeId] = useState('');
+  const [designation, setDesignation] = useState('');
+  const [department, setDepartment] = useState('Pharmacy');
+  const [branchId, setBranchId] = useState('');
+  const [salary, setSalary] = useState('');
+
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+
+    if (!name.trim()) return setError('Name is required');
+    if (!email.trim()) return setError('Email is required');
+
+    if (!isEdit) {
+      if (!password) return setError('Password is required');
+      if (password.length < 6) return setError('Password must be at least 6 characters');
+      if (password !== confirmPassword) return setError('Passwords do not match');
+    } else if (password) {
+      if (password.length < 6) return setError('Password must be at least 6 characters');
+      if (password !== confirmPassword) return setError('Passwords do not match');
+    }
+
+    if (!isEdit && withProfile) {
+      if (!employeeId.trim()) return setError('Employee ID required when creating HR profile');
+      if (!designation.trim()) return setError('Designation required when creating HR profile');
+    }
+
+    setBusy(true);
+    try {
+      if (isEdit) {
+        const payload: any = {
+          name: name.trim(),
+          email: email.trim().toLowerCase(),
+          role,
+        };
+        if (password) payload.password = password;
+        await api.put(`/users/${user!.id}`, payload);
+      } else {
+        const payload: any = {
+          name: name.trim(),
+          email: email.trim().toLowerCase(),
+          password,
+          role,
+        };
+        if (withProfile) {
+          payload.staffProfile = {
+            employeeId: employeeId.trim(),
+            designation: designation.trim(),
+            department: department.trim() || 'Pharmacy',
+            branchId: branchId || null,
+            salary: salary ? parseFloat(salary) : 0,
+          };
+        }
+        await api.post('/users', payload);
+      }
+      onSaved();
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const fieldStyle: React.CSSProperties = {
+    fontSize: 13, background: 'var(--color-input-bg)',
+    border: '1px solid var(--color-input-border)',
+    borderRadius: 6, color: 'var(--color-input-text)',
+    padding: '8px 12px', outline: 'none', height: 38, width: '100%',
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={onClose}>
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-white rounded-2xl max-w-lg w-full shadow-2xl flex flex-col"
+        style={{ maxHeight: '90vh' }}
+      >
+        <div className="flex items-center justify-between px-6 py-4 border-b">
+          <h2 className="text-xl font-bold text-gray-900">
+            {isEdit ? 'Edit User' : 'Create User'}
+          </h2>
+          <button onClick={onClose} className="p-1 rounded hover:bg-gray-100">
+            <X className="w-5 h-5 text-gray-400" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+          {error && (
+            <div className="bg-rose-50 text-rose-700 p-3 rounded-lg text-sm border border-rose-200">
+              {error}
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Full Name *</label>
+            <input type="text" value={name} onChange={(e) => setName(e.target.value)} style={fieldStyle} placeholder="e.g. John Mensah" />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} style={fieldStyle} placeholder="john@pharmacy.com" />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Role *</label>
+            <select value={role} onChange={(e) => setRole(e.target.value as ValidRole)} style={fieldStyle}>
+              {VALID_ROLES.map((r) => (
+                <option key={r} value={r}>{ROLE_LABELS[r]}</option>
+              ))}
+            </select>
+          </div>
+
+          {isEdit ? (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
+                  <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} style={fieldStyle} placeholder="leave blank to keep" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Confirm</label>
+                  <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} style={fieldStyle} />
+                </div>
+              </div>
+              <p className="text-xs text-gray-500">
+                Leave password fields blank to keep the current password.
+              </p>
+            </>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Password *</label>
+                  <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} style={fieldStyle} placeholder="min 6 chars" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Confirm *</label>
+                  <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} style={fieldStyle} />
+                </div>
+              </div>
+
+              {/* HR section — optional on create */}
+              <div style={{ paddingTop: 12, borderTop: '1px solid #E5E7EB' }}>
+                <label className="flex items-center gap-2 cursor-pointer text-sm font-medium text-gray-800">
+                  <input
+                    type="checkbox"
+                    checked={withProfile}
+                    onChange={(e) => setWithProfile(e.target.checked)}
+                  />
+                  Also create HR profile now
+                </label>
+                <p className="text-xs text-gray-500 mt-1 ml-6">
+                  Leave unchecked to add HR details later from the main list.
+                </p>
+
+                {withProfile && (
+                  <div className="space-y-3 mt-3 pl-6">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Employee ID *</label>
+                        <input type="text" value={employeeId} onChange={(e) => setEmployeeId(e.target.value)} style={fieldStyle} placeholder="EMP-001" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Designation *</label>
+                        <input type="text" value={designation} onChange={(e) => setDesignation(e.target.value)} style={fieldStyle} placeholder="e.g. Staff Pharmacist" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
+                        <input type="text" value={department} onChange={(e) => setDepartment(e.target.value)} style={fieldStyle} />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Branch</label>
+                        <select value={branchId} onChange={(e) => setBranchId(e.target.value)} style={fieldStyle}>
+                          <option value="">All branches</option>
+                          {branches.map((b) => (
+                            <option key={b.id} value={b.id}>{b.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Monthly Salary</label>
+                      <input type="number" value={salary} onChange={(e) => setSalary(e.target.value)} style={fieldStyle} placeholder="0.00" />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </form>
+
+        <div className="flex justify-end gap-3 px-6 py-4 border-t">
+          <button type="button" onClick={onClose} disabled={busy} className="px-4 py-2 border rounded-lg text-gray-700 hover:bg-gray-50">
+            Cancel
+          </button>
+          <button
+            type="submit"
+            onClick={handleSubmit}
+            disabled={busy}
+            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium flex items-center gap-2 disabled:opacity-60"
+          >
+            {busy && <Loader2 className="w-4 h-4 animate-spin" />}
+            {busy ? 'Saving…' : (isEdit ? 'Save Changes' : 'Create User')}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ═════════════════════════════════════════════════════════════════════
+   Staff Profile Modal — create or edit HR profile
+   ═════════════════════════════════════════════════════════════════════ */
+const StaffProfileModal: React.FC<{
+  user: UserRow;
+  existing: StaffProfile | null | undefined;
+  branches: Branch[];
+  onClose: () => void;
+  onSaved: () => void;
+}> = ({ user, existing, branches, onClose, onSaved }) => {
+  const [employeeId, setEmployeeId] = useState(existing?.employeeId || '');
+  const [designation, setDesignation] = useState(existing?.designation || '');
+  const [department, setDepartment] = useState(existing?.department || 'Pharmacy');
+  const [branchId, setBranchId] = useState(existing?.branchId || '');
+  const [phoneNumber, setPhoneNumber] = useState(existing?.phoneNumber || '');
+  const [employmentType, setEmploymentType] = useState(existing?.employmentType || 'full_time');
+  const [salary, setSalary] = useState(existing?.salary?.toString() || '0');
+  const [hireDate, setHireDate] = useState(existing?.hireDate || new Date().toISOString().split('T')[0]);
+  const [status, setStatus] = useState(existing?.status || 'active');
+
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    if (!employeeId.trim()) return setError('Employee ID is required');
+    if (!designation.trim()) return setError('Designation is required');
+
+    setBusy(true);
+    try {
+      await api.post('/staff', {
+        userId: user.id,
+        branchId: branchId || null,
+        employeeId: employeeId.trim(),
+        department: department.trim(),
+        designation: designation.trim(),
+        phoneNumber: phoneNumber.trim() || null,
+        hireDate,
+        employmentType,
+        salary: parseFloat(salary) || 0,
+        status,
+      });
+      onSaved();
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const fieldStyle: React.CSSProperties = {
+    fontSize: 13, background: 'var(--color-input-bg)',
+    border: '1px solid var(--color-input-border)',
+    borderRadius: 6, color: 'var(--color-input-text)',
+    padding: '8px 12px', outline: 'none', height: 38, width: '100%',
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={onClose}>
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-white rounded-2xl max-w-lg w-full shadow-2xl flex flex-col"
+        style={{ maxHeight: '90vh' }}
+      >
+        <div className="flex items-center justify-between px-6 py-4 border-b">
+          <div>
+            <h2 className="text-xl font-bold text-gray-900">
+              {existing ? 'Edit HR Profile' : 'Create HR Profile'}
+            </h2>
+            <p className="text-xs text-gray-500 mt-0.5">
+              For user: <strong>{user.name}</strong> ({ROLE_LABELS[user.role as ValidRole] || user.role})
+            </p>
+          </div>
+          <button onClick={onClose} className="p-1 rounded hover:bg-gray-100">
+            <X className="w-5 h-5 text-gray-400" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+          {error && (
+            <div className="bg-rose-50 text-rose-700 p-3 rounded-lg text-sm border border-rose-200">
+              {error}
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Employee ID *</label>
+              <input type="text" value={employeeId} onChange={(e) => setEmployeeId(e.target.value)} style={fieldStyle} placeholder="EMP-001" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Designation *</label>
+              <input type="text" value={designation} onChange={(e) => setDesignation(e.target.value)} style={fieldStyle} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
+              <input type="text" value={department} onChange={(e) => setDepartment(e.target.value)} style={fieldStyle} />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Branch</label>
+              <select value={branchId} onChange={(e) => setBranchId(e.target.value)} style={fieldStyle}>
+                <option value="">All branches</option>
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id}>{b.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+              <input type="tel" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} style={fieldStyle} />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Hire Date</label>
+              <input type="date" value={hireDate} onChange={(e) => setHireDate(e.target.value)} style={fieldStyle} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+              <select value={employmentType} onChange={(e) => setEmploymentType(e.target.value as any)} style={fieldStyle}>
+                <option value="full_time">Full Time</option>
+                <option value="part_time">Part Time</option>
+                <option value="contract">Contract</option>
+                <option value="locum">Locum</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Salary</label>
+              <input type="number" value={salary} onChange={(e) => setSalary(e.target.value)} style={fieldStyle} />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+              <select value={status} onChange={(e) => setStatus(e.target.value as any)} style={fieldStyle}>
+                <option value="active">Active</option>
+                <option value="on_leave">On Leave</option>
+                <option value="suspended">Suspended</option>
+                <option value="terminated">Terminated</option>
+              </select>
+            </div>
+          </div>
+        </form>
+
+        <div className="flex justify-end gap-3 px-6 py-4 border-t">
+          <button type="button" onClick={onClose} disabled={busy} className="px-4 py-2 border rounded-lg text-gray-700 hover:bg-gray-50">
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={busy}
+            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium flex items-center gap-2 disabled:opacity-60"
+          >
+            {busy && <Loader2 className="w-4 h-4 animate-spin" />}
+            {busy ? 'Saving…' : (existing ? 'Save Changes' : 'Create Profile')}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 };

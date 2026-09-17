@@ -5,6 +5,7 @@ const LabTransaction = require('../models/LabTransaction');
 const LabTest = require('../models/LabTest');
 const User = require('../models/User');
 const Company = require('../models/Company');
+const Customer = require('../models/Customer');
 const { auth, adminAuth, labAuth } = require('../middleware/auth');
 
 const router = express.Router();
@@ -12,34 +13,59 @@ const router = express.Router();
 // Get all lab transactions
 router.get('/', auth, async (req, res) => {
     try {
-        const { status, paymentStatus, startDate, endDate, patientName } = req.query;
+        const {
+            status,
+            paymentStatus,
+            startDate,
+            endDate,
+            patientName,
+            customerId,
+            q,
+        } = req.query;
         const where = {};
 
         if (status) where.status = status;
         if (paymentStatus) where.paymentStatus = paymentStatus;
-        if (patientName) where.patientName = { [Op.iLike]: `%${patientName}%` };
+        if (customerId) where.customerId = customerId;
+
+        // When the caller asks for pending only, hide cancelled rows.
+        if (paymentStatus === 'pending' && !status) {
+            where.status = { [Op.ne]: 'cancelled' };
+        }
+
+        if (patientName) {
+            where.patientName = { [Op.iLike]: `%${patientName}%` };
+        }
 
         if (startDate && endDate) {
             where.createdAt = {
                 [Op.gte]: new Date(startDate),
-                [Op.lte]: new Date(endDate)
+                [Op.lte]: new Date(endDate),
             };
+        }
+
+        // Free-text search across number / patient / phone
+        if (q && q.trim()) {
+            where[Op.or] = [
+                { transactionNumber: { [Op.iLike]: `%${q}%` } },
+                { orderNumber: { [Op.iLike]: `%${q}%` } },
+                { patientName: { [Op.iLike]: `%${q}%` } },
+                { patientPhone: { [Op.iLike]: `%${q}%` } },
+            ];
         }
 
         const transactions = await LabTransaction.findAll({
             where,
             include: [
+                { model: LabTest, as: 'labTests' },
+                { model: User, as: 'requester', attributes: ['id', 'name', 'email'] },
                 {
-                    model: LabTest,
-                    as: 'labTests'
+                    model: Customer,
+                    as: 'customer',
+                    attributes: ['id', 'fullName', 'phone', 'email', 'dob', 'gender'],
                 },
-                {
-                    model: User,
-                    as: 'requester',
-                    attributes: ['id', 'name', 'email']
-                }
             ],
-            order: [['createdAt', 'DESC']]
+            order: [['createdAt', 'DESC']],
         });
 
         const normalized = transactions.map(t => ({
@@ -65,7 +91,13 @@ router.get('/:id', auth, async (req, res) => {
                     as: 'labTests',
                     include: [{ model: User, as: 'performer', attributes: ['id', 'name'] }]
                 },
-                { model: User, as: 'requester', attributes: ['id', 'name', 'email'] }
+                { model: User, as: 'requester', attributes: ['id', 'name', 'email'] },
+                {
+                    model: Customer,
+                    as: 'customer',
+                    attributes: ['id', 'fullName', 'phone', 'email', 'dob', 'gender'],
+                    include: [{ model: require('../models/CustomerInsurance'), as: 'insurances' }],
+                },
             ]
         });
 
@@ -105,6 +137,7 @@ router.post('/', auth, async (req, res) => {
         }
 
         const {
+            customerId,
             patientName,
             patientPhone,
             patientEmail,
@@ -119,33 +152,55 @@ router.post('/', auth, async (req, res) => {
             tests
         } = req.body;
 
-        if (!patientName) {
-            await t.rollback();
-            return res.status(400).json({ msg: 'Patient name is required' });
-        }
-
         if (!tests || tests.length === 0) {
             await t.rollback();
             return res.status(400).json({ msg: 'At least one test is required' });
         }
 
-        // Generate transaction number
+        // Resolve patient info from Customer if customerId is provided
+        let resolvedName = patientName;
+        let resolvedPhone = patientPhone;
+        let resolvedEmail = patientEmail;
+        let resolvedAge = patientAge ? parseInt(patientAge) : null;
+        let resolvedGender = patientGender;
+
+        if (customerId) {
+            const cust = await Customer.findByPk(customerId, { transaction: t });
+            if (cust) {
+                resolvedName = resolvedName || cust.fullName;
+                resolvedPhone = resolvedPhone || cust.phone;
+                resolvedEmail = resolvedEmail || cust.email;
+                if (resolvedAge == null && cust.dob) {
+                    const d = new Date(cust.dob);
+                    resolvedAge = Math.floor((Date.now() - d.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+                }
+                if (!resolvedGender && cust.gender) {
+                    resolvedGender = cust.gender.charAt(0).toUpperCase() + cust.gender.slice(1);
+                }
+            }
+        }
+
+        if (!resolvedName) {
+            await t.rollback();
+            return res.status(400).json({ msg: 'Patient name is required' });
+        }
+
         const transactionNumber = `LAB-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
         const receiptNumber = `REC-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
-        // Create lab transaction
         const transaction = await LabTransaction.create({
             transactionNumber,
-            patientName,
-            patientPhone,
-            patientEmail,
-            patientAge: patientAge ? parseInt(patientAge) : null,
-            patientGender,
+            customerId: customerId || null,
+            patientName: resolvedName,
+            patientPhone: resolvedPhone,
+            patientEmail: resolvedEmail,
+            patientAge: resolvedAge,
+            patientGender: resolvedGender,
             totalAmount: parseFloat(totalAmount) || 0,
             paidAmount: parseFloat(paidAmount) || 0,
             paymentMethod,
             paymentReference,
-            paymentStatus: paymentStatus || 'paid',
+            paymentStatus: paymentStatus || 'pending',
             status: 'pending',
             notes,
             requestedBy: req.user.userId,
@@ -154,7 +209,6 @@ router.post('/', auth, async (req, res) => {
             receiptPrintedAt: new Date()
         }, { transaction: t });
 
-        // Create lab tests
         const labTests = [];
         for (const testData of tests) {
             const testNumber = `TEST-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
@@ -175,7 +229,14 @@ router.post('/', auth, async (req, res) => {
         await t.commit();
 
         const result = await LabTransaction.findByPk(transaction.id, {
-            include: [{ model: LabTest, as: 'labTests' }]
+            include: [
+                { model: LabTest, as: 'labTests' },
+                {
+                    model: Customer,
+                    as: 'customer',
+                    attributes: ['id', 'fullName', 'phone', 'email'],
+                },
+            ]
         });
 
         res.status(201).json({
@@ -213,7 +274,14 @@ router.put('/:id', auth, async (req, res) => {
         await transaction.update(updates);
 
         const updated = await LabTransaction.findByPk(transaction.id, {
-            include: [{ model: LabTest, as: 'labTests' }]
+            include: [
+                { model: LabTest, as: 'labTests' },
+                {
+                    model: Customer,
+                    as: 'customer',
+                    attributes: ['id', 'fullName', 'phone', 'email'],
+                },
+            ]
         });
 
         res.json(updated);
@@ -276,13 +344,10 @@ router.post('/tests/:testId/results', auth, async (req, res) => {
         };
 
         const user = await User.findByPk(req.user.userId);
-        if (user) {
-            updates.performedByName = user.name;
-        }
+        if (user) updates.performedByName = user.name;
 
         await test.update(updates);
 
-        // Check if all tests in the transaction are completed
         const transaction = await LabTransaction.findByPk(test.labTransactionId, {
             include: [{ model: LabTest, as: 'labTests' }]
         });
@@ -337,18 +402,9 @@ router.get('/stats/summary', auth, async (req, res) => {
         const todayRevenue = todayTransactions.reduce((sum, t) => sum + parseFloat(t.totalAmount), 0);
 
         res.json({
-            total,
-            pending,
-            inProgress,
-            completed,
-            cancelled,
-            totalTests,
-            completedTests,
-            pendingTests,
-            today: {
-                count: todayTransactions.length,
-                revenue: todayRevenue
-            }
+            total, pending, inProgress, completed, cancelled,
+            totalTests, completedTests, pendingTests,
+            today: { count: todayTransactions.length, revenue: todayRevenue }
         });
     } catch (err) {
         console.error('Stats error:', err);
@@ -384,5 +440,91 @@ router.post('/:id/reprint', auth, async (req, res) => {
         res.status(500).json({ msg: 'Server error' });
     }
 });
+
+// PAY a lab transaction (Cashier collects payment)
+router.post('/:id/pay', auth, async (req, res) => {
+    const t = await sequelize.transaction();
+    try {
+        const { paymentMethod, paymentReference } = req.body;
+        const transaction = await LabTransaction.findByPk(req.params.id, { transaction: t });
+
+        if (!transaction) {
+            await t.rollback();
+            return res.status(404).json({ msg: 'Lab transaction not found' });
+        }
+        if (transaction.paymentStatus === 'paid') {
+            await t.rollback();
+            return res.status(400).json({ msg: 'Lab transaction is already paid' });
+        }
+        if (transaction.status === 'cancelled') {
+            await t.rollback();
+            return res.status(400).json({ msg: 'Cannot pay a cancelled lab transaction' });
+        }
+
+        const cashier = await User.findByPk(req.user.userId, { transaction: t });
+
+        await transaction.update({
+            paymentStatus: 'paid',
+            paidAmount: parseFloat(transaction.copayAmount || transaction.totalAmount) || 0,
+            paymentMethod: paymentMethod || 'cash',
+            paymentReference: paymentReference || null,
+            cashierId: req.user.userId,
+            cashierName: cashier ? cashier.name : 'Cashier',
+            // Advance workflow from 'pending' → 'in_progress'; leave other statuses alone
+            status: transaction.status === 'pending' ? 'in_progress' : transaction.status,
+        }, { transaction: t });
+
+        await t.commit();
+
+        const updated = await LabTransaction.findByPk(transaction.id, {
+            include: [
+                { model: LabTest, as: 'labTests' },
+                { model: Customer, as: 'customer', attributes: ['id', 'fullName', 'phone', 'email'] },
+            ],
+        });
+
+        res.json({
+            success: true,
+            transaction: {
+                ...updated.toJSON(),
+                totalAmount: parseFloat(updated.totalAmount) || 0,
+                paidAmount: parseFloat(updated.paidAmount) || 0,
+            },
+        });
+    } catch (err) {
+        await t.rollback();
+        console.error('Pay lab transaction error:', err);
+        res.status(500).json({ msg: err.message || 'Server error' });
+    }
+});
+
+// CANCEL a lab transaction (only if not yet paid)
+router.post('/:id/cancel', auth, async (req, res) => {
+    try {
+        const transaction = await LabTransaction.findByPk(req.params.id);
+        if (!transaction) {
+            return res.status(404).json({ msg: 'Lab transaction not found' });
+        }
+        if (transaction.paymentStatus === 'paid') {
+            return res.status(400).json({ msg: 'Cannot cancel a paid lab transaction' });
+        }
+        if (transaction.status === 'cancelled') {
+            return res.status(400).json({ msg: 'Lab transaction is already cancelled' });
+        }
+
+        await transaction.update({
+            status: 'cancelled',
+            cancelledAt: new Date(),
+            cancelledBy: req.user.userId,
+        });
+
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Cancel lab transaction error:', err);
+        res.status(500).json({ msg: 'Server error' });
+    }
+});
+
+
 
 module.exports = router;

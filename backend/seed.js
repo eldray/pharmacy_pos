@@ -27,12 +27,20 @@ async function seedDatabase() {
     console.log('✅ Database schema synced\n');
 
     // ==================== SEED USERS ====================
+    // Roles MUST match backend User model enum:
+    //   'admin' | 'manager' | 'pharmacist_sales' | 'cashier' | 'lab_tech'
     const users = await User.bulkCreate([
       {
         name: 'Admin User',
         email: 'admin@pharmacy.com',
         password: 'admin123',
         role: 'admin'
+      },
+      {
+        name: 'Mark Manager',
+        email: 'manager@pharmacy.com',
+        password: 'manager123',
+        role: 'manager'
       },
       {
         name: 'John Cashier',
@@ -44,13 +52,13 @@ async function seedDatabase() {
         name: 'Jane Pharmacist',
         email: 'pharmacist@pharmacy.com',
         password: 'pharmacist123',
-        role: 'pharmacist'
+        role: 'pharmacist_sales'
       },
       {
         name: 'Dr. Sarah Lab',
         email: 'lab@pharmacy.com',
         password: 'lab123',
-        role: 'lab'
+        role: 'lab_tech'
       }
     ], { individualHooks: true });
     console.log(`✅ Created ${users.length} users:`);
@@ -87,15 +95,11 @@ async function seedDatabase() {
     console.log(`✅ Created ${suppliers.length} suppliers\n`);
 
     // ==================== SEED PRODUCTS ====================
-    // ✅ Updated to match Product model with supplier as string
     const productsData = loadJsonData('products.json');
     if (productsData && productsData.products) {
-      // Map supplier name to the products
       const productsWithSupplier = productsData.products.map((product, index) => ({
         ...product,
-        // Assign suppliers in round-robin fashion
         supplier: ['Pharma Inc', 'Health Plus', 'MediSupply Ltd'][index % 3],
-        // Ensure required fields have default values
         quantity: product.quantity || Math.floor(Math.random() * 100) + 10,
         unitPrice: product.unitPrice || (Math.random() * 50 + 5),
         batchNumber: product.batchNumber || `BATCH-${String(index + 1).padStart(3, '0')}`,
@@ -105,7 +109,6 @@ async function seedDatabase() {
       const products = await Product.bulkCreate(productsWithSupplier);
       console.log(`✅ Created ${products.length} products from JSON data\n`);
 
-      // Show a few products as sample
       products.slice(0, 5).forEach(p => {
         console.log(`   - ${p.name} | SKU: ${p.sku} | Qty: ${p.quantity} | Supplier: ${p.supplier}`);
       });
@@ -114,7 +117,6 @@ async function seedDatabase() {
     } else {
       console.log('⚠️  No products.json found or invalid format\n');
 
-      // Create default products if no JSON file
       console.log('📦 Creating default products...');
       const defaultProducts = [
         {
@@ -191,7 +193,6 @@ async function seedDatabase() {
     } else {
       console.log('⚠️  No lab-templates.json found or invalid format\n');
 
-      // Create default lab templates
       console.log('📦 Creating default lab test templates...');
       const defaultTemplates = [
         {
@@ -245,6 +246,39 @@ async function seedDatabase() {
       console.log(`✅ Created ${templates.length} default lab test templates\n`);
     }
 
+    // ==================== SEED INSURANCE PROVIDERS ====================
+    const { InsuranceProvider } = require('./models');
+    const providers = await InsuranceProvider.bulkCreate([
+      {
+        name: 'National Health Insurance Scheme',
+        code: 'NHIS',
+        coverageType: 'fixed',
+        defaultCopayPercent: 0,
+        contactPerson: 'NHIS Desk',
+        phone: '+233302123456',
+        email: 'info@nhis.gov.gh',
+        status: 'active',
+      },
+      {
+        name: 'Acacia Health Insurance',
+        code: 'ACACIA',
+        coverageType: 'percentage',
+        defaultCopayPercent: 20,
+        contactPerson: 'Claims Officer',
+        phone: '+233302987654',
+        email: 'claims@acacia.com.gh',
+        status: 'active',
+      },
+      {
+        name: 'Apex Health Insurance',
+        code: 'APEX',
+        coverageType: 'percentage',
+        defaultCopayPercent: 10,
+        status: 'active',
+      },
+    ]);
+    console.log(`✅ Created ${providers.length} insurance providers\n`);
+
     // ==================== SEED COMPANY ====================
     await Company.create({
       name: 'Pharmacy POS System',
@@ -261,10 +295,11 @@ async function seedDatabase() {
     // ==================== SUMMARY ====================
     console.log('🎉 Seed completed successfully!\n');
     console.log('📋 Default Login Credentials:');
-    console.log('   Admin:   admin@pharmacy.com   / admin123');
-    console.log('   Cashier: cashier@pharmacy.com / cashier123');
+    console.log('   Admin:      admin@pharmacy.com      / admin123');
+    console.log('   Manager:    manager@pharmacy.com    / manager123');
+    console.log('   Cashier:    cashier@pharmacy.com    / cashier123');
     console.log('   Pharmacist: pharmacist@pharmacy.com / pharmacist123');
-    console.log('   Lab:     lab@pharmacy.com     / lab123');
+    console.log('   Lab:        lab@pharmacy.com        / lab123');
 
     return true;
   } catch (err) {

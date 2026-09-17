@@ -3,15 +3,14 @@ import React, { useState, useEffect } from 'react';
 import {
     Moon, Sun, Monitor, Printer, Receipt,
     Bell, Mail, Phone, Save, RefreshCw,
-    DollarSign, Percent, Globe, Shield, Calendar, Package,
-    CreditCard, UserCog, FileText, Eye,
-    CheckCircle, X, Settings, Palette,
-    Clock, Award, Building, MapPin
+    DollarSign, Calendar, Package,
+    UserCog, Eye, Palette, Building,
 } from 'lucide-react';
 import { useAppStore } from '../store';
+import { useThemeStore, Theme } from '../store/themeStore';
 
 interface Preferences {
-    theme: 'light' | 'dark' | 'system';
+    theme: Theme;
     receiptPaperSize: '80mm' | '58mm';
     receiptFooter: string;
     receiptHeader: string;
@@ -130,20 +129,31 @@ const SettingCard: React.FC<{
 );
 
 export const Preferences: React.FC = () => {
+    // Single source of truth for theme
+    const { theme: currentTheme, setTheme } = useThemeStore();
+
     const [preferences, setPreferences] = useState<Preferences>(() => {
         const saved = localStorage.getItem('pharmacy_preferences');
-        return saved ? JSON.parse(saved) : defaultPreferences;
+        const base = saved ? { ...defaultPreferences, ...JSON.parse(saved) } : defaultPreferences;
+        // Sync initial theme from the store (which is the source of truth)
+        return { ...base, theme: currentTheme };
     });
 
     const [isSaving, setIsSaving] = useState(false);
     const [saveMessage, setSaveMessage] = useState('');
     const { company, updateCompany } = useAppStore();
 
+    // If the theme store changes externally (e.g. via navbar toggle),
+    // reflect it in the local preferences state.
     useEffect(() => {
-        if (company?.receiptSettings?.taxRate) {
-            setPreferences(prev => ({
+        setPreferences((prev) => (prev.theme !== currentTheme ? { ...prev, theme: currentTheme } : prev));
+    }, [currentTheme]);
+
+    useEffect(() => {
+        if (company?.receiptSettings?.taxRate !== undefined) {
+            setPreferences((prev) => ({
                 ...prev,
-                taxRate: company.receiptSettings.taxRate || 15,
+                taxRate: company.receiptSettings.taxRate ?? 15,
             }));
         }
     }, [company]);
@@ -152,7 +162,12 @@ export const Preferences: React.FC = () => {
         key: K,
         value: Preferences[K]
     ) => {
-        setPreferences(prev => ({ ...prev, [key]: value }));
+        setPreferences((prev) => ({ ...prev, [key]: value }));
+    };
+
+    const handleThemeChange = (theme: Theme) => {
+        handleChange('theme', theme);
+        setTheme(theme); // apply immediately (live preview)
     };
 
     const handleSave = async () => {
@@ -169,16 +184,12 @@ export const Preferences: React.FC = () => {
                         taxRate: preferences.taxRate,
                         footer: preferences.receiptFooter,
                         header: preferences.receiptHeader,
-                    }
+                    },
                 });
             }
 
-            if (preferences.theme === 'system') {
-                const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-                document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
-            } else {
-                document.documentElement.setAttribute('data-theme', preferences.theme);
-            }
+            // Apply theme via the store (single source of truth)
+            setTheme(preferences.theme);
 
             setSaveMessage('✅ Preferences saved successfully!');
             setTimeout(() => setSaveMessage(''), 3000);
@@ -192,6 +203,7 @@ export const Preferences: React.FC = () => {
     const handleReset = () => {
         if (window.confirm('Reset all preferences to default values?')) {
             setPreferences(defaultPreferences);
+            setTheme(defaultPreferences.theme);
             localStorage.setItem('pharmacy_preferences', JSON.stringify(defaultPreferences));
             setSaveMessage('🔄 Preferences reset to defaults.');
             setTimeout(() => setSaveMessage(''), 3000);
@@ -201,7 +213,7 @@ export const Preferences: React.FC = () => {
     return (
         <div className="p-4 md:p-6 max-w-6xl mx-auto">
             {/* ── Header ────────────────────────────────────────────────── */}
-            <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
                 <div>
                     <h1 className="text-xl font-bold" style={{ color: 'var(--color-text-primary)' }}>
                         Preferences
@@ -242,14 +254,21 @@ export const Preferences: React.FC = () => {
             </div>
 
             {saveMessage && (
-                <div className="mb-6 p-3 rounded-lg text-sm font-medium" style={{
-                    background: saveMessage.includes('✅') ? 'var(--color-success-light)' :
-                        saveMessage.includes('🔄') ? 'var(--color-info-light)' :
-                            'var(--color-danger-light)',
-                    color: saveMessage.includes('✅') ? 'var(--color-success-text)' :
-                        saveMessage.includes('🔄') ? 'var(--color-info-text)' :
-                            'var(--color-danger-text)',
-                }}>
+                <div
+                    className="mb-6 p-3 rounded-lg text-sm font-medium"
+                    style={{
+                        background: saveMessage.includes('✅')
+                            ? 'var(--color-success-light)'
+                            : saveMessage.includes('🔄')
+                                ? 'var(--color-info-light)'
+                                : 'var(--color-danger-light)',
+                        color: saveMessage.includes('✅')
+                            ? 'var(--color-success-text)'
+                            : saveMessage.includes('🔄')
+                                ? 'var(--color-info-text)'
+                                : 'var(--color-danger-text)',
+                    }}
+                >
                     {saveMessage}
                 </div>
             )}
@@ -258,27 +277,38 @@ export const Preferences: React.FC = () => {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
                 {/* ─── Appearance ──────────────────────────────────────────── */}
-                <SettingCard icon={<Palette size={16} />} title="Appearance" description="Choose your theme preference">
+                <SettingCard
+                    icon={<Palette size={16} />}
+                    title="Appearance"
+                    description="Choose your theme preference"
+                >
                     <div>
                         <label style={labelStyle}>Theme Mode</label>
                         <div className="grid grid-cols-3 gap-3">
-                            {[
-                                { value: 'light', icon: Sun, label: 'Light' },
-                                { value: 'dark', icon: Moon, label: 'Dark' },
-                                { value: 'system', icon: Monitor, label: 'System' },
-                            ].map(({ value, icon: Icon, label }) => (
+                            {(
+                                [
+                                    { value: 'light', icon: Sun, label: 'Light' },
+                                    { value: 'dark', icon: Moon, label: 'Dark' },
+                                    { value: 'system', icon: Monitor, label: 'System' },
+                                ] as const
+                            ).map(({ value, icon: Icon, label }) => (
                                 <button
                                     key={value}
-                                    onClick={() => handleChange('theme', value as Preferences['theme'])}
+                                    onClick={() => handleThemeChange(value)}
                                     className="flex flex-col items-center gap-1.5 p-3 rounded-lg transition-all duration-100"
                                     style={{
-                                        background: preferences.theme === value
-                                            ? 'var(--color-accent-light)'
-                                            : 'var(--color-bg-subtle)',
-                                        border: `2px solid ${preferences.theme === value ? 'var(--color-accent)' : 'var(--color-border)'}`,
-                                        color: preferences.theme === value
-                                            ? 'var(--color-accent-text)'
-                                            : 'var(--color-text-secondary)',
+                                        background:
+                                            preferences.theme === value
+                                                ? 'var(--color-accent-light)'
+                                                : 'var(--color-bg-subtle)',
+                                        border: `2px solid ${preferences.theme === value
+                                                ? 'var(--color-accent)'
+                                                : 'var(--color-border)'
+                                            }`,
+                                        color:
+                                            preferences.theme === value
+                                                ? 'var(--color-accent-text)'
+                                                : 'var(--color-text-secondary)',
                                     }}
                                 >
                                     <Icon size={18} />
@@ -286,31 +316,49 @@ export const Preferences: React.FC = () => {
                                 </button>
                             ))}
                         </div>
+                        {preferences.theme === 'system' && (
+                            <p style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', marginTop: 8 }}>
+                                Follows your operating system's light/dark preference.
+                            </p>
+                        )}
                     </div>
                 </SettingCard>
 
                 {/* ─── Receipt Settings ────────────────────────────────────── */}
-                <SettingCard icon={<Receipt size={16} />} title="Receipt Settings" description="Configure receipt appearance">
+                <SettingCard
+                    icon={<Receipt size={16} />}
+                    title="Receipt Settings"
+                    description="Configure receipt appearance"
+                >
                     <div className="space-y-4">
                         <div>
                             <label style={labelStyle}>Paper Size</label>
                             <div className="grid grid-cols-2 gap-3">
-                                {[
-                                    { value: '80mm', icon: Printer, label: '80mm (Standard)' },
-                                    { value: '58mm', icon: Printer, label: '58mm (Compact)' },
-                                ].map(({ value, icon: Icon, label }) => (
+                                {(
+                                    [
+                                        { value: '80mm', icon: Printer, label: '80mm (Standard)' },
+                                        { value: '58mm', icon: Printer, label: '58mm (Compact)' },
+                                    ] as const
+                                ).map(({ value, icon: Icon, label }) => (
                                     <button
                                         key={value}
-                                        onClick={() => handleChange('receiptPaperSize', value as Preferences['receiptPaperSize'])}
+                                        onClick={() =>
+                                            handleChange('receiptPaperSize', value)
+                                        }
                                         className="flex items-center gap-2 p-2.5 rounded-lg transition-all duration-100"
                                         style={{
-                                            background: preferences.receiptPaperSize === value
-                                                ? 'var(--color-accent-light)'
-                                                : 'var(--color-bg-subtle)',
-                                            border: `2px solid ${preferences.receiptPaperSize === value ? 'var(--color-accent)' : 'var(--color-border)'}`,
-                                            color: preferences.receiptPaperSize === value
-                                                ? 'var(--color-accent-text)'
-                                                : 'var(--color-text-secondary)',
+                                            background:
+                                                preferences.receiptPaperSize === value
+                                                    ? 'var(--color-accent-light)'
+                                                    : 'var(--color-bg-subtle)',
+                                            border: `2px solid ${preferences.receiptPaperSize === value
+                                                    ? 'var(--color-accent)'
+                                                    : 'var(--color-border)'
+                                                }`,
+                                            color:
+                                                preferences.receiptPaperSize === value
+                                                    ? 'var(--color-accent-text)'
+                                                    : 'var(--color-text-secondary)',
                                         }}
                                     >
                                         <Icon size={16} />
@@ -347,29 +395,38 @@ export const Preferences: React.FC = () => {
                 </SettingCard>
 
                 {/* ─── Notifications ────────────────────────────────────────── */}
-                <SettingCard icon={<Bell size={16} />} title="Notifications" description="Manage alert preferences">
+                <SettingCard
+                    icon={<Bell size={16} />}
+                    title="Notifications"
+                    description="Manage alert preferences"
+                >
                     <div className="space-y-3">
-                        {[
-                            { key: 'lowStockAlert', icon: Package, label: 'Low Stock Alerts' },
-                            { key: 'expiryAlert', icon: Calendar, label: 'Expiry Alerts' },
-                            { key: 'emailNotifications', icon: Mail, label: 'Email Notifications' },
-                            { key: 'smsNotifications', icon: Phone, label: 'SMS Notifications' },
-                        ].map(({ key, icon: Icon, label }) => (
-                            <label key={key} className="flex items-center justify-between p-2 rounded-lg cursor-pointer transition-colors duration-100" style={{
-                                background: 'var(--color-bg-subtle)',
-                            }}>
-                                <span className="flex items-center gap-2 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+                        {(
+                            [
+                                { key: 'lowStockAlert', icon: Package, label: 'Low Stock Alerts' },
+                                { key: 'expiryAlert', icon: Calendar, label: 'Expiry Alerts' },
+                                { key: 'emailNotifications', icon: Mail, label: 'Email Notifications' },
+                                { key: 'smsNotifications', icon: Phone, label: 'SMS Notifications' },
+                            ] as const
+                        ).map(({ key, icon: Icon, label }) => (
+                            <label
+                                key={key}
+                                className="flex items-center justify-between p-2 rounded-lg cursor-pointer transition-colors duration-100"
+                                style={{ background: 'var(--color-bg-subtle)' }}
+                            >
+                                <span
+                                    className="flex items-center gap-2 text-sm"
+                                    style={{ color: 'var(--color-text-secondary)' }}
+                                >
                                     <Icon size={16} />
                                     {label}
                                 </span>
                                 <input
                                     type="checkbox"
-                                    checked={preferences[key as keyof Preferences] as boolean}
-                                    onChange={(e) => handleChange(key as keyof Preferences, e.target.checked)}
+                                    checked={preferences[key] as boolean}
+                                    onChange={(e) => handleChange(key, e.target.checked)}
                                     className="w-4 h-4 rounded cursor-pointer"
-                                    style={{
-                                        accentColor: 'var(--color-accent)',
-                                    }}
+                                    style={{ accentColor: 'var(--color-accent)' }}
                                 />
                             </label>
                         ))}
@@ -377,7 +434,11 @@ export const Preferences: React.FC = () => {
                 </SettingCard>
 
                 {/* ─── Currency & Tax ──────────────────────────────────────── */}
-                <SettingCard icon={<DollarSign size={16} />} title="Currency & Tax" description="Financial settings">
+                <SettingCard
+                    icon={<DollarSign size={16} />}
+                    title="Currency & Tax"
+                    description="Financial settings"
+                >
                     <div className="space-y-4">
                         <div>
                             <label style={labelStyle}>Currency</label>
@@ -414,7 +475,9 @@ export const Preferences: React.FC = () => {
                             <label style={labelStyle}>Decimal Places</label>
                             <select
                                 value={preferences.decimalPlaces}
-                                onChange={(e) => handleChange('decimalPlaces', parseInt(e.target.value))}
+                                onChange={(e) =>
+                                    handleChange('decimalPlaces', parseInt(e.target.value))
+                                }
                                 style={fieldStyle}
                                 onFocus={onF}
                                 onBlur={onB}
@@ -429,26 +492,32 @@ export const Preferences: React.FC = () => {
                 </SettingCard>
 
                 {/* ─── Display Settings ────────────────────────────────────── */}
-                <SettingCard icon={<Eye size={16} />} title="Display Settings" description="Control what you see">
+                <SettingCard
+                    icon={<Eye size={16} />}
+                    title="Display Settings"
+                    description="Control what you see"
+                >
                     <div className="space-y-3">
-                        {[
-                            { key: 'showCustomerName', icon: UserCog, label: 'Show Customer Name on Receipt' },
-                            { key: 'showCustomerPhone', icon: Phone, label: 'Show Customer Phone on Receipt' },
-                            { key: 'showCashierName', icon: UserCog, label: 'Show Cashier Name on Receipt' },
-                            { key: 'showFullNames', icon: UserCog, label: 'Show Full Names (not initials)' },
-                            { key: 'hidePrices', icon: Eye, label: 'Hide Prices (for public view)' },
-                        ].map(({ key, icon: Icon, label }) => (
-                            <label key={key} className="flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors duration-100" style={{
-                                background: 'var(--color-bg-subtle)',
-                            }}>
+                        {(
+                            [
+                                { key: 'showCustomerName', icon: UserCog, label: 'Show Customer Name on Receipt' },
+                                { key: 'showCustomerPhone', icon: Phone, label: 'Show Customer Phone on Receipt' },
+                                { key: 'showCashierName', icon: UserCog, label: 'Show Cashier Name on Receipt' },
+                                { key: 'showFullNames', icon: UserCog, label: 'Show Full Names (not initials)' },
+                                { key: 'hidePrices', icon: Eye, label: 'Hide Prices (for public view)' },
+                            ] as const
+                        ).map(({ key, icon: Icon, label }) => (
+                            <label
+                                key={key}
+                                className="flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors duration-100"
+                                style={{ background: 'var(--color-bg-subtle)' }}
+                            >
                                 <input
                                     type="checkbox"
-                                    checked={preferences[key as keyof Preferences] as boolean}
-                                    onChange={(e) => handleChange(key as keyof Preferences, e.target.checked)}
+                                    checked={preferences[key] as boolean}
+                                    onChange={(e) => handleChange(key, e.target.checked)}
                                     className="w-4 h-4 rounded cursor-pointer"
-                                    style={{
-                                        accentColor: 'var(--color-accent)',
-                                    }}
+                                    style={{ accentColor: 'var(--color-accent)' }}
                                 />
                                 <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
                                     <Icon size={14} className="inline mr-2" />
@@ -459,8 +528,12 @@ export const Preferences: React.FC = () => {
                     </div>
                 </SettingCard>
 
-                {/* ─── Company Info (Read-only from settings) ──────────────── */}
-                <SettingCard icon={<Building size={16} />} title="Company Information" description="Current company settings">
+                {/* ─── Company Info (Read-only) ────────────────────────────── */}
+                <SettingCard
+                    icon={<Building size={16} />}
+                    title="Company Information"
+                    description="Current company settings"
+                >
                     <div className="space-y-2">
                         <div className="flex justify-between p-2 rounded-lg" style={{ background: 'var(--color-bg-subtle)' }}>
                             <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>Company Name</span>
@@ -500,7 +573,10 @@ export const Preferences: React.FC = () => {
             </div>
 
             {/* ─── Save Footer ───────────────────────────────────────────── */}
-            <div className="flex justify-end pt-6 mt-4" style={{ borderTop: '1px solid var(--color-border)' }}>
+            <div
+                className="flex justify-end pt-6 mt-4"
+                style={{ borderTop: '1px solid var(--color-border)' }}
+            >
                 <button
                     onClick={handleSave}
                     disabled={isSaving}
@@ -509,7 +585,10 @@ export const Preferences: React.FC = () => {
                 >
                     {isSaving ? (
                         <>
-                            <div className="w-3.5 h-3.5 border-2 rounded-full animate-spin" style={{ borderColor: 'rgba(255,255,255,0.3)', borderTopColor: '#fff' }} />
+                            <div
+                                className="w-3.5 h-3.5 border-2 rounded-full animate-spin"
+                                style={{ borderColor: 'rgba(255,255,255,0.3)', borderTopColor: '#fff' }}
+                            />
                             Saving…
                         </>
                     ) : (

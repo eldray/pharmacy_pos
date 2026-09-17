@@ -3,7 +3,8 @@ import React from 'react';
 import {
   X, LayoutDashboard, ShoppingCart, Package, Truck,
   FileText, BarChart3, Settings, Receipt, Warehouse,
-  Store, FlaskConical, UserCog, ChevronRight, ShieldAlert, TrendingUp
+  Store, FlaskConical, UserCog, ShieldAlert, TrendingUp,
+  CreditCard, ClipboardList, Users,
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 
@@ -21,22 +22,86 @@ interface MenuItem {
   roles: string[];
 }
 
+// Roles: 'admin' | 'manager' | 'pharmacist_sales' | 'cashier' | 'lab_tech'
 const menuItems: MenuItem[] = [
-  { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard', roles: ['admin', 'cashier', 'pharmacist', 'lab'] },
-  { icon: ShoppingCart, label: 'Point of Sale', path: '/dashboard/pos', roles: ['admin', 'cashier'] },
-  { icon: Receipt, label: 'Sales', path: '/dashboard/sales', roles: ['admin', 'cashier', 'pharmacist'] },
-  { icon: Package, label: 'Products', path: '/dashboard/products', roles: ['admin', 'pharmacist'] },
-  { icon: Warehouse, label: 'Inventory', path: '/dashboard/inventory', roles: ['admin', 'pharmacist'] },
-  { icon: Truck, label: 'Suppliers', path: '/dashboard/suppliers', roles: ['admin', 'pharmacist'] },
-  { icon: FileText, label: 'Purchase Orders', path: '/dashboard/purchase-orders', roles: ['admin', 'pharmacist'] },
-  { icon: BarChart3, label: 'Analytics', path: '/dashboard/analytics', roles: ['admin'] },
-  { icon: TrendingUp, label: 'Profit Report', path: '/dashboard/profit-report', roles: ['admin'] },
-  { icon: ShieldAlert, label: 'Controlled Report', path: '/dashboard/controlled-report', roles: ['admin', 'pharmacist'] },
-  { icon: FlaskConical, label: 'Laboratory', path: '/dashboard/lab', roles: ['admin', 'lab', 'pharmacist'] },
-  { icon: FileText, label: 'Lab Reports', path: '/dashboard/lab-reports', roles: ['admin', 'lab'] },
-  { icon: UserCog, label: 'Staff Management', path: '/dashboard/users', roles: ['admin'] },
+  // ─── MAIN ────────────────────────────────────────────────────────
+  { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard', roles: ['admin', 'manager', 'cashier', 'pharmacist_sales', 'lab_tech'] },
+  { icon: ShoppingCart, label: 'Point of Sale', path: '/dashboard/pos', roles: ['admin', 'manager', 'cashier', 'pharmacist_sales'] },
+  { icon: ClipboardList, label: 'Orders', path: '/dashboard/orders', roles: ['admin', 'manager', 'cashier', 'pharmacist_sales'] },
+  { icon: CreditCard, label: 'Payment & Collections', path: '/dashboard/payment', roles: ['admin', 'manager', 'cashier'] },
+  { icon: Receipt, label: 'Sales History', path: '/dashboard/sales', roles: ['admin', 'manager', 'cashier', 'pharmacist_sales'] },
+  { icon: Users, label: 'Customers', path: '/dashboard/customers', roles: ['admin', 'manager', 'cashier', 'pharmacist_sales', 'lab_tech'] },
+
+  // ─── CATALOG ─────────────────────────────────────────────────────
+  { icon: Package, label: 'Products', path: '/dashboard/products', roles: ['admin', 'manager', 'pharmacist_sales'] },
+  { icon: Warehouse, label: 'Inventory', path: '/dashboard/inventory', roles: ['admin', 'manager', 'pharmacist_sales'] },
+  { icon: Store, label: 'Branches & Warehouse', path: '/dashboard/branches', roles: ['admin', 'manager'] },
+  { icon: Truck, label: 'Suppliers', path: '/dashboard/suppliers', roles: ['admin', 'manager', 'pharmacist_sales'] },
+  { icon: FileText, label: 'Purchase Orders', path: '/dashboard/purchase-orders', roles: ['admin', 'manager', 'pharmacist_sales'] },
+
+  // ─── LABORATORY ──────────────────────────────────────────────────
+  { icon: FlaskConical, label: 'Laboratory', path: '/dashboard/lab', roles: ['admin', 'manager', 'pharmacist_sales', 'lab_tech'] },
+  { icon: FileText, label: 'Lab Reports', path: '/dashboard/lab-reports', roles: ['admin', 'manager', 'lab_tech'] },
+
+  // ─── OPERATIONS ──────────────────────────────────────────────────
+  { icon: ShieldAlert, label: 'Insurance & Co-Pay', path: '/dashboard/insurance', roles: ['admin', 'manager', 'pharmacist_sales'] },
+  { icon: BarChart3, label: 'Analytics', path: '/dashboard/analytics', roles: ['admin', 'manager', 'pharmacist_sales'] },
+  { icon: TrendingUp, label: 'Profit Report', path: '/dashboard/profit-report', roles: ['admin', 'manager'] },
+  { icon: ShieldAlert, label: 'Controlled Report', path: '/dashboard/controlled-report', roles: ['admin', 'manager', 'pharmacist_sales'] },
+
+  // ─── SYSTEM ──────────────────────────────────────────────────────
+  { icon: UserCog, label: 'HR Staff Management', path: '/dashboard/staff', roles: ['admin', 'manager'] },
   { icon: Settings, label: 'Settings', path: '/dashboard/settings', roles: ['admin'] },
 ];
+
+const SECTION_GROUPS: { title?: string; paths: string[] }[] = [
+  {
+    paths: [
+      '/dashboard',
+      '/dashboard/pos',
+      '/dashboard/orders',
+      '/dashboard/payment',
+      '/dashboard/sales',
+      '/dashboard/customers',
+    ],
+  },
+  {
+    title: 'Catalog',
+    paths: [
+      '/dashboard/products',
+      '/dashboard/inventory',
+      '/dashboard/branches',
+      '/dashboard/suppliers',
+      '/dashboard/purchase-orders',
+    ],
+  },
+  {
+    title: 'Laboratory',
+    paths: ['/dashboard/lab', '/dashboard/lab-reports'],
+  },
+  {
+    title: 'Operations',
+    paths: [
+      '/dashboard/insurance',
+      '/dashboard/analytics',
+      '/dashboard/profit-report',
+      '/dashboard/controlled-report',
+    ],
+  },
+  {
+    title: 'System',
+    paths: ['/dashboard/staff', '/dashboard/settings'],
+  },
+];
+
+// Human-friendly role labels
+const ROLE_LABELS: Record<string, string> = {
+  admin: 'Administrator',
+  manager: 'Manager',
+  pharmacist_sales: 'Pharmacist',
+  cashier: 'Cashier',
+  lab_tech: 'Lab Technician',
+};
 
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, userRole }) => {
   const location = useLocation();
@@ -47,12 +112,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, userRole }) =
       ? location.pathname === '/dashboard'
       : location.pathname.startsWith(path);
 
-  const sections: { title?: string; items: MenuItem[] }[] = [
-    { items: filtered.filter((i) => ['/dashboard', '/dashboard/pos', '/dashboard/sales'].includes(i.path)) },
-    { title: 'Catalog', items: filtered.filter((i) => ['/dashboard/products', '/dashboard/inventory', '/dashboard/suppliers', '/dashboard/purchase-orders'].includes(i.path)) },
-    { title: 'Operations', items: filtered.filter((i) => ['/dashboard/analytics', '/dashboard/profit-report', '/dashboard/controlled-report', '/dashboard/lab', '/dashboard/lab-reports'].includes(i.path)) },
-    { title: 'System', items: filtered.filter((i) => ['/dashboard/users', '/dashboard/settings'].includes(i.path)) },
-  ].filter((s) => s.items.length > 0);
+  const sections = SECTION_GROUPS
+    .map((group) => ({
+      title: group.title,
+      items: filtered.filter((i) => group.paths.includes(i.path)),
+    }))
+    .filter((s) => s.items.length > 0);
+
+  const roleLabel = ROLE_LABELS[userRole] || userRole;
 
   return (
     <>
@@ -78,43 +145,32 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, userRole }) =
           background: 'var(--color-sidebar-bg)',
         }}
       >
-        {/* Header */}
+        {/* ═══════════════ HEADER ═══════════════ */}
         <div
           className="flex-shrink-0"
           style={{
-            padding: 'var(--space-4) var(--space-5)',
+            padding: '20px 20px 16px 20px',
             borderBottom: '1px solid var(--color-sidebar-border)',
           }}
         >
+          {/* Brand row */}
           <div className="flex items-center justify-between">
-            <div className="flex items-center" style={{ gap: 'var(--space-3)' }}>
+            <div className="flex items-center" style={{ gap: 12 }}>
               <div
                 style={{
-                  width: 38,
-                  height: 38,
-                  borderRadius: 'var(--radius-md)',
+                  width: 40, height: 40, borderRadius: 10,
                   background: 'var(--color-accent)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
                   flexShrink: 0,
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
                 }}
               >
-                <Store
-                  style={{
-                    width: 'var(--icon-md)',
-                    height: 'var(--icon-md)',
-                    color: '#fff',
-                    flexShrink: 0,
-                  }}
-                />
+                <Store style={{ width: 20, height: 20, color: '#fff' }} />
               </div>
-              <div>
+              <div style={{ lineHeight: 1.2 }}>
                 <span
                   style={{
-                    fontSize: 'var(--text-base)',
-                    fontWeight: 700,
-                    lineHeight: 1.2,
+                    fontSize: 15, fontWeight: 700, letterSpacing: '-0.01em',
                     color: 'var(--color-sidebar-text-active)',
                     display: 'block',
                   }}
@@ -123,11 +179,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, userRole }) =
                 </span>
                 <span
                   style={{
-                    fontSize: 'var(--text-xs)',
+                    fontSize: 10.5,
                     color: 'var(--color-sidebar-text)',
-                    opacity: 0.6,
+                    opacity: 0.55,
                     display: 'block',
-                    marginTop: 1,
+                    marginTop: 2,
+                    letterSpacing: '0.02em',
                   }}
                 >
                   Management System
@@ -139,68 +196,69 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, userRole }) =
               onClick={onClose}
               className="lg:hidden flex items-center justify-center"
               style={{
-                width: 32,
-                height: 32,
-                borderRadius: 'var(--radius-sm)',
+                width: 32, height: 32, borderRadius: 8,
                 color: 'var(--color-sidebar-text)',
-                background: 'transparent',
-                border: 'none',
-                cursor: 'pointer',
-                transition: 'background var(--transition-fast)',
-                padding: 4,
+                background: 'transparent', border: 'none',
+                cursor: 'pointer', padding: 0,
               }}
-              onMouseEnter={(e) => {
-                (e.currentTarget as HTMLElement).style.background =
-                  'var(--color-sidebar-item-hover)';
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLElement).style.background =
-                  'transparent';
-              }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--color-sidebar-item-hover)'; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
             >
-              <X style={{ width: 'var(--icon-md)', height: 'var(--icon-md)' }} />
+              <X style={{ width: 16, height: 16 }} />
             </button>
           </div>
 
+          {/* ═══ Role + status row ═══ */}
           <div
             className="flex items-center"
             style={{
-              gap: 'var(--space-2.5)',
-              marginTop: 'var(--space-3)',
-              paddingTop: 'var(--space-3)',
+              gap: 8,
+              marginTop: 16,
+              paddingTop: 16,
               borderTop: '1px solid var(--color-sidebar-border)',
+              flexWrap: 'wrap',
             }}
           >
             <span
-              className={`capitalize badge-${userRole}`}
               style={{
-                padding: '2px 12px',
-                borderRadius: 'var(--radius-full)',
-                fontSize: 'var(--text-xs)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                padding: '5px 12px',
+                borderRadius: 999,
+                fontSize: 11,
                 fontWeight: 600,
+                letterSpacing: '0.01em',
+                background: 'var(--color-sidebar-item-active)',
+                color: 'var(--color-sidebar-text-active)',
+                border: '1px solid var(--color-sidebar-border)',
+                lineHeight: 1,
+                whiteSpace: 'nowrap',
               }}
             >
-              {userRole}
+              {roleLabel}
             </span>
+
             <span
-              className="flex items-center"
               style={{
+                display: 'inline-flex',
+                alignItems: 'center',
                 gap: 6,
-                padding: '2px 12px',
-                borderRadius: 'var(--radius-full)',
-                fontSize: 'var(--text-xs)',
+                padding: '5px 12px',
+                borderRadius: 999,
+                fontSize: 11,
                 fontWeight: 600,
                 background: 'var(--color-success-light)',
                 color: 'var(--color-success-text)',
+                lineHeight: 1,
+                whiteSpace: 'nowrap',
               }}
             >
               <span
                 style={{
-                  width: 6,
-                  height: 6,
-                  borderRadius: 'var(--radius-full)',
+                  width: 6, height: 6, borderRadius: 999,
                   background: 'var(--color-success)',
                   animation: 'pulse-dot 2s ease-in-out infinite',
+                  flexShrink: 0,
                 }}
               />
               Online
@@ -208,32 +266,36 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, userRole }) =
           </div>
         </div>
 
-        {/* Navigation */}
+        {/* ═══════════════ NAVIGATION ═══════════════ */}
         <nav
           className="flex-1 overflow-y-auto"
           style={{
-            padding: 'var(--space-3) var(--space-3)',
+            padding: '16px 12px 20px 12px',
             scrollbarWidth: 'thin',
           }}
         >
           {sections.map((section, si) => (
-            <div key={si} style={{ marginTop: si > 0 ? 'var(--space-4)' : 0 }}>
+            <div
+              key={si}
+              style={{ marginTop: si > 0 ? 20 : 0 }}
+            >
               {section.title && (
                 <p
                   style={{
-                    padding: '0 var(--space-3)',
-                    marginBottom: 'var(--space-2)',
-                    fontSize: 'var(--text-xs)',
-                    fontWeight: 600,
+                    padding: '0 12px',
+                    marginBottom: 6,
+                    fontSize: 10,
+                    fontWeight: 700,
                     color: 'var(--color-sidebar-text)',
-                    opacity: 0.5,
-                    letterSpacing: 'var(--tracking-wide)',
+                    opacity: 0.45,
+                    letterSpacing: '0.08em',
                     textTransform: 'uppercase',
                   }}
                 >
                   {section.title}
                 </p>
               )}
+
               <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 {section.items.map((item) => {
                   const Icon = item.icon;
@@ -246,20 +308,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, userRole }) =
                       onClick={() => window.innerWidth < 1024 && onClose()}
                       className="group flex items-center"
                       style={{
-                        gap: 'var(--space-2.5)',
-                        fontSize: 'var(--text-sm)',
-                        fontWeight: 500,
-                        borderRadius: 'var(--radius-md)',
-                        padding: '9px var(--space-3)',
-                        background: active
-                          ? 'var(--color-sidebar-item-active)'
-                          : 'transparent',
-                        color: active
-                          ? 'var(--color-sidebar-text-active)'
-                          : 'var(--color-sidebar-text)',
+                        gap: 12,
+                        fontSize: 13,
+                        fontWeight: active ? 600 : 500,
+                        borderRadius: 8,
+                        padding: '10px 12px',
+                        background: active ? 'var(--color-sidebar-item-active)' : 'transparent',
+                        color: active ? 'var(--color-sidebar-text-active)' : 'var(--color-sidebar-text)',
                         textDecoration: 'none',
-                        transition: 'all var(--transition-fast)',
+                        transition: 'background 120ms ease, color 120ms ease',
                         position: 'relative',
+                        lineHeight: 1.2,
                       }}
                       onMouseEnter={(e) => {
                         if (!active) {
@@ -281,30 +340,24 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, userRole }) =
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          width: 20,
-                          height: 20,
+                          width: 18,
+                          height: 18,
                           flexShrink: 0,
-                          opacity: active ? 1 : 0.6,
-                          transition: 'opacity var(--transition-fast)',
+                          opacity: active ? 1 : 0.65,
+                          transition: 'opacity 120ms ease',
                         }}
                       >
-                        <Icon
-                          style={{
-                            width: 'var(--icon-md)',
-                            height: 'var(--icon-md)',
-                          }}
-                        />
+                        <Icon style={{ width: 16, height: 16 }} />
                       </div>
-                      <span style={{ flex: 1 }}>{item.label}</span>
+                      <span style={{ flex: 1, letterSpacing: '0.005em' }}>{item.label}</span>
                       {active && (
                         <div
                           style={{
                             width: 3,
-                            height: 20,
-                            borderRadius: 'var(--radius-full)',
+                            height: 16,
+                            borderRadius: 999,
                             background: 'var(--color-accent)',
                             flexShrink: 0,
-                            marginLeft: 'var(--space-1)',
                           }}
                         />
                       )}
@@ -316,44 +369,25 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, userRole }) =
           ))}
         </nav>
 
-        {/* Footer */}
+        {/* ═══════════════ FOOTER ═══════════════ */}
         <div
           className="flex-shrink-0"
           style={{
-            padding: 'var(--space-3) var(--space-5)',
+            padding: '14px 20px',
             borderTop: '1px solid var(--color-sidebar-border)',
           }}
         >
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-            }}
-          >
-            <span
-              style={{
-                fontSize: 'var(--text-xs)',
-                color: 'var(--color-sidebar-text)',
-                opacity: 0.4,
-              }}
-            >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: 11, color: 'var(--color-sidebar-text)', opacity: 0.4, letterSpacing: '0.01em' }}>
               v1.0.0
             </span>
-            <span
-              style={{
-                fontSize: 'var(--text-xs)',
-                color: 'var(--color-sidebar-text)',
-                opacity: 0.3,
-              }}
-            >
+            <span style={{ fontSize: 11, color: 'var(--color-sidebar-text)', opacity: 0.3, letterSpacing: '0.01em' }}>
               © 2026
             </span>
           </div>
         </div>
       </aside>
 
-      {/* Pulse animation for online status dot */}
       <style>{`
         @keyframes pulse-dot {
           0%, 100% { opacity: 1; transform: scale(1); }

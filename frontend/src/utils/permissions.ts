@@ -1,11 +1,27 @@
 // src/utils/permissions.ts
+import { useAppStore } from '../store';
 
-import { useAppStore } from "../store";
+// ═══════════════════════════════════════════════════════════════════════════
+// Canonical roles — MUST match backend User model enum
+// ═══════════════════════════════════════════════════════════════════════════
+export type UserRole = 'admin' | 'manager' | 'pharmacist_sales' | 'cashier' | 'lab_tech';
 
-export type UserRole = 'admin' | 'cashier' | 'pharmacist' | 'lab';
+export const ROLE_LABELS: Record<UserRole, string> = {
+    admin: 'Administrator',
+    manager: 'Manager',
+    pharmacist_sales: 'Pharmacist (Sales)',
+    cashier: 'Cashier',
+    lab_tech: 'Lab Technician',
+};
 
+// ═══════════════════════════════════════════════════════════════════════════
+// Permission flags
+// ═══════════════════════════════════════════════════════════════════════════
 export interface Permission {
     canManageUsers: boolean;
+    canDeleteUsers: boolean;
+    canManageSettings: boolean;
+    canManageCompany: boolean;
     canManageProducts: boolean;
     canManageInventory: boolean;
     canManageSuppliers: boolean;
@@ -15,103 +31,147 @@ export interface Permission {
     canViewLabResults: boolean;
     canViewSales: boolean;
     canCreateSales: boolean;
-    canManageSettings: boolean;
+    canAcceptPayments: boolean;
     canViewAnalytics: boolean;
-    canManageCompany: boolean;
+    canViewProfitReport: boolean;
+    canViewControlledReport: boolean;
+    canViewInsurance: boolean;
+    canViewBranches: boolean;
+    canViewStaff: boolean;
 }
+
+const ALL_FALSE: Permission = {
+    canManageUsers: false, canDeleteUsers: false, canManageSettings: false, canManageCompany: false,
+    canManageProducts: false, canManageInventory: false, canManageSuppliers: false, canManagePurchaseOrders: false,
+    canManageLabTests: false, canPerformLabTests: false, canViewLabResults: false,
+    canViewSales: false, canCreateSales: false, canAcceptPayments: false,
+    canViewAnalytics: false, canViewProfitReport: false, canViewControlledReport: false,
+    canViewInsurance: false, canViewBranches: false, canViewStaff: false,
+};
 
 export const getPermissions = (role: UserRole): Permission => {
     switch (role) {
         case 'admin':
             return {
-                canManageUsers: true,
+                canManageUsers: true, canDeleteUsers: true, canManageSettings: true, canManageCompany: true,
+                canManageProducts: true, canManageInventory: true, canManageSuppliers: true, canManagePurchaseOrders: true,
+                canManageLabTests: true, canPerformLabTests: true, canViewLabResults: true,
+                canViewSales: true, canCreateSales: true, canAcceptPayments: true,
+                canViewAnalytics: true, canViewProfitReport: true, canViewControlledReport: true,
+                canViewInsurance: true, canViewBranches: true, canViewStaff: true,
+            };
+
+        case 'manager':
+            // Manager = admin minus {Settings, Company, Delete Users}
+            return {
+                canManageUsers: true, canDeleteUsers: false, canManageSettings: false, canManageCompany: false,
+                canManageProducts: true, canManageInventory: true, canManageSuppliers: true, canManagePurchaseOrders: true,
+                canManageLabTests: true, canPerformLabTests: true, canViewLabResults: true,
+                canViewSales: true, canCreateSales: true, canAcceptPayments: true,
+                canViewAnalytics: true, canViewProfitReport: true, canViewControlledReport: true,
+                canViewInsurance: true, canViewBranches: true, canViewStaff: true,
+            };
+
+        case 'pharmacist_sales':
+            return {
+                ...ALL_FALSE,
                 canManageProducts: true,
                 canManageInventory: true,
                 canManageSuppliers: true,
                 canManagePurchaseOrders: true,
-                canManageLabTests: true,
-                canPerformLabTests: true,
                 canViewLabResults: true,
                 canViewSales: true,
                 canCreateSales: true,
-                canManageSettings: true,
                 canViewAnalytics: true,
-                canManageCompany: true,
-            };
-
-        case 'pharmacist':
-            return {
-                canManageUsers: false,
-                canManageProducts: true,
-                canManageInventory: true,
-                canManageSuppliers: true,
-                canManagePurchaseOrders: true,
-                canManageLabTests: false, // Can request but not manage templates
-                canPerformLabTests: false,
-                canViewLabResults: true,
-                canViewSales: true,
-                canCreateSales: false,
-                canManageSettings: false,
-                canViewAnalytics: true,
-                canManageCompany: false,
+                canViewControlledReport: true,
+                canViewInsurance: true,
             };
 
         case 'cashier':
             return {
-                canManageUsers: false,
-                canManageProducts: false,
-                canManageInventory: false,
-                canManageSuppliers: false,
-                canManagePurchaseOrders: false,
-                canManageLabTests: false, // Can request but not manage templates
-                canPerformLabTests: false,
-                canViewLabResults: true, // Can view their own patient's results
+                ...ALL_FALSE,
                 canViewSales: true,
                 canCreateSales: true,
-                canManageSettings: false,
-                canViewAnalytics: false,
-                canManageCompany: false,
+                canAcceptPayments: true,
+                canViewInsurance: true,
             };
 
-        case 'lab':
+        case 'lab_tech':
             return {
-                canManageUsers: false,
-                canManageProducts: false,
-                canManageInventory: false,
-                canManageSuppliers: false,
-                canManagePurchaseOrders: false,
-                canManageLabTests: false, // Can't manage templates
-                canPerformLabTests: true, // Can perform tests and enter results
+                ...ALL_FALSE,
+                canPerformLabTests: true,
                 canViewLabResults: true,
-                canViewSales: false, // Lab doesn't see sales data
-                canCreateSales: false,
-                canManageSettings: false,
-                canViewAnalytics: false,
-                canManageCompany: false,
             };
 
         default:
-            return {
-                canManageUsers: false,
-                canManageProducts: false,
-                canManageInventory: false,
-                canManageSuppliers: false,
-                canManagePurchaseOrders: false,
-                canManageLabTests: false,
-                canPerformLabTests: false,
-                canViewLabResults: false,
-                canViewSales: false,
-                canCreateSales: false,
-                canManageSettings: false,
-                canViewAnalytics: false,
-                canManageCompany: false,
-            };
+            return ALL_FALSE;
     }
 };
 
-// Hook to use permissions in components
-export const usePermissions = () => {
+export const usePermissions = (): Permission => {
     const { currentUser } = useAppStore();
     if (!currentUser) return getPermissions('cashier');
     return getPermissions(currentUser.role as UserRole);
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Dashboard visibility helpers
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const getDashboardStats = (role: UserRole) => ({
+    todaySales: role === 'admin' || role === 'manager' || role === 'pharmacist_sales' || role === 'cashier',
+    totalRevenue: role === 'admin' || role === 'manager' || role === 'pharmacist_sales',
+    inventory: role === 'admin' || role === 'manager' || role === 'pharmacist_sales',
+    pendingOrders: role === 'admin' || role === 'manager' || role === 'pharmacist_sales' || role === 'cashier',
+    completedLabTests: role === 'admin' || role === 'manager' || role === 'pharmacist_sales' || role === 'lab_tech',
+});
+
+export const getDashboardCharts = (role: UserRole) => ({
+    dailySales: role === 'admin' || role === 'manager' || role === 'pharmacist_sales' || role === 'cashier',
+    paymentMethods: role === 'admin' || role === 'manager' || role === 'pharmacist_sales' || role === 'cashier',
+    stockDistribution: role === 'admin' || role === 'manager' || role === 'pharmacist_sales',
+});
+
+export const getRecentSections = (role: UserRole) => ({
+    transactions: role === 'admin' || role === 'manager' || role === 'pharmacist_sales' || role === 'cashier',
+    labTests: role === 'admin' || role === 'manager' || role === 'pharmacist_sales' || role === 'lab_tech',
+    purchaseOrders: role === 'admin' || role === 'manager' || role === 'pharmacist_sales',
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Quick actions for dashboard
+// ═══════════════════════════════════════════════════════════════════════════
+export interface QuickActionDef {
+    to: string;
+    label: string;
+    description: string;
+    iconKey: 'cart' | 'plus' | 'eye' | 'truck' | 'flask' | 'users' | 'credit-card';
+}
+
+export const getQuickActions = (role: UserRole): QuickActionDef[] => {
+    const actions: QuickActionDef[] = [];
+
+    if (role !== 'lab_tech') {
+        actions.push({ to: '/dashboard/pos', label: 'New Sale', description: 'Create order', iconKey: 'cart' });
+    }
+
+    if (role === 'admin' || role === 'manager' || role === 'cashier') {
+        actions.push({ to: '/dashboard/payment', label: 'Payment', description: 'Collect & print', iconKey: 'credit-card' });
+    }
+
+    if (role === 'admin' || role === 'manager' || role === 'pharmacist_sales') {
+        actions.push({ to: '/dashboard/products', label: 'Add Product', description: 'Update inventory', iconKey: 'plus' });
+        actions.push({ to: '/dashboard/inventory', label: 'View Stock', description: 'Check levels', iconKey: 'eye' });
+        actions.push({ to: '/dashboard/purchase-orders', label: 'Purchase Order', description: 'Order from supplier', iconKey: 'truck' });
+    }
+
+    if (role !== 'cashier') {
+        actions.push({ to: '/dashboard/lab', label: 'Lab Tests', description: 'Manage tests', iconKey: 'flask' });
+    }
+
+    if (role === 'admin' || role === 'manager') {
+        actions.push({ to: '/dashboard/staff', label: 'Staff', description: 'Manage accounts', iconKey: 'users' });
+    }
+
+    return actions;
 };

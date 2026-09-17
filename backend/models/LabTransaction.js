@@ -11,6 +11,11 @@ const LabTransaction = sequelize.define('LabTransaction', {
         allowNull: false,
         unique: true
     },
+    customerId: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        references: { model: 'customers', key: 'id' }
+    },
     patientName: {
         type: DataTypes.STRING,
         allowNull: false
@@ -72,6 +77,12 @@ const LabTransaction = sequelize.define('LabTransaction', {
         type: DataTypes.STRING,
         allowNull: false
     },
+    cashierId: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        references: { model: 'users', key: 'id' }
+    },
+    cashierName: DataTypes.STRING,
     receiptNumber: {
         type: DataTypes.STRING,
         allowNull: true,
@@ -102,6 +113,7 @@ const LabTransaction = sequelize.define('LabTransaction', {
     tableName: 'lab_transactions',
     timestamps: true,
     indexes: [
+        { fields: ['customerId'] },
         { fields: ['requestedBy'] },
         { fields: ['status'] },
         { fields: ['paymentStatus'] },

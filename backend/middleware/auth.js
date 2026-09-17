@@ -1,3 +1,4 @@
+// backend/middleware/auth.js
 const jwt = require('jsonwebtoken');
 
 const auth = (req, res, next) => {
@@ -13,6 +14,7 @@ const auth = (req, res, next) => {
   }
 };
 
+// Admin only
 const adminAuth = (req, res, next) => {
   if (req.user.role !== 'admin') {
     return res.status(403).json({ msg: 'Admin access required' });
@@ -20,25 +22,43 @@ const adminAuth = (req, res, next) => {
   next();
 };
 
+// Admin or Manager
+const adminOrManagerAuth = (req, res, next) => {
+  if (!['admin', 'manager'].includes(req.user.role)) {
+    return res.status(403).json({ msg: 'Admin or Manager access required' });
+  }
+  next();
+};
+
+// Lab technicians, admins, and managers
 const labAuth = (req, res, next) => {
-  if (req.user.role !== 'lab' && req.user.role !== 'admin') {
+  if (!['lab_tech', 'admin', 'manager'].includes(req.user.role)) {
     return res.status(403).json({ msg: 'Lab access required' });
   }
   next();
 };
 
-const officerAuth = (req, res, next) => {
-  if (!['admin', 'officer'].includes(req.user.role)) {
-    return res.status(403).json({ msg: 'Officer or Admin access required' });
-  }
-  next();
-};
-
+// Cashier, Manager, Admin
 const cashierAuth = (req, res, next) => {
-  if (!['admin', 'cashier', 'officer'].includes(req.user.role)) {
+  if (!['admin', 'manager', 'cashier'].includes(req.user.role)) {
     return res.status(403).json({ msg: 'Cashier or higher access required' });
   }
   next();
 };
 
-module.exports = { auth, adminAuth, labAuth, officerAuth, cashierAuth };
+// Pharmacist, Manager, Admin
+const pharmacistAuth = (req, res, next) => {
+  if (!['admin', 'manager', 'pharmacist_sales'].includes(req.user.role)) {
+    return res.status(403).json({ msg: 'Pharmacist or higher access required' });
+  }
+  next();
+};
+
+module.exports = {
+  auth,
+  adminAuth,
+  adminOrManagerAuth,
+  labAuth,
+  cashierAuth,
+  pharmacistAuth,
+};

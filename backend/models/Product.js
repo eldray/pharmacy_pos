@@ -40,6 +40,39 @@ const Product = sequelize.define('Product', {
     type: DataTypes.INTEGER,
     defaultValue: 0
   },
+  // Dispensing Units & Package breakdown fields
+  packageType: {
+    type: DataTypes.STRING,
+    defaultValue: 'Box'
+  },
+  dispensingUnit: {
+    type: DataTypes.STRING,
+    defaultValue: 'Tablet'
+  },
+  unitsPerPackage: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    defaultValue: 1
+  },
+  packagePrice: {
+    type: DataTypes.DECIMAL(10, 2),
+    allowNull: true
+  },
+  // Insurance & retail pricing
+  sellingPrice: {
+    type: DataTypes.DECIMAL(10, 2),
+    allowNull: true,
+    comment: 'Patient-facing retail price (used on POS & receipts)'
+  },
+  insurancePrice: {
+    type: DataTypes.DECIMAL(10, 2),
+    allowNull: true,
+    comment: 'Insurer-agreed reimbursement price per unit. Co-pay = sellingPrice - insurancePrice'
+  },
+  allowUnitBreakdown: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true
+  },
   batchNumber: DataTypes.STRING,
   expiryDate: DataTypes.DATEONLY,
   supplier: DataTypes.STRING,

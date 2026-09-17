@@ -1,102 +1,170 @@
 // backend/migrate.js
-// Lightweight, dependency-free migration runner.
-//
-// - Applies every *.js file in ./migrations in filename order (use a NN-name
-//   prefix, e.g. 001-add-indexes.js).
-// - Tracks what has run in a `schema_migrations` table, so each file runs once.
-// - Each migration exports:  async up({ sequelize, queryInterface }) { ... }
+// Production-grade migration runner.
 //
 // Usage:
-//   node migrate.js            run all pending migrations
-//   node migrate.js status     show applied / pending without running
-require('dotenv').config();
+//   await migrate('up')   — apply all pending migrations (default)
+//   await migrate('down') — revert the last applied migration
+//   await migrate('status') — list migrations and their state
+//
+// Design:
+//   - Advisory lock prevents concurrent migration runs (multi-instance safety)
+//   - Each migration runs in a transaction (all-or-nothing)
+//   - Applied migrations tracked in `_migrations` table
+//   - Idempotent: running `up` twice does nothing the second time
+
 const fs = require('fs');
 const path = require('path');
 const { sequelize } = require('./config/database');
 
 const MIGRATIONS_DIR = path.join(__dirname, 'migrations');
+const LOCK_ID = 727_001; // arbitrary unique integer for advisory lock
+const META_TABLE = '_migrations';
 
-async function ensureTable() {
+/* ─── Ensure the tracking table exists ─────────────────────────── */
+async function ensureMetaTable() {
   await sequelize.query(`
-    CREATE TABLE IF NOT EXISTS schema_migrations (
-      name VARCHAR(255) PRIMARY KEY,
-      applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    CREATE TABLE IF NOT EXISTS "${META_TABLE}" (
+      id           SERIAL PRIMARY KEY,
+      name         VARCHAR(255) NOT NULL UNIQUE,
+      applied_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
 }
 
-async function appliedSet() {
-  const [rows] = await sequelize.query('SELECT name FROM schema_migrations');
-  return new Set(rows.map((r) => r.name));
-}
-
-function migrationFiles() {
-  if (!fs.existsSync(MIGRATIONS_DIR)) return [];
+/* ─── Load and sort migration files ────────────────────────────── */
+function loadMigrationFiles() {
+  if (!fs.existsSync(MIGRATIONS_DIR)) {
+    return [];
+  }
   return fs
     .readdirSync(MIGRATIONS_DIR)
     .filter((f) => f.endsWith('.js'))
-    .sort();
+    .sort() // files should be prefixed with timestamps: 20260116-xxx.js
+    .map((filename) => {
+      const fullPath = path.join(MIGRATIONS_DIR, filename);
+      const mod = require(fullPath);
+      if (typeof mod.up !== 'function') {
+        throw new Error(`Migration ${filename} must export an "up" function`);
+      }
+      return { name: filename, up: mod.up, down: mod.down };
+    });
 }
 
-// Run pending migrations (or show status). Reuses the shared sequelize
-// connection so it can be called from server.js on boot WITHOUT closing it.
-// Set closeWhenDone: true when running as a standalone CLI.
-async function migrate(mode = 'up', { closeWhenDone = false } = {}) {
-  await sequelize.authenticate();
-  await ensureTable();
+/* ─── Which migrations have already run ────────────────────────── */
+async function getAppliedMigrations() {
+  const [rows] = await sequelize.query(
+    `SELECT name FROM "${META_TABLE}" ORDER BY applied_at ASC`
+  );
+  return rows.map((r) => r.name);
+}
 
-  const applied = await appliedSet();
-  const files = migrationFiles();
-  const pending = files.filter((f) => !applied.has(f));
-
-  if (mode === 'status') {
-    console.log('📋 Migration status:');
-    files.forEach((f) => console.log(`   ${applied.has(f) ? '✅ applied ' : '⏳ pending '} ${f}`));
-    if (files.length === 0) console.log('   (no migration files)');
-    if (closeWhenDone) await sequelize.close();
-    return { applied: [...applied], pending };
+/* ─── Apply one migration inside a transaction ─────────────────── */
+async function applyMigration(migration) {
+  const t = await sequelize.transaction();
+  try {
+    console.log(`▶️  Applying migration: ${migration.name}`);
+    await migration.up(sequelize.getQueryInterface(), sequelize.Sequelize);
+    await sequelize.query(
+      `INSERT INTO "${META_TABLE}" (name) VALUES (:name)`,
+      { replacements: { name: migration.name }, transaction: t }
+    );
+    await t.commit();
+    console.log(`✅ Applied: ${migration.name}`);
+  } catch (err) {
+    await t.rollback();
+    console.error(`❌ Failed: ${migration.name}`);
+    throw err;
   }
+}
 
-  if (pending.length === 0) {
-    console.log('✅ No pending migrations. Database is up to date.');
-    if (closeWhenDone) await sequelize.close();
-    return { applied: [...applied], pending: [] };
+/* ─── Revert one migration ─────────────────────────────────────── */
+async function revertMigration(migration) {
+  if (typeof migration.down !== 'function') {
+    throw new Error(`Migration ${migration.name} has no "down" function — cannot revert`);
   }
+  const t = await sequelize.transaction();
+  try {
+    console.log(`◀️  Reverting: ${migration.name}`);
+    await migration.down(sequelize.getQueryInterface(), sequelize.Sequelize);
+    await sequelize.query(
+      `DELETE FROM "${META_TABLE}" WHERE name = :name`,
+      { replacements: { name: migration.name }, transaction: t }
+    );
+    await t.commit();
+    console.log(`✅ Reverted: ${migration.name}`);
+  } catch (err) {
+    await t.rollback();
+    console.error(`❌ Failed to revert: ${migration.name}`);
+    throw err;
+  }
+}
 
-  const queryInterface = sequelize.getQueryInterface();
+/* ─── Public API ───────────────────────────────────────────────── */
+async function migrate(direction = 'up') {
+  // Advisory lock prevents two instances running migrations simultaneously.
+  const lockClient = await sequelize.connectionManager.getConnection();
+  try {
+    await sequelize.query(`SELECT pg_advisory_lock(${LOCK_ID})`);
 
-  for (const file of pending) {
-    const migration = require(path.join(MIGRATIONS_DIR, file));
-    console.log(`▶️  Applying ${file} ...`);
-    const t = await sequelize.transaction();
-    try {
-      await migration.up({ sequelize, queryInterface, transaction: t });
-      await sequelize.query(
-        'INSERT INTO schema_migrations (name) VALUES (:name)',
-        { replacements: { name: file }, transaction: t }
-      );
-      await t.commit();
-      console.log(`✅ Applied ${file}`);
-    } catch (err) {
-      await t.rollback();
-      console.error(`❌ Migration ${file} failed:`, err.message);
-      if (closeWhenDone) { await sequelize.close(); process.exit(1); }
-      throw err;
+    await ensureMetaTable();
+
+    const files = loadMigrationFiles();
+    const applied = new Set(await getAppliedMigrations());
+
+    if (direction === 'status') {
+      console.log('\nMigration status:');
+      for (const m of files) {
+        const status = applied.has(m.name) ? '✅ applied' : '⏳ pending';
+        console.log(`  ${status}  ${m.name}`);
+      }
+      console.log('');
+      return { applied: applied.size, pending: files.length - applied.size };
     }
-  }
 
-  console.log(`🎉 Applied ${pending.length} migration(s).`);
-  if (closeWhenDone) await sequelize.close();
-  return { applied: [...applied, ...pending], pending };
+    if (direction === 'up') {
+      const pending = files.filter((m) => !applied.has(m.name));
+      if (pending.length === 0) {
+        console.log('✅ No pending migrations');
+        return { applied: 0 };
+      }
+      for (const m of pending) {
+        await applyMigration(m);
+      }
+      return { applied: pending.length };
+    }
+
+    if (direction === 'down') {
+      const lastApplied = [...applied].pop();
+      if (!lastApplied) {
+        console.log('ℹ️  Nothing to revert');
+        return { reverted: 0 };
+      }
+      const migration = files.find((m) => m.name === lastApplied);
+      if (!migration) {
+        throw new Error(`Migration file for "${lastApplied}" not found — cannot revert`);
+      }
+      await revertMigration(migration);
+      return { reverted: 1 };
+    }
+
+    throw new Error(`Unknown migration direction: ${direction}`);
+  } finally {
+    try {
+      await sequelize.query(`SELECT pg_advisory_unlock(${LOCK_ID})`);
+    } catch { }
+    await sequelize.connectionManager.releaseConnection(lockClient);
+  }
+}
+
+/* ─── CLI ──────────────────────────────────────────────────────── */
+if (require.main === module) {
+  const direction = process.argv[2] || 'up';
+  migrate(direction)
+    .then(() => process.exit(0))
+    .catch((err) => {
+      console.error(err);
+      process.exit(1);
+    });
 }
 
 module.exports = { migrate };
-
-// CLI entrypoint: `node migrate.js [status]`
-if (require.main === module) {
-  migrate(process.argv[2] || 'up', { closeWhenDone: true }).catch(async (err) => {
-    console.error('❌ Migration runner error:', err.message);
-    try { await sequelize.close(); } catch (_) {}
-    process.exit(1);
-  });
-}

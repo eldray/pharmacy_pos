@@ -16,6 +16,11 @@ const Transaction = sequelize.define('Transaction', {
     allowNull: false,
     references: { model: 'users', key: 'id' }
   },
+  customerId: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: { model: 'customers', key: 'id' }
+  },
   cashierName: DataTypes.STRING,
   items: {
     type: DataTypes.JSONB,

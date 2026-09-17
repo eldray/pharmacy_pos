@@ -23,8 +23,13 @@ const StaffManagement = React.lazy(() => import('../pages/StaffManagement').then
 const LabReports = React.lazy(() => import('../pages/LabReports').then(m => ({ default: m.LabReports })));
 const ControlledReport = React.lazy(() => import('../pages/ControlledReport').then(m => ({ default: m.ControlledReport })));
 const ProfitReport = React.lazy(() => import('../pages/ProfitReport').then(m => ({ default: m.ProfitReport })));
+const BranchManagement = React.lazy(() => import('../pages/BranchManagement').then(m => ({ default: m.BranchManagement })));
+const InsuranceManagement = React.lazy(() => import('../pages/InsuranceManagement').then(m => ({ default: m.InsuranceManagement })));
 const Preferences = React.lazy(() => import('../pages/Preferences').then(m => ({ default: m.Preferences })));
 const HelpSupport = React.lazy(() => import('../pages/HelpSupport').then(m => ({ default: m.HelpSupport })));
+const PaymentPage = React.lazy(() => import('../pages/PaymentPage').then(m => ({ default: m.PaymentPage })));
+const OrdersPage = React.lazy(() => import('../pages/OrdersPage').then(m => ({ default: m.OrdersPage })));
+const CustomersPage = React.lazy(() => import('../pages/CustomersPage').then(m => ({ default: m.CustomersPage })));
 
 export const DashboardLayout: React.FC = () => {
   const { currentUser, logout, company } = useAppStore();
@@ -37,7 +42,6 @@ export const DashboardLayout: React.FC = () => {
     navigate('/login');
   }, [logout, navigate]);
 
-  // Auto-logout after 30 min of inactivity, warning 1 min before.
   const { warning, stayActive } = useIdleLogout({ onTimeout: handleLogout });
 
   if (!currentUser) {
@@ -45,11 +49,13 @@ export const DashboardLayout: React.FC = () => {
     return null;
   }
 
+  // Role shortcuts
+  const role = currentUser.role;
+  const isAdmin = role === 'admin';
+  const isManager = role === 'manager';
+
   return (
-    <div
-      className="min-h-screen theme-transition"
-      style={{ background: 'var(--color-bg-base)' }}
-    >
+    <div className="min-h-screen theme-transition" style={{ background: 'var(--color-bg-base)' }}>
       {/* Idle session warning */}
       {warning && (
         <div
@@ -68,24 +74,15 @@ export const DashboardLayout: React.FC = () => {
           <span style={{ fontSize: '0.8rem', color: 'var(--color-text-primary)' }}>
             You'll be signed out soon due to inactivity.
           </span>
-          <button
-            onClick={stayActive}
-            className="btn-accent"
-            style={{ fontSize: '0.75rem', padding: '5px 12px' }}
-          >
+          <button onClick={stayActive} className="btn-accent" style={{ fontSize: '0.75rem', padding: '5px 12px' }}>
             Stay signed in
           </button>
-          <button
-            onClick={handleLogout}
-            className="btn-ghost"
-            style={{ fontSize: '0.75rem', padding: '5px 12px' }}
-          >
+          <button onClick={handleLogout} className="btn-ghost" style={{ fontSize: '0.75rem', padding: '5px 12px' }}>
             Log out
           </button>
         </div>
       )}
 
-      {/* Fixed Sidebar */}
       <Sidebar
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
@@ -93,12 +90,7 @@ export const DashboardLayout: React.FC = () => {
         userRole={currentUser.role}
       />
 
-      {/* Main content — offset by sidebar width on lg+ */}
-      <div
-        className="layout-content-shell"
-        style={{ minHeight: '100vh' }}
-      >
-        {/* Fixed Navbar */}
+      <div className="layout-content-shell" style={{ minHeight: '100vh' }}>
         <Navbar
           onMenuClick={() => setSidebarOpen(true)}
           onLogout={handleLogout}
@@ -106,33 +98,17 @@ export const DashboardLayout: React.FC = () => {
           companyName={company?.name}
         />
 
-        {/* Scrollable page content */}
-        <main
-          className="theme-transition"
-          style={{
-            background: 'var(--color-bg-base)',
-            paddingTop: 'var(--navbar-height)',
-            minHeight: '100vh',
-          }}
-        >
-          <div
-            className="w-full"
-            style={{
-              padding: 'var(--space-4) var(--space-5)',
-            }}
-          >
+        <main className="theme-transition" style={{ background: 'var(--color-bg-base)', paddingTop: 'var(--navbar-height)', minHeight: '100vh' }}>
+          <div className="w-full" style={{ padding: 'var(--space-4) var(--space-5)' }}>
             <React.Suspense
               fallback={
                 <div className="flex items-center justify-center" style={{ minHeight: '60vh' }}>
-                  <div
-                    className="rounded-full animate-spin"
-                    style={{ width: 32, height: 32, border: '3px solid var(--color-accent)', borderTopColor: 'transparent' }}
-                  />
+                  <div className="rounded-full animate-spin" style={{ width: 32, height: 32, border: '3px solid var(--color-accent)', borderTopColor: 'transparent' }} />
                 </div>
               }
             >
               <Routes>
-                {/* Main Routes */}
+                {/* Main */}
                 <Route index element={<DashboardHome />} />
                 <Route path="pos" element={<POSInterface />} />
                 <Route path="products" element={<ProductManagement />} />
@@ -141,29 +117,47 @@ export const DashboardLayout: React.FC = () => {
                 <Route path="analytics" element={<AnalyticsPage />} />
                 <Route path="sales" element={<SalesPage />} />
                 <Route path="inventory" element={<InventoryPage />} />
+                <Route path="orders" element={<OrdersPage />} />
+                <Route path="customers" element={<CustomersPage />} />
 
-                {/* Lab Routes */}
+                {/* Lab */}
                 <Route path="lab" element={<LabManagement />} />
                 <Route path="lab/:id" element={<LabDetail />} />
                 <Route path="lab-reports" element={<LabReports />} />
 
-                {/* Report Routes */}
+                {/* Reports — controlled for admin/manager/pharmacist_sales, profit for admin/manager */}
                 <Route path="controlled-report" element={<ControlledReport />} />
-                {currentUser.role === 'admin' && (
+                {(isAdmin || isManager) && (
                   <Route path="profit-report" element={<ProfitReport />} />
                 )}
 
-                {/* Settings & User Routes */}
+                {/* Profile & misc — everyone */}
                 <Route path="profile" element={<ProfileSettings />} />
                 <Route path="preferences" element={<Preferences />} />
                 <Route path="help" element={<HelpSupport />} />
 
-                {/* Admin Only Routes */}
-                {currentUser.role === 'admin' && (
+                {/* Enterprise — admin/manager (staff management excludes delete for manager at the API) */}
+                {(isAdmin || isManager) && (
                   <>
-                    <Route path="settings" element={<CompanySettings />} />
+                    <Route path="branches" element={<BranchManagement />} />
+                    <Route path="staff" element={<StaffManagement />} />
                     <Route path="users" element={<StaffManagement />} />
                   </>
+                )}
+
+                {/* Insurance — admin/manager/pharmacist_sales */}
+                {(isAdmin || isManager || role === 'pharmacist_sales') && (
+                  <Route path="insurance" element={<InsuranceManagement />} />
+                )}
+
+                {/* Payment — admin/manager/cashier */}
+                {(isAdmin || isManager || role === 'cashier') && (
+                  <Route path="payment" element={<PaymentPage />} />
+                )}
+
+                {/* Settings — admin ONLY */}
+                {isAdmin && (
+                  <Route path="settings" element={<CompanySettings />} />
                 )}
               </Routes>
             </React.Suspense>
@@ -171,15 +165,10 @@ export const DashboardLayout: React.FC = () => {
         </main>
       </div>
 
-      {/* Scoped layout rule */}
       <style>{`
-        .layout-content-shell {
-          margin-left: 0;
-        }
+        .layout-content-shell { margin-left: 0; }
         @media (min-width: 1024px) {
-          .layout-content-shell {
-            margin-left: var(--sidebar-width);
-          }
+          .layout-content-shell { margin-left: var(--sidebar-width); }
         }
       `}</style>
     </div>

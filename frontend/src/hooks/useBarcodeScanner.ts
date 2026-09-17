@@ -1,12 +1,5 @@
 import { useEffect, useRef } from 'react';
 
-// Detects hardware barcode-scanner input (a "keyboard wedge"). Scanners type
-// characters very fast and end with Enter — much faster than a human. We buffer
-// rapid keystrokes and, on Enter, fire onScan(code).
-//
-// When the user is typing in a real input/textarea we stay out of the way (the
-// field's own handlers run), so this only fires for scans made while no field
-// is focused — no double-adds with the POS search box.
 export function useBarcodeScanner(
   onScan: (code: string) => void,
   { minLength = 3, maxGapMs = 50 }: { minLength?: number; maxGapMs?: number } = {}
@@ -27,7 +20,6 @@ export function useBarcodeScanner(
           target.isContentEditable);
 
       const now = Date.now();
-      // A slow gap means human typing — start a fresh buffer.
       if (now - lastTime > maxGapMs) buffer = '';
       lastTime = now;
 
@@ -36,8 +28,11 @@ export function useBarcodeScanner(
         buffer = '';
         return;
       }
-      // Only accumulate printable single characters.
-      if (e.key.length === 1) buffer += e.key;
+
+      // ✅ Guard: e.key can be undefined on some synthetic/OS-level events
+      if (typeof e.key === 'string' && e.key.length === 1) {
+        buffer += e.key;
+      }
     };
 
     window.addEventListener('keydown', handler);

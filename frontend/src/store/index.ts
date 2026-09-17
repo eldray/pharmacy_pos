@@ -1,3 +1,4 @@
+// src/store/index.ts
 import { create } from 'zustand';
 import { nanoid } from 'nanoid';
 import {
@@ -39,7 +40,7 @@ interface AppStore {
   fetchProducts: (force?: boolean) => Promise<void>;
   addProduct: (product: Omit<Product, 'id' | 'createdAt' | 'updatedAt'>) => Promise<Product | null>;
   updateProduct: (id: string, updates: Partial<Product>) => Promise<Product | null>;
-  deleteProduct: (id: string) => Promise<boolean>;  // ← ADDED
+  deleteProduct: (id: string) => Promise<boolean>;
   getProductByBarcode: (barcode: string) => Product | undefined;
   getProductByName: (name: string) => Product[];
 
@@ -77,16 +78,25 @@ interface AppStore {
   labTestTemplates: LabTestTemplate[];
   fetchLabTestTemplates: () => Promise<void>;
 
-  // Lab Transactions
+  // Lab Transactions (order + transaction combined)
   labTransactions: LabTransaction[];
-  fetchLabTransactions: (filters?: any) => Promise<void>;
+  fetchLabTransactions: (filters?: {
+    status?: string;
+    paymentStatus?: string;
+    startDate?: string;
+    endDate?: string;
+    q?: string;
+    patientName?: string;
+  }) => Promise<void>;
   fetchLabTransaction: (id: string) => Promise<LabTransaction | null>;
   addLabTransaction: (data: any) => Promise<LabTransaction | null>;
   updateLabTransaction: (id: string, updates: any) => Promise<LabTransaction | null>;
+  payLabTransaction: (id: string, payload: { paymentMethod: string; paymentReference?: string }) => Promise<any>;
+  cancelLabTransaction: (id: string) => Promise<void>;
   updateLabTest: (testId: string, updates: any) => Promise<LabTest | null>;
   addLabTestResults: (testId: string, results: any) => Promise<LabTest | null>;
   reprintLabReceipt: (id: string) => Promise<any>;
-  getLabTransactionStats: () => Promise<any>;
+  getLabTransactionStats: (startDate?: string, endDate?: string) => Promise<any>;
 
   // Reports
   getControlledReport: (startDate?: string, endDate?: string) => Promise<any>;
@@ -99,10 +109,7 @@ const safeNumber = (value: any): number => {
   return isNaN(num) ? 0 : num;
 };
 
-// Lightweight staleness guard: avoid refetching the same collection on every
-// page mount. Collections stay "fresh" for FRESH_MS; pass force to override
-// (e.g. an explicit refresh). Mutations update store state directly, so a
-// skipped refetch never shows stale data.
+// Lightweight staleness guard.
 const FRESH_MS = 30_000;
 const _fetchedAt: Record<string, number> = {};
 const isFresh = (key: string) => Date.now() - (_fetchedAt[key] || 0) < FRESH_MS;
@@ -121,6 +128,7 @@ const normalizeLabTest = (t: any): LabTest => ({
   ...t,
   id: String(t._id || t.id),
   testPrice: safeNumber(t.testPrice),
+  quantity: safeNumber(t.quantity) || 1,
   patientAge: t.patientAge ? safeNumber(t.patientAge) : undefined,
   results: t.results || {},
   referenceRanges: t.referenceRanges || {},
@@ -129,9 +137,15 @@ const normalizeLabTest = (t: any): LabTest => ({
 const normalizeLabTransaction = (t: any): LabTransaction => ({
   ...t,
   id: String(t._id || t.id),
-  totalAmount: safeNumber(t.totalAmount),
+  transactionNumber: t.transactionNumber || t.orderNumber,
+  orderNumber: t.orderNumber || t.transactionNumber,
+  subtotal: safeNumber(t.subtotal ?? t.totalAmount),
+  tax: safeNumber(t.tax),
+  totalAmount: safeNumber(t.totalAmount ?? t.total),
   paidAmount: safeNumber(t.paidAmount),
-  labTests: (t.labTests || []).map(normalizeLabTest),
+  insuranceCoverage: safeNumber(t.insuranceCoverage),
+  copayAmount: safeNumber(t.copayAmount),
+  labTests: (t.labTests || t.tests || []).map(normalizeLabTest),
 });
 
 // ==================== STORE ====================
@@ -144,8 +158,6 @@ export const useAppStore = create<AppStore>((set, get) => ({
     localStorage.removeItem('auth_token');
   },
   loginUser: async (email, password) => {
-    // Throws a human-readable Error on failure (e.g. rate-limit / bad
-    // credentials) so the UI can show the real reason.
     try {
       const response = await api.post('/auth/login', { email, password });
       const userData = response.data?.user || response.data;
@@ -279,7 +291,6 @@ export const useAppStore = create<AppStore>((set, get) => ({
     }
   },
 
-  // ─── DELETE PRODUCT ──────────────────────────────────────────────────
   deleteProduct: async (id: string) => {
     try {
       await api.delete(`/products/${id}`);
@@ -342,8 +353,6 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const items = get().cartItems || [];
     const subtotal = items.reduce((sum, i) => sum + safeNumber(i.total), 0);
     const discount = items.reduce((sum, i) => sum + safeNumber(i.discount), 0);
-    // Tax rate comes from company settings (falls back to 15%). Use ?? so a
-    // deliberately-configured 0% rate is respected.
     const taxRate = safeNumber(get().company?.receiptSettings?.taxRate ?? 15);
     const taxable = subtotal - discount;
     const tax = taxable * (taxRate / 100);
@@ -582,7 +591,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     }
   },
 
-  // ==================== LAB TRANSACTIONS ====================
+  // ==================== LAB TRANSACTIONS (single source of truth) ====================
   labTransactions: [],
 
   fetchLabTransactions: async (filters) => {
@@ -592,39 +601,38 @@ export const useAppStore = create<AppStore>((set, get) => ({
       if (filters?.paymentStatus) params.append('paymentStatus', filters.paymentStatus);
       if (filters?.startDate) params.append('startDate', filters.startDate);
       if (filters?.endDate) params.append('endDate', filters.endDate);
+      if (filters?.q) params.append('q', filters.q);
       if (filters?.patientName) params.append('patientName', filters.patientName);
 
-      const response = await api.get(`/lab-transactions${params.toString() ? `?${params.toString()}` : ''}`);
-      const transactions = response.data.map(normalizeLabTransaction);
-      set({ labTransactions: transactions });
-    } catch (err) {
-      console.error('Failed to fetch lab transactions:', err);
+      const response = await api.get(
+        `/lab-transactions${params.toString() ? `?${params.toString()}` : ''}`
+      );
+      set({ labTransactions: (response.data || []).map(normalizeLabTransaction) });
+    } catch (err: any) {
+      console.error('Failed to fetch lab transactions:', err.response?.data || err);
+      throw err;
     }
   },
 
   fetchLabTransaction: async (id) => {
     try {
       const response = await api.get(`/lab-transactions/${id}`);
-      const transaction = normalizeLabTransaction(response.data);
-      return transaction;
+      return normalizeLabTransaction(response.data);
     } catch (err) {
       console.error('Failed to fetch lab transaction:', err);
       return null;
     }
   },
 
+  /**
+   * Creates a pre-payment lab order. Status = 'pending', paymentStatus = 'pending'.
+   * The cashier pays it later via payLabTransaction().
+   */
   addLabTransaction: async (data) => {
-    try {
-      const response = await api.post('/lab-transactions', data);
-      const transaction = normalizeLabTransaction(response.data);
-      set((state) => ({
-        labTransactions: [transaction, ...state.labTransactions]
-      }));
-      return transaction;
-    } catch (err: any) {
-      console.error('Add lab transaction error:', err.response?.data || err);
-      return null;
-    }
+    const response = await api.post('/lab-transactions', data);
+    const tx = normalizeLabTransaction(response.data);
+    set((state) => ({ labTransactions: [tx, ...state.labTransactions] }));
+    return tx;
   },
 
   updateLabTransaction: async (id, updates) => {
@@ -632,15 +640,32 @@ export const useAppStore = create<AppStore>((set, get) => ({
       const response = await api.put(`/lab-transactions/${id}`, updates);
       const updated = normalizeLabTransaction(response.data);
       set((state) => ({
-        labTransactions: state.labTransactions.map((t) =>
-          t.id === id ? updated : t
-        )
+        labTransactions: state.labTransactions.map((t) => (t.id === id ? updated : t)),
       }));
       return updated;
     } catch (err: any) {
       console.error('Update lab transaction error:', err.response?.data || err);
       return null;
     }
+  },
+
+  /** Cashier action: mark a pending lab transaction as paid. */
+  payLabTransaction: async (id, payload: { paymentMethod: string; paymentReference?: string }) => {
+    const response = await api.post(`/lab-transactions/${id}/pay`, payload);
+    const updated = normalizeLabTransaction(response.data.transaction || response.data);
+    set((state) => ({
+      labTransactions: state.labTransactions.map((t) => (t.id === id ? updated : t)),
+    }));
+    return response.data;
+  },
+
+  cancelLabTransaction: async (id) => {
+    await api.post(`/lab-transactions/${id}/cancel`);
+    set((state) => ({
+      labTransactions: state.labTransactions.map((t) =>
+        t.id === id ? { ...t, status: 'cancelled' } : t
+      ),
+    }));
   },
 
   updateLabTest: async (testId, updates) => {
@@ -652,8 +677,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
           ...t,
           labTests: (t.labTests || []).map((test) =>
             test.id === testId ? { ...test, ...updated } : test
-          )
-        }))
+          ),
+        })),
       }));
       return updated;
     } catch (err: any) {
@@ -671,8 +696,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
           ...t,
           labTests: (t.labTests || []).map((test) =>
             test.id === testId ? { ...test, ...updated } : test
-          )
-        }))
+          ),
+        })),
       }));
       return updated;
     } catch (err: any) {
@@ -691,9 +716,14 @@ export const useAppStore = create<AppStore>((set, get) => ({
     }
   },
 
-  getLabTransactionStats: async () => {
+  getLabTransactionStats: async (startDate?: string, endDate?: string) => {
     try {
-      const response = await api.get('/lab-transactions/stats/summary');
+      const params = new URLSearchParams();
+      if (startDate) params.append('startDate', startDate);
+      if (endDate) params.append('endDate', endDate);
+      const response = await api.get(
+        `/lab-transactions/stats/summary${params.toString() ? `?${params.toString()}` : ''}`
+      );
       return response.data;
     } catch (err: any) {
       console.error('Get lab stats error:', err.response?.data || err);
@@ -732,54 +762,56 @@ export const useAppStore = create<AppStore>((set, get) => ({
 }));
 
 // ==================== INIT STORE ====================
+// Role names MUST match backend User model enum:
+//   'admin' | 'manager' | 'pharmacist_sales' | 'cashier' | 'lab_tech'
 export const initStore = async (userRole: string) => {
   const store = useAppStore.getState();
   const errors: string[] = [];
 
   console.log(`🚀 Initializing store for role: ${userRole}`);
 
+  const isAdmin = userRole === 'admin';
+  const isManager = userRole === 'manager';
+  const isPharmacist = userRole === 'pharmacist_sales';
+  const isCashier = userRole === 'cashier';
+  const isLab = userRole === 'lab_tech';
+
   try {
-    // BASE DATA (All Users)
+    // BASE DATA (all roles)
     await Promise.all([
-      store.fetchCompany().catch(e => errors.push('Company: ' + e.message)),
-      store.fetchProducts().catch(e => errors.push('Products: ' + e.message)),
-      store.fetchSuppliers().catch(e => errors.push('Suppliers: ' + e.message)),
+      store.fetchCompany().catch((e) => errors.push('Company: ' + e.message)),
+      store.fetchProducts().catch((e) => errors.push('Products: ' + e.message)),
     ]);
 
-    // CASHIER
-    if (userRole === 'cashier' || userRole === 'admin') {
-      await store.fetchTransactions().catch(e => errors.push('Transactions: ' + e.message));
+    // SUPPLIERS (admin, manager, pharmacist_sales)
+    if (isAdmin || isManager || isPharmacist) {
+      await store.fetchSuppliers().catch((e) => errors.push('Suppliers: ' + e.message));
     }
 
-    // PHARMACIST
-    if (userRole === 'pharmacist') {
+    // TRANSACTIONS (admin, manager, pharmacist_sales, cashier)
+    if (isAdmin || isManager || isPharmacist || isCashier) {
+      await store.fetchTransactions().catch((e) => errors.push('Transactions: ' + e.message));
+    }
+
+    // PURCHASE ORDERS + INVENTORY LOGS (admin, manager, pharmacist_sales)
+    if (isAdmin || isManager || isPharmacist) {
       await Promise.all([
-        store.fetchLabTransactions().catch(e => errors.push('Lab Transactions: ' + e.message)),
-        store.fetchLabTestTemplates().catch(e => errors.push('Lab Templates: ' + e.message)),
-        store.fetchPurchaseOrders().catch(e => errors.push('Purchase Orders: ' + e.message)),
-        store.fetchInventoryLogs().catch(e => errors.push('Inventory Logs: ' + e.message)),
-        store.fetchTransactions().catch(e => errors.push('Transactions: ' + e.message)),
+        store.fetchPurchaseOrders().catch((e) => errors.push('Purchase Orders: ' + e.message)),
+        store.fetchInventoryLogs().catch((e) => errors.push('Inventory Logs: ' + e.message)),
       ]);
     }
 
-    // LAB TECHNICIAN
-    if (userRole === 'lab') {
+    // LAB DATA (admin, manager, pharmacist_sales, lab_tech)
+    if (isAdmin || isManager || isPharmacist || isLab) {
       await Promise.all([
-        store.fetchLabTransactions().catch(e => errors.push('Lab Transactions: ' + e.message)),
-        store.fetchLabTestTemplates().catch(e => errors.push('Lab Templates: ' + e.message)),
+        store.fetchLabTransactions().catch((e) => errors.push('Lab Transactions: ' + e.message)),
+        store.fetchLabTestTemplates().catch((e) => errors.push('Lab Templates: ' + e.message)),
       ]);
     }
 
-    // ADMIN
-    if (userRole === 'admin') {
-      await Promise.all([
-        store.fetchUsers().catch(e => errors.push('Users: ' + e.message)),
-        store.fetchTransactions().catch(e => errors.push('Transactions: ' + e.message)),
-        store.fetchPurchaseOrders().catch(e => errors.push('Purchase Orders: ' + e.message)),
-        store.fetchInventoryLogs().catch(e => errors.push('Inventory Logs: ' + e.message)),
-        store.fetchLabTransactions().catch(e => errors.push('Lab Transactions: ' + e.message)),
-        store.fetchLabTestTemplates().catch(e => errors.push('Lab Templates: ' + e.message)),
-      ]);
+    // USERS (admin, manager)
+    if (isAdmin || isManager) {
+      await store.fetchUsers().catch((e) => errors.push('Users: ' + e.message));
     }
 
     const state = useAppStore.getState();

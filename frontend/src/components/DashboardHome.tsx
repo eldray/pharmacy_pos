@@ -16,6 +16,13 @@ import {
   Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell,
   AreaChart, Area
 } from 'recharts';
+import {
+  UserRole,
+  getDashboardStats,
+  getDashboardCharts,
+  getRecentSections,
+  getQuickActions as getRoleQuickActions,
+} from '../utils/permissions';
 
 /* ─── Date Filter Button ───────────────────────────────────────────────────── */
 const DateFilterBtn: React.FC<{
@@ -306,6 +313,20 @@ const SectionHeader: React.FC<{ icon: React.ElementType; title: string; linkTo?:
   </div>
 );
 
+/* ─── Icon lookup for role-based quick actions ───────────────────────────────── */
+const QUICK_ACTION_ICONS: Record<string, React.ElementType> = {
+  cart: ShoppingCart,
+  plus: PlusCircle,
+  eye: Eye,
+  truck: Truck,
+  flask: FlaskConical,
+  users: Users,
+  'credit-card': CreditCard,
+};
+
+// CreditCard is used only for the icon map above — import it here.
+import { CreditCard } from 'lucide-react';
+
 /* ─── DashboardHome ──────────────────────────────────────────────────────────── */
 export const DashboardHome: React.FC = () => {
   const [dateFilter, setDateFilter] = useState<'today' | 'week' | 'month' | 'all'>('today');
@@ -323,6 +344,13 @@ export const DashboardHome: React.FC = () => {
     if (!currentUser?.name) return 'Guest';
     return currentUser.name.split(' ')[0];
   }, [currentUser]);
+
+  // ─── Role + visibility flags ──────────────────────────────────────────────
+  const role: UserRole = (currentUser?.role as UserRole) || 'cashier';
+  const statsVisible = useMemo(() => getDashboardStats(role), [role]);
+  const chartsVisible = useMemo(() => getDashboardCharts(role), [role]);
+  const recentVisible = useMemo(() => getRecentSections(role), [role]);
+  const roleQuickActions = useMemo(() => getRoleQuickActions(role), [role]);
 
   // ─── Filter transactions by date ──────────────────────────────────────────
   const filteredTransactions = useMemo(() => {
@@ -478,8 +506,6 @@ export const DashboardHome: React.FC = () => {
   const recentPurchaseOrders = purchaseOrders.slice(0, 3);
   const recentLabTests = filteredLabTransactions.slice(0, 3);
 
-  const role = currentUser?.role;
-
   const getGreeting = () => {
     const hour = new Date().getHours();
     if (hour < 12) return 'Good morning';
@@ -513,62 +539,13 @@ export const DashboardHome: React.FC = () => {
     return null;
   };
 
-  // Get quick actions based on role
-  const getQuickActions = () => {
-    const actions = [];
-
-    if (role === 'admin' || role === 'cashier') {
-      actions.push({
-        to: '/dashboard/pos',
-        label: 'New Sale',
-        icon: ShoppingCart,
-        description: 'Process transaction'
-      });
-    }
-
-    if (role === 'admin' || role === 'pharmacist') {
-      actions.push({
-        to: '/dashboard/products',
-        label: 'Add Product',
-        icon: PlusCircle,
-        description: 'Update inventory'
-      });
-      actions.push({
-        to: '/dashboard/inventory',
-        label: 'View Stock',
-        icon: Eye,
-        description: 'Check levels'
-      });
-      actions.push({
-        to: '/dashboard/purchase-orders',
-        label: 'Purchase Order',
-        icon: Truck,
-        description: 'Order from supplier'
-      });
-    }
-
-    if (role === 'admin' || role === 'lab') {
-      actions.push({
-        to: '/dashboard/lab',
-        label: 'Lab Tests',
-        icon: FlaskConical,
-        description: 'Manage tests'
-      });
-    }
-
-    if (role === 'admin') {
-      actions.push({
-        to: '/dashboard/users',
-        label: 'Staff',
-        icon: Users,
-        description: 'Manage accounts'
-      });
-    }
-
-    return actions;
-  };
-
-  const quickActions = getQuickActions();
+  // Role-based quick actions (with icon lookup)
+  const quickActions = roleQuickActions.map((a) => ({
+    to: a.to,
+    label: a.label,
+    description: a.description,
+    icon: QUICK_ACTION_ICONS[a.iconKey] || Zap,
+  }));
 
   const getDateFilterLabel = () => {
     switch (dateFilter) {
@@ -578,6 +555,11 @@ export const DashboardHome: React.FC = () => {
       default: return 'All Time';
     }
   };
+
+  const hasAnyChart =
+    chartsVisible.dailySales || chartsVisible.paymentMethods || chartsVisible.stockDistribution;
+  const hasAnyRecent =
+    recentVisible.transactions || recentVisible.labTests || recentVisible.purchaseOrders;
 
   return (
     <div className="w-full" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -672,496 +654,517 @@ export const DashboardHome: React.FC = () => {
         </span>
       </div>
 
-      {/* ── Stat cards ───────────────────────────────────────────────── */}
+      {/* ── Stat cards (role-filtered) ───────────────────────────────── */}
       <div style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
         gap: '12px',
         padding: 0,
       }}>
-        <StatCard
-          label="Today's Sales"
-          value={`GHS ${stats.todaySales.toFixed(2)}`}
-          icon={DollarSign}
-          trend={stats.salesTrend > 0 ? 'up' : stats.salesTrend < 0 ? 'down' : 'neutral'}
-          trendValue={stats.salesTrend !== 0 ? `${stats.salesTrend > 0 ? '+' : ''}${stats.salesTrend.toFixed(1)}%` : undefined}
-        />
-        <StatCard
-          label="Total Revenue"
-          value={`GHS ${stats.totalRevenue.toFixed(2)}`}
-          icon={Receipt}
-          subtitle={`${stats.totalTransactions} transactions`}
-        />
-        <StatCard
-          label="Inventory"
-          value={stats.totalProducts.toString()}
-          icon={Package}
-          subtitle={`${stats.lowStockCount} low, ${stats.outOfStockCount} out`}
-          trend={stats.lowStockCount > 0 ? 'down' : 'up'}
-          trendValue={stats.lowStockCount > 0 ? `${stats.lowStockCount} need attention` : 'All stocked'}
-        />
-        <StatCard
-          label="Pending Orders"
-          value={stats.pendingPOs.toString()}
-          icon={FileText}
-          subtitle={`${stats.totalPurchaseOrders} total`}
-          trend={stats.pendingPOs > 0 ? 'neutral' : 'up'}
-        />
+        {statsVisible.todaySales && (
+          <StatCard
+            label="Today's Sales"
+            value={`GHS ${stats.todaySales.toFixed(2)}`}
+            icon={DollarSign}
+            trend={stats.salesTrend > 0 ? 'up' : stats.salesTrend < 0 ? 'down' : 'neutral'}
+            trendValue={stats.salesTrend !== 0 ? `${stats.salesTrend > 0 ? '+' : ''}${stats.salesTrend.toFixed(1)}%` : undefined}
+          />
+        )}
+        {statsVisible.totalRevenue && (
+          <StatCard
+            label="Total Revenue"
+            value={`GHS ${stats.totalRevenue.toFixed(2)}`}
+            icon={Receipt}
+            subtitle={`${stats.totalTransactions} transactions`}
+          />
+        )}
+        {statsVisible.inventory && (
+          <StatCard
+            label="Inventory"
+            value={stats.totalProducts.toString()}
+            icon={Package}
+            subtitle={`${stats.lowStockCount} low, ${stats.outOfStockCount} out`}
+            trend={stats.lowStockCount > 0 ? 'down' : 'up'}
+            trendValue={stats.lowStockCount > 0 ? `${stats.lowStockCount} need attention` : 'All stocked'}
+          />
+        )}
+        {statsVisible.pendingOrders && (
+          <StatCard
+            label="Pending Orders"
+            value={stats.pendingPOs.toString()}
+            icon={FileText}
+            subtitle={`${stats.totalPurchaseOrders} total`}
+            trend={stats.pendingPOs > 0 ? 'neutral' : 'up'}
+          />
+        )}
       </div>
 
-      {/* ─── Charts Section (3 columns) ─────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3" style={{ gap: '12px' }}>
-        {/* Daily Sales Chart */}
-        <div className="card" style={{ padding: 0, overflow: 'hidden', background: 'var(--color-bg-surface)', border: '1px solid var(--color-border)', borderRadius: '10px' }}>
-          <SectionHeader icon={BarChart3} title={`Daily Sales (${getDateFilterLabel()})`} linkTo="/dashboard/analytics" />
-          <div style={{ padding: '4px 20px 16px 20px' }}>
-            <ResponsiveContainer width="100%" height={180}>
-              <AreaChart data={dailySalesData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
-                <XAxis dataKey="day" stroke="var(--color-text-muted)" fontSize={10} />
-                <YAxis stroke="var(--color-text-muted)" fontSize={10} />
-                <Tooltip content={<CustomTooltip />} />
-                <Area
-                  type="monotone"
-                  dataKey="sales"
-                  name="Sales"
-                  stroke="var(--color-accent)"
-                  fill="var(--color-accent-light)"
-                  fillOpacity={0.3}
-                  strokeWidth={2}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Payment Methods Pie Chart */}
-        <div className="card" style={{ padding: 0, overflow: 'hidden', background: 'var(--color-bg-surface)', border: '1px solid var(--color-border)', borderRadius: '10px' }}>
-          <SectionHeader icon={PieChartIcon} title="Payment Methods" />
-          <div style={{ padding: '4px 20px 16px 20px' }}>
-            {paymentDistribution.length === 0 ? (
-              <div className="text-center" style={{ padding: '16px 0' }}>
-                <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', margin: 0 }}>No payment data yet</p>
+      {/* ─── Charts Section (3 columns) ───────────────────────────────── */}
+      {hasAnyChart && (
+        <div className="grid grid-cols-1 lg:grid-cols-3" style={{ gap: '12px' }}>
+          {/* Daily Sales Chart */}
+          {chartsVisible.dailySales && (
+            <div className="card" style={{ padding: 0, overflow: 'hidden', background: 'var(--color-bg-surface)', border: '1px solid var(--color-border)', borderRadius: '10px' }}>
+              <SectionHeader icon={BarChart3} title={`Daily Sales (${getDateFilterLabel()})`} linkTo="/dashboard/analytics" />
+              <div style={{ padding: '4px 20px 16px 20px' }}>
+                <ResponsiveContainer width="100%" height={180}>
+                  <AreaChart data={dailySalesData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+                    <XAxis dataKey="day" stroke="var(--color-text-muted)" fontSize={10} />
+                    <YAxis stroke="var(--color-text-muted)" fontSize={10} />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Area
+                      type="monotone"
+                      dataKey="sales"
+                      name="Sales"
+                      stroke="var(--color-accent)"
+                      fill="var(--color-accent-light)"
+                      fillOpacity={0.3}
+                      strokeWidth={2}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
               </div>
-            ) : (
-              <ResponsiveContainer width="100%" height={180}>
-                <PieChart>
-                  <Pie
-                    data={paymentDistribution}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={45}
-                    outerRadius={65}
-                    paddingAngle={2}
-                    dataKey="value"
-                  >
-                    {paymentDistribution.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip content={<CustomTooltip />} />
-                  <Legend wrapperStyle={{ fontSize: '10px', color: 'var(--color-text-secondary)', paddingTop: '8px' }} />
-                </PieChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-        </div>
+            </div>
+          )}
 
-        {/* ─── Top Products Chart (NEW) ────────────────────────────────────────── */}
-        <div className="card" style={{ padding: 0, overflow: 'hidden', background: 'var(--color-bg-surface)', border: '1px solid var(--color-border)', borderRadius: '10px' }}>
-          <SectionHeader icon={Package} title="Top Selling Products" linkTo="/dashboard/products" />
-          <div style={{ padding: '4px 20px 16px 20px' }}>
-            {(() => {
-              const productSales: Record<string, { name: string; quantity: number; revenue: number }> = {};
+          {/* Payment Methods Pie Chart */}
+          {chartsVisible.paymentMethods && (
+            <div className="card" style={{ padding: 0, overflow: 'hidden', background: 'var(--color-bg-surface)', border: '1px solid var(--color-border)', borderRadius: '10px' }}>
+              <SectionHeader icon={PieChartIcon} title="Payment Methods" />
+              <div style={{ padding: '4px 20px 16px 20px' }}>
+                {paymentDistribution.length === 0 ? (
+                  <div className="text-center" style={{ padding: '16px 0' }}>
+                    <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', margin: 0 }}>No payment data yet</p>
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height={180}>
+                    <PieChart>
+                      <Pie
+                        data={paymentDistribution}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={45}
+                        outerRadius={65}
+                        paddingAngle={2}
+                        dataKey="value"
+                      >
+                        {paymentDistribution.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip content={<CustomTooltip />} />
+                      <Legend wrapperStyle={{ fontSize: '10px', color: 'var(--color-text-secondary)', paddingTop: '8px' }} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+            </div>
+          )}
 
-              filteredTransactions.forEach(tx => {
-                if (tx.items && Array.isArray(tx.items)) {
-                  tx.items.forEach((item: any) => {
-                    const productId = item.productId;
-                    const productName = item.product?.name || item.productName || 'Unknown';
-                    if (productId) {
-                      if (!productSales[productId]) {
-                        productSales[productId] = { name: productName, quantity: 0, revenue: 0 };
-                      }
-                      productSales[productId].quantity += item.quantity || 0;
-                      productSales[productId].revenue += item.total || 0;
+          {/* Top Products Chart */}
+          {chartsVisible.dailySales && (
+            <div className="card" style={{ padding: 0, overflow: 'hidden', background: 'var(--color-bg-surface)', border: '1px solid var(--color-border)', borderRadius: '10px' }}>
+              <SectionHeader icon={Package} title="Top Selling Products" linkTo="/dashboard/products" />
+              <div style={{ padding: '4px 20px 16px 20px' }}>
+                {(() => {
+                  const productSales: Record<string, { name: string; quantity: number; revenue: number }> = {};
+
+                  filteredTransactions.forEach(tx => {
+                    if (tx.items && Array.isArray(tx.items)) {
+                      tx.items.forEach((item: any) => {
+                        const productId = item.productId;
+                        const productName = item.product?.name || item.productName || 'Unknown';
+                        if (productId) {
+                          if (!productSales[productId]) {
+                            productSales[productId] = { name: productName, quantity: 0, revenue: 0 };
+                          }
+                          productSales[productId].quantity += item.quantity || 0;
+                          productSales[productId].revenue += item.total || 0;
+                        }
+                      });
                     }
                   });
-                }
-              });
 
-              const topProducts = Object.entries(productSales)
-                .map(([id, data]) => ({ id, ...data }))
-                .sort((a, b) => b.revenue - a.revenue)
-                .slice(0, 5);
+                  const topProducts = Object.entries(productSales)
+                    .map(([id, data]) => ({ id, ...data }))
+                    .sort((a, b) => b.revenue - a.revenue)
+                    .slice(0, 5);
 
-              if (topProducts.length === 0) {
-                return (
-                  <div className="text-center" style={{ padding: '16px 0' }}>
-                    <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', margin: 0 }}>No product sales data yet</p>
-                  </div>
-                );
-              }
-
-              const maxRevenue = Math.max(...topProducts.map(p => p.revenue));
-
-              return (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', paddingTop: '4px' }}>
-                  {topProducts.map((product, index) => {
-                    const percentage = maxRevenue > 0 ? (product.revenue / maxRevenue) * 100 : 0;
-                    const colors = ['var(--color-accent)', 'var(--color-success)', 'var(--color-warning)', 'var(--color-role-lab)', 'var(--color-info)'];
-
+                  if (topProducts.length === 0) {
                     return (
-                      <div key={product.id} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <span style={{
-                          fontSize: '10px',
-                          fontWeight: 600,
-                          color: 'var(--color-text-muted)',
-                          width: '20px',
-                          textAlign: 'center',
-                        }}>
-                          #{index + 1}
-                        </span>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
-                            <span style={{
-                              fontSize: '11px',
-                              fontWeight: 500,
-                              color: 'var(--color-text-primary)',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap',
-                            }}>
-                              {product.name}
-                            </span>
+                      <div className="text-center" style={{ padding: '16px 0' }}>
+                        <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', margin: 0 }}>No product sales data yet</p>
+                      </div>
+                    );
+                  }
+
+                  const maxRevenue = Math.max(...topProducts.map(p => p.revenue));
+
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', paddingTop: '4px' }}>
+                      {topProducts.map((product, index) => {
+                        const percentage = maxRevenue > 0 ? (product.revenue / maxRevenue) * 100 : 0;
+                        const colors = ['var(--color-accent)', 'var(--color-success)', 'var(--color-warning)', 'var(--color-role-lab)', 'var(--color-info)'];
+
+                        return (
+                          <div key={product.id} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                             <span style={{
                               fontSize: '10px',
                               fontWeight: 600,
-                              color: 'var(--color-accent-text)',
+                              color: 'var(--color-text-muted)',
+                              width: '20px',
+                              textAlign: 'center',
+                            }}>
+                              #{index + 1}
+                            </span>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
+                                <span style={{
+                                  fontSize: '11px',
+                                  fontWeight: 500,
+                                  color: 'var(--color-text-primary)',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap',
+                                }}>
+                                  {product.name}
+                                </span>
+                                <span style={{
+                                  fontSize: '10px',
+                                  fontWeight: 600,
+                                  color: 'var(--color-accent-text)',
+                                  fontVariantNumeric: 'tabular-nums',
+                                }}>
+                                  GHS {product.revenue.toFixed(2)}
+                                </span>
+                              </div>
+                              <div style={{
+                                height: '6px',
+                                borderRadius: '4px',
+                                background: 'var(--color-bg-subtle)',
+                                overflow: 'hidden',
+                              }}>
+                                <div style={{
+                                  height: '100%',
+                                  borderRadius: '4px',
+                                  width: `${percentage}%`,
+                                  background: colors[index % colors.length],
+                                  transition: 'width 0.6s ease',
+                                }} />
+                              </div>
+                            </div>
+                            <span style={{
+                              fontSize: '9px',
+                              fontWeight: 500,
+                              color: 'var(--color-text-muted)',
+                              width: '30px',
+                              textAlign: 'right',
                               fontVariantNumeric: 'tabular-nums',
                             }}>
-                              GHS {product.revenue.toFixed(2)}
+                              {product.quantity}
                             </span>
                           </div>
-                          <div style={{
-                            height: '6px',
-                            borderRadius: '4px',
-                            background: 'var(--color-bg-subtle)',
-                            overflow: 'hidden',
-                          }}>
-                            <div style={{
-                              height: '100%',
-                              borderRadius: '4px',
-                              width: `${percentage}%`,
-                              background: colors[index % colors.length],
-                              transition: 'width 0.6s ease',
-                            }} />
-                          </div>
-                        </div>
-                        <span style={{
-                          fontSize: '9px',
-                          fontWeight: 500,
-                          color: 'var(--color-text-muted)',
-                          width: '30px',
-                          textAlign: 'right',
-                          fontVariantNumeric: 'tabular-nums',
-                        }}>
-                          {product.quantity}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })()}
-          </div>
-        </div>
-      </div>
-
-      {/* ── Quick Actions & Stock Distribution ──────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3" style={{ gap: '12px' }}>
-        {/* Quick Actions */}
-        <div className="lg:col-span-2 card" style={{ padding: 0, overflow: 'hidden', background: 'var(--color-bg-surface)', border: '1px solid var(--color-border)', borderRadius: '10px' }}>
-          <SectionHeader icon={Zap} title="Quick Actions" />
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-            gap: '10px',
-            padding: '4px 20px 20px 20px',
-          }}>
-            {quickActions.map((action) => (
-              <QuickAction
-                key={action.to}
-                to={action.to}
-                label={action.label}
-                icon={action.icon}
-                description={action.description}
-              />
-            ))}
-          </div>
-          {quickActions.length === 0 && (
-            <div className="text-center" style={{ padding: '16px 0' }}>
-              <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', margin: 0 }}>No actions available</p>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+              </div>
             </div>
           )}
         </div>
+      )}
+
+      {/* ── Quick Actions & Stock Distribution ──────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3" style={{ gap: '12px' }}>
+        {/* Quick Actions — hide entirely if no actions available */}
+        {quickActions.length > 0 && (
+          <div className="lg:col-span-2 card" style={{ padding: 0, overflow: 'hidden', background: 'var(--color-bg-surface)', border: '1px solid var(--color-border)', borderRadius: '10px' }}>
+            <SectionHeader icon={Zap} title="Quick Actions" />
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+              gap: '10px',
+              padding: '4px 20px 20px 20px',
+            }}>
+              {quickActions.map((action) => (
+                <QuickAction
+                  key={action.to}
+                  to={action.to}
+                  label={action.label}
+                  icon={action.icon}
+                  description={action.description}
+                />
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Stock Distribution */}
-        <div className="card" style={{ padding: 0, overflow: 'hidden', background: 'var(--color-bg-surface)', border: '1px solid var(--color-border)', borderRadius: '10px' }}>
-          <SectionHeader icon={Package} title="Stock Distribution" />
-          <div style={{ padding: '4px 20px 20px 20px' }}>
-            {products.length === 0 ? (
-              <div className="text-center" style={{ padding: '16px 0' }}>
-                <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', margin: 0 }}>No products data yet</p>
-              </div>
-            ) : (
-              <ResponsiveContainer width="100%" height={160}>
-                <BarChart data={stockDistribution} layout="vertical">
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" horizontal={false} />
-                  <XAxis type="number" stroke="var(--color-text-muted)" fontSize={10} allowDecimals={false} />
-                  <YAxis dataKey="name" type="category" stroke="var(--color-text-muted)" fontSize={10} width={65} />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Bar dataKey="value" name="Products" radius={[0, 4, 4, 0]}>
-                    {stockDistribution.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            )}
+        {chartsVisible.stockDistribution && (
+          <div className="card" style={{ padding: 0, overflow: 'hidden', background: 'var(--color-bg-surface)', border: '1px solid var(--color-border)', borderRadius: '10px' }}>
+            <SectionHeader icon={Package} title="Stock Distribution" />
+            <div style={{ padding: '4px 20px 20px 20px' }}>
+              {products.length === 0 ? (
+                <div className="text-center" style={{ padding: '16px 0' }}>
+                  <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', margin: 0 }}>No products data yet</p>
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={160}>
+                  <BarChart data={stockDistribution} layout="vertical">
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" horizontal={false} />
+                    <XAxis type="number" stroke="var(--color-text-muted)" fontSize={10} allowDecimals={false} />
+                    <YAxis dataKey="name" type="category" stroke="var(--color-text-muted)" fontSize={10} width={65} />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Bar dataKey="value" name="Products" radius={[0, 4, 4, 0]}>
+                      {stockDistribution.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* ── Recent Activity ────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2" style={{ gap: '12px' }}>
-        {/* Recent Transactions */}
-        <div className="card" style={{ padding: 0, overflow: 'hidden', background: 'var(--color-bg-surface)', border: '1px solid var(--color-border)', borderRadius: '10px' }}>
-          <SectionHeader icon={Receipt} title={`Recent Transactions (${getDateFilterLabel()})`} linkTo="/dashboard/sales" />
+      {hasAnyRecent && (
+        <div className="grid grid-cols-1 lg:grid-cols-2" style={{ gap: '12px' }}>
+          {/* Recent Transactions */}
+          {recentVisible.transactions && (
+            <div className="card" style={{ padding: 0, overflow: 'hidden', background: 'var(--color-bg-surface)', border: '1px solid var(--color-border)', borderRadius: '10px' }}>
+              <SectionHeader icon={Receipt} title={`Recent Transactions (${getDateFilterLabel()})`} linkTo="/dashboard/sales" />
 
-          <div style={{
-            padding: '4px 20px 20px 20px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '6px',
-          }}>
-            {recentTransactions.length === 0 ? (
-              <div className="text-center" style={{ padding: '16px 0' }}>
-                <div
-                  className="flex items-center justify-center mx-auto"
-                  style={{ width: 36, height: 36, borderRadius: '9999px', background: 'var(--color-bg-subtle)', marginBottom: '8px' }}
-                >
-                  <Receipt style={{ width: 16, height: 16, color: 'var(--color-text-muted)' }} />
-                </div>
-                <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', margin: 0 }}>No transactions in this period</p>
+              <div style={{
+                padding: '4px 20px 20px 20px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '6px',
+              }}>
+                {recentTransactions.length === 0 ? (
+                  <div className="text-center" style={{ padding: '16px 0' }}>
+                    <div
+                      className="flex items-center justify-center mx-auto"
+                      style={{ width: 36, height: 36, borderRadius: '9999px', background: 'var(--color-bg-subtle)', marginBottom: '8px' }}
+                    >
+                      <Receipt style={{ width: 16, height: 16, color: 'var(--color-text-muted)' }} />
+                    </div>
+                    <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', margin: 0 }}>No transactions in this period</p>
+                  </div>
+                ) : (
+                  recentTransactions.map((tx) => (
+                    <div
+                      key={tx.id ?? tx._id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        background: 'var(--color-bg-subtle)',
+                        transition: 'background 150ms ease',
+                        cursor: 'default',
+                        gap: '12px',
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--color-accent-light)')}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--color-bg-subtle)')}
+                    >
+                      <div style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '2px',
+                        flex: 1,
+                        minWidth: 0,
+                      }}>
+                        <p style={{
+                          fontSize: '11px',
+                          fontFamily: 'var(--font-mono)',
+                          color: 'var(--color-text-secondary)',
+                          letterSpacing: '-0.01em',
+                          margin: 0,
+                        }}>
+                          {tx.transactionNumber}
+                        </p>
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          flexWrap: 'wrap',
+                        }}>
+                          <p style={{
+                            fontSize: '11px',
+                            color: 'var(--color-text-muted)',
+                            margin: 0,
+                          }}>
+                            {new Date(tx.createdAt).toLocaleString()}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right flex-shrink-0" style={{ marginLeft: '8px' }}>
+                        <p style={{
+                          fontSize: '13px',
+                          fontWeight: 700,
+                          color: 'var(--color-text-primary)',
+                          margin: 0,
+                          marginBottom: '2px',
+                          fontVariantNumeric: 'tabular-nums',
+                        }}>
+                          GHS {tx.total.toFixed(2)}
+                        </p>
+                        <span
+                          className="capitalize"
+                          style={{
+                            fontSize: '10px',
+                            padding: '2px 8px',
+                            borderRadius: '9999px',
+                            background: 'var(--color-bg-surface)',
+                            color: 'var(--color-text-secondary)',
+                            border: '1px solid var(--color-border)',
+                            display: 'inline-block',
+                          }}
+                        >
+                          {tx.paymentMethod || 'Cash'}
+                        </span>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
-            ) : (
-              recentTransactions.map((tx) => (
-                <div
-                  key={tx.id ?? tx._id}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '10px 12px',
-                    borderRadius: '8px',
-                    background: 'var(--color-bg-subtle)',
-                    transition: 'background 150ms ease',
-                    cursor: 'default',
-                    gap: '12px',
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--color-accent-light)')}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--color-bg-subtle)')}
-                >
-                  <div style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '2px',
-                    flex: 1,
-                    minWidth: 0,
-                  }}>
-                    <p style={{
-                      fontSize: '11px',
-                      fontFamily: 'var(--font-mono)',
-                      color: 'var(--color-text-secondary)',
-                      letterSpacing: '-0.01em',
-                      margin: 0,
-                    }}>
-                      {tx.transactionNumber}
-                    </p>
+            </div>
+          )}
+
+          {/* Recent Activity - Lab Tests & Purchase Orders */}
+          {(recentVisible.labTests || recentVisible.purchaseOrders) && (
+            <div className="card" style={{ padding: 0, overflow: 'hidden', background: 'var(--color-bg-surface)', border: '1px solid var(--color-border)', borderRadius: '10px' }}>
+              <SectionHeader icon={List} title={`Recent Activity (${getDateFilterLabel()})`} linkTo="/dashboard/analytics" />
+
+              <div style={{
+                padding: '4px 20px 20px 20px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '6px',
+              }}>
+                {/* Lab Tests Section */}
+                {recentVisible.labTests && recentLabTests.length > 0 && (
+                  <>
                     <div style={{
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '8px',
-                      flexWrap: 'wrap',
-                    }}>
-                      <p style={{
-                        fontSize: '11px',
-                        color: 'var(--color-text-muted)',
-                        margin: 0,
-                      }}>
-                        {new Date(tx.createdAt).toLocaleString()}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right flex-shrink-0" style={{ marginLeft: '8px' }}>
-                    <p style={{
-                      fontSize: '13px',
-                      fontWeight: 700,
-                      color: 'var(--color-text-primary)',
-                      margin: 0,
+                      gap: '6px',
+                      padding: '4px 6px',
                       marginBottom: '2px',
-                      fontVariantNumeric: 'tabular-nums',
                     }}>
-                      GHS {tx.total.toFixed(2)}
-                    </p>
-                    <span
-                      className="capitalize"
-                      style={{
-                        fontSize: '10px',
-                        padding: '2px 8px',
-                        borderRadius: '9999px',
-                        background: 'var(--color-bg-surface)',
-                        color: 'var(--color-text-secondary)',
-                        border: '1px solid var(--color-border)',
-                        display: 'inline-block',
-                      }}
-                    >
-                      {tx.paymentMethod || 'Cash'}
-                    </span>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-
-        {/* Recent Activity - Lab Tests & Purchase Orders */}
-        <div className="card" style={{ padding: 0, overflow: 'hidden', background: 'var(--color-bg-surface)', border: '1px solid var(--color-border)', borderRadius: '10px' }}>
-          <SectionHeader icon={List} title={`Recent Activity (${getDateFilterLabel()})`} linkTo="/dashboard/analytics" />
-
-          <div style={{
-            padding: '4px 20px 20px 20px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '6px',
-          }}>
-            {/* Lab Tests Section */}
-            {recentLabTests.length > 0 && (
-              <>
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '4px 6px',
-                  marginBottom: '2px',
-                }}>
-                  <FlaskConical style={{ width: 12, height: 12, color: 'var(--color-text-secondary)' }} />
-                  <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
-                    Lab Tests
-                  </span>
-                </div>
-                {recentLabTests.map((test) => (
-                  <div
-                    key={test.id}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '10px 12px',
-                      borderRadius: '8px',
-                      background: 'var(--color-bg-subtle)',
-                      transition: 'background 150ms ease',
-                      cursor: 'default',
-                      gap: '12px',
-                    }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--color-accent-light)')}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--color-bg-subtle)')}
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p className="truncate" style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-primary)', margin: 0 }}>
-                        {test.patientName}
-                      </p>
-                      <p style={{ fontSize: '11px', color: 'var(--color-text-muted)', margin: 0, marginTop: '2px' }}>
-                        {test.transactionNumber}
-                      </p>
+                      <FlaskConical style={{ width: 12, height: 12, color: 'var(--color-text-secondary)' }} />
+                      <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+                        Lab Tests
+                      </span>
                     </div>
-                    <div className="flex-shrink-0" style={{ marginLeft: '8px' }}>
-                      <StatusBadge status={test.status} />
-                    </div>
-                  </div>
-                ))}
-              </>
-            )}
-
-            {/* Purchase Orders Section */}
-            {recentPurchaseOrders.length > 0 && (
-              <>
-                {recentLabTests.length > 0 && (
-                  <div style={{ height: '1px', background: 'var(--color-border)', margin: '8px 0' }} />
+                    {recentLabTests.map((test) => (
+                      <div
+                        key={test.id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '10px 12px',
+                          borderRadius: '8px',
+                          background: 'var(--color-bg-subtle)',
+                          transition: 'background 150ms ease',
+                          cursor: 'default',
+                          gap: '12px',
+                        }}
+                        onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--color-accent-light)')}
+                        onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--color-bg-subtle)')}
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p className="truncate" style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-primary)', margin: 0 }}>
+                            {test.patientName}
+                          </p>
+                          <p style={{ fontSize: '11px', color: 'var(--color-text-muted)', margin: 0, marginTop: '2px' }}>
+                            {test.transactionNumber}
+                          </p>
+                        </div>
+                        <div className="flex-shrink-0" style={{ marginLeft: '8px' }}>
+                          <StatusBadge status={test.status} />
+                        </div>
+                      </div>
+                    ))}
+                  </>
                 )}
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '4px 6px',
-                  marginBottom: '2px',
-                }}>
-                  <Truck style={{ width: 12, height: 12, color: 'var(--color-text-secondary)' }} />
-                  <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
-                    Purchase Orders
-                  </span>
-                </div>
-                {recentPurchaseOrders.map((po) => (
-                  <div
-                    key={po.id}
-                    style={{
+
+                {/* Purchase Orders Section */}
+                {recentVisible.purchaseOrders && recentPurchaseOrders.length > 0 && (
+                  <>
+                    {recentVisible.labTests && recentLabTests.length > 0 && (
+                      <div style={{ height: '1px', background: 'var(--color-border)', margin: '8px 0' }} />
+                    )}
+                    <div style={{
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '10px 12px',
-                      borderRadius: '8px',
-                      background: 'var(--color-bg-subtle)',
-                      transition: 'background 150ms ease',
-                      cursor: 'default',
-                      gap: '12px',
-                    }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--color-accent-light)')}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--color-bg-subtle)')}
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p className="truncate" style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-primary)', margin: 0 }}>
-                        {po.orderNumber}
-                      </p>
-                      <p style={{ fontSize: '11px', color: 'var(--color-text-muted)', margin: 0, marginTop: '2px' }}>
-                        {po.supplierName || 'Supplier'}
-                      </p>
+                      gap: '6px',
+                      padding: '4px 6px',
+                      marginBottom: '2px',
+                    }}>
+                      <Truck style={{ width: 12, height: 12, color: 'var(--color-text-secondary)' }} />
+                      <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+                        Purchase Orders
+                      </span>
                     </div>
-                    <div className="text-right flex-shrink-0" style={{ marginLeft: '8px' }}>
-                      <p style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-accent-text)', margin: 0, marginBottom: '2px', fontVariantNumeric: 'tabular-nums' }}>
-                        GHS {po.totalAmount.toFixed(2)}
-                      </p>
-                      <StatusBadge status={po.status} />
-                    </div>
-                  </div>
-                ))}
-              </>
-            )}
+                    {recentPurchaseOrders.map((po) => (
+                      <div
+                        key={po.id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '10px 12px',
+                          borderRadius: '8px',
+                          background: 'var(--color-bg-subtle)',
+                          transition: 'background 150ms ease',
+                          cursor: 'default',
+                          gap: '12px',
+                        }}
+                        onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--color-accent-light)')}
+                        onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--color-bg-subtle)')}
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p className="truncate" style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-primary)', margin: 0 }}>
+                            {po.orderNumber}
+                          </p>
+                          <p style={{ fontSize: '11px', color: 'var(--color-text-muted)', margin: 0, marginTop: '2px' }}>
+                            {po.supplierName || 'Supplier'}
+                          </p>
+                        </div>
+                        <div className="text-right flex-shrink-0" style={{ marginLeft: '8px' }}>
+                          <p style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-accent-text)', margin: 0, marginBottom: '2px', fontVariantNumeric: 'tabular-nums' }}>
+                            GHS {po.totalAmount.toFixed(2)}
+                          </p>
+                          <StatusBadge status={po.status} />
+                        </div>
+                      </div>
+                    ))}
+                  </>
+                )}
 
-            {recentLabTests.length === 0 && recentPurchaseOrders.length === 0 && (
-              <div className="text-center" style={{ padding: '16px 0' }}>
-                <div
-                  className="flex items-center justify-center mx-auto"
-                  style={{ width: 36, height: 36, borderRadius: '9999px', background: 'var(--color-bg-subtle)', marginBottom: '8px' }}
-                >
-                  <Box style={{ width: 16, height: 16, color: 'var(--color-text-muted)' }} />
-                </div>
-                <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', margin: 0 }}>No recent activity in this period</p>
+                {(!recentVisible.labTests || recentLabTests.length === 0) && (!recentVisible.purchaseOrders || recentPurchaseOrders.length === 0) && (
+                  <div className="text-center" style={{ padding: '16px 0' }}>
+                    <div
+                      className="flex items-center justify-center mx-auto"
+                      style={{ width: 36, height: 36, borderRadius: '9999px', background: 'var(--color-bg-subtle)', marginBottom: '8px' }}
+                    >
+                      <Box style={{ width: 16, height: 16, color: 'var(--color-text-muted)' }} />
+                    </div>
+                    <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', margin: 0 }}>No recent activity in this period</p>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
-      </div>
+      )}
     </div>
   );
 };

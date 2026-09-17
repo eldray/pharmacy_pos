@@ -1,3 +1,4 @@
+// backend/models/User.js
 const { sequelize, DataTypes } = require('../config/database');
 
 const User = sequelize.define('User', {
@@ -21,12 +22,18 @@ const User = sequelize.define('User', {
     allowNull: false
   },
   role: {
-    type: DataTypes.ENUM('admin', 'cashier', 'pharmacist', 'lab'),
+    type: DataTypes.ENUM('admin', 'manager', 'pharmacist_sales', 'cashier', 'lab_tech'),
     allowNull: false,
     defaultValue: 'cashier'
+  },
+  status: {
+    type: DataTypes.ENUM('active', 'blocked'),
+    allowNull: false,
+    defaultValue: 'active'
   }
 }, {
   tableName: 'users',
+  timestamps: true,
   hooks: {
     beforeCreate: async (user) => {
       const bcrypt = require('bcryptjs');

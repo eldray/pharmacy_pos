@@ -1,5 +1,6 @@
+// src/components/ui/ThemeToggle.tsx
 import React from 'react';
-import { Sun, Moon } from 'lucide-react';
+import { Sun, Moon, Monitor } from 'lucide-react';
 import { useThemeStore } from '../../store/themeStore';
 
 interface ThemeToggleProps {
@@ -9,27 +10,38 @@ interface ThemeToggleProps {
 export const ThemeToggle: React.FC<ThemeToggleProps> = ({ className = '' }) => {
     const { theme, toggleTheme } = useThemeStore();
 
+    // Cycle: light → dark → system → light
+    const Icon = theme === 'light' ? Moon : theme === 'dark' ? Sun : Monitor;
+    const nextLabel =
+        theme === 'light' ? 'dark' : theme === 'dark' ? 'system' : 'light';
+
     return (
         <button
             onClick={toggleTheme}
-            aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
-            className={`
-                relative inline-flex items-center justify-center
-                w-9 h-9 rounded-lg
-                text-gray-500 hover:text-gray-700
-                hover:bg-gray-100
-                dark:text-gray-400 dark:hover:text-gray-200
-                dark:hover:bg-gray-800
-                transition-all duration-200
-                focus-visible:outline-2 focus-visible:outline-purple-500
-                ${className}
-            `}
+            aria-label={`Switch to ${nextLabel} mode`}
+            title={`Theme: ${theme} — click to switch to ${nextLabel}`}
+            className={`relative inline-flex items-center justify-center ${className}`}
+            style={{
+                width: 36,
+                height: 36,
+                borderRadius: 'var(--radius-sm)',
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--color-text-secondary)',
+                cursor: 'pointer',
+                padding: 4,
+                transition: 'background-color 150ms ease, color 150ms ease',
+            }}
+            onMouseEnter={(e) => {
+                (e.currentTarget as HTMLElement).style.background = 'var(--color-bg-subtle)';
+                (e.currentTarget as HTMLElement).style.color = 'var(--color-text-primary)';
+            }}
+            onMouseLeave={(e) => {
+                (e.currentTarget as HTMLElement).style.background = 'transparent';
+                (e.currentTarget as HTMLElement).style.color = 'var(--color-text-secondary)';
+            }}
         >
-            {theme === 'light' ? (
-                <Moon className="h-4 w-4" />
-            ) : (
-                <Sun className="h-4 w-4" />
-            )}
+            <Icon style={{ width: 16, height: 16 }} />
         </button>
     );
 };
