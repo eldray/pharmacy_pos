@@ -22,9 +22,7 @@ interface MenuItem {
   roles: string[];
 }
 
-// Roles: 'admin' | 'manager' | 'pharmacist_sales' | 'cashier' | 'lab_tech'
 const menuItems: MenuItem[] = [
-  // ─── MAIN ────────────────────────────────────────────────────────
   { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard', roles: ['admin', 'manager', 'cashier', 'pharmacist_sales', 'lab_tech'] },
   { icon: ShoppingCart, label: 'Point of Sale', path: '/dashboard/pos', roles: ['admin', 'manager', 'cashier', 'pharmacist_sales'] },
   { icon: ClipboardList, label: 'Orders', path: '/dashboard/orders', roles: ['admin', 'manager', 'cashier', 'pharmacist_sales'] },
@@ -32,69 +30,34 @@ const menuItems: MenuItem[] = [
   { icon: Receipt, label: 'Sales History', path: '/dashboard/sales', roles: ['admin', 'manager', 'cashier', 'pharmacist_sales'] },
   { icon: Users, label: 'Customers', path: '/dashboard/customers', roles: ['admin', 'manager', 'cashier', 'pharmacist_sales', 'lab_tech'] },
 
-  // ─── CATALOG ─────────────────────────────────────────────────────
   { icon: Package, label: 'Products', path: '/dashboard/products', roles: ['admin', 'manager', 'pharmacist_sales'] },
   { icon: Warehouse, label: 'Inventory', path: '/dashboard/inventory', roles: ['admin', 'manager', 'pharmacist_sales'] },
   { icon: Store, label: 'Branches & Warehouse', path: '/dashboard/branches', roles: ['admin', 'manager'] },
   { icon: Truck, label: 'Suppliers', path: '/dashboard/suppliers', roles: ['admin', 'manager', 'pharmacist_sales'] },
   { icon: FileText, label: 'Purchase Orders', path: '/dashboard/purchase-orders', roles: ['admin', 'manager', 'pharmacist_sales'] },
 
-  // ─── LABORATORY ──────────────────────────────────────────────────
   { icon: FlaskConical, label: 'Laboratory', path: '/dashboard/lab', roles: ['admin', 'manager', 'pharmacist_sales', 'lab_tech'] },
   { icon: FileText, label: 'Lab Reports', path: '/dashboard/lab-reports', roles: ['admin', 'manager', 'lab_tech'] },
 
-  // ─── OPERATIONS ──────────────────────────────────────────────────
   { icon: ShieldAlert, label: 'Insurance & Co-Pay', path: '/dashboard/insurance', roles: ['admin', 'manager', 'pharmacist_sales'] },
   { icon: BarChart3, label: 'Analytics', path: '/dashboard/analytics', roles: ['admin', 'manager', 'pharmacist_sales'] },
   { icon: TrendingUp, label: 'Profit Report', path: '/dashboard/profit-report', roles: ['admin', 'manager'] },
   { icon: ShieldAlert, label: 'Controlled Report', path: '/dashboard/controlled-report', roles: ['admin', 'manager', 'pharmacist_sales'] },
 
-  // ─── SYSTEM ──────────────────────────────────────────────────────
   { icon: UserCog, label: 'HR Staff Management', path: '/dashboard/staff', roles: ['admin', 'manager'] },
   { icon: Settings, label: 'Settings', path: '/dashboard/settings', roles: ['admin'] },
 ];
 
 const SECTION_GROUPS: { title?: string; paths: string[] }[] = [
   {
-    paths: [
-      '/dashboard',
-      '/dashboard/pos',
-      '/dashboard/orders',
-      '/dashboard/payment',
-      '/dashboard/sales',
-      '/dashboard/customers',
-    ],
+    paths: ['/dashboard', '/dashboard/pos', '/dashboard/orders', '/dashboard/payment', '/dashboard/sales', '/dashboard/customers'],
   },
-  {
-    title: 'Catalog',
-    paths: [
-      '/dashboard/products',
-      '/dashboard/inventory',
-      '/dashboard/branches',
-      '/dashboard/suppliers',
-      '/dashboard/purchase-orders',
-    ],
-  },
-  {
-    title: 'Laboratory',
-    paths: ['/dashboard/lab', '/dashboard/lab-reports'],
-  },
-  {
-    title: 'Operations',
-    paths: [
-      '/dashboard/insurance',
-      '/dashboard/analytics',
-      '/dashboard/profit-report',
-      '/dashboard/controlled-report',
-    ],
-  },
-  {
-    title: 'System',
-    paths: ['/dashboard/staff', '/dashboard/settings'],
-  },
+  { title: 'Catalog', paths: ['/dashboard/products', '/dashboard/inventory', '/dashboard/branches', '/dashboard/suppliers', '/dashboard/purchase-orders'] },
+  { title: 'Laboratory', paths: ['/dashboard/lab', '/dashboard/lab-reports'] },
+  { title: 'Operations', paths: ['/dashboard/insurance', '/dashboard/analytics', '/dashboard/profit-report', '/dashboard/controlled-report'] },
+  { title: 'System', paths: ['/dashboard/staff', '/dashboard/settings'] },
 ];
 
-// Human-friendly role labels
 const ROLE_LABELS: Record<string, string> = {
   admin: 'Administrator',
   manager: 'Manager',
@@ -143,6 +106,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, userRole }) =
           zIndex: 'var(--z-sidebar)',
           width: 'var(--sidebar-width)',
           background: 'var(--color-sidebar-bg)',
+          borderRight: '1px solid var(--color-sidebar-border)',
+          transition: 'transform 300ms ease, background 200ms ease, border-color 200ms ease',
         }}
       >
         {/* ═══════════════ HEADER ═══════════════ */}
@@ -153,13 +118,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, userRole }) =
             borderBottom: '1px solid var(--color-sidebar-border)',
           }}
         >
-          {/* Brand row */}
           <div className="flex items-center justify-between">
             <div className="flex items-center" style={{ gap: 12 }}>
               <div
                 style={{
                   width: 40, height: 40, borderRadius: 10,
-                  background: 'var(--color-accent)',
+                  background: 'var(--gradient-accent)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   flexShrink: 0,
                   boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
@@ -181,7 +145,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, userRole }) =
                   style={{
                     fontSize: 10.5,
                     color: 'var(--color-sidebar-text)',
-                    opacity: 0.55,
+                    opacity: 0.7,
                     display: 'block',
                     marginTop: 2,
                     letterSpacing: '0.02em',
@@ -200,6 +164,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, userRole }) =
                 color: 'var(--color-sidebar-text)',
                 background: 'transparent', border: 'none',
                 cursor: 'pointer', padding: 0,
+                transition: 'background 120ms',
               }}
               onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--color-sidebar-item-hover)'; }}
               onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
@@ -208,7 +173,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, userRole }) =
             </button>
           </div>
 
-          {/* ═══ Role + status row ═══ */}
+          {/* Role + status row */}
           <div
             className="flex items-center"
             style={{
@@ -287,7 +252,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, userRole }) =
                     fontSize: 10,
                     fontWeight: 700,
                     color: 'var(--color-sidebar-text)',
-                    opacity: 0.45,
+                    opacity: 0.7,
                     letterSpacing: '0.08em',
                     textTransform: 'uppercase',
                   }}
@@ -343,7 +308,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, userRole }) =
                           width: 18,
                           height: 18,
                           flexShrink: 0,
-                          opacity: active ? 1 : 0.65,
+                          opacity: active ? 1 : 0.8,
                           transition: 'opacity 120ms ease',
                         }}
                       >
@@ -378,10 +343,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, userRole }) =
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: 11, color: 'var(--color-sidebar-text)', opacity: 0.4, letterSpacing: '0.01em' }}>
+            <span style={{ fontSize: 11, color: 'var(--color-sidebar-text)', opacity: 0.7, letterSpacing: '0.01em' }}>
               v1.0.0
             </span>
-            <span style={{ fontSize: 11, color: 'var(--color-sidebar-text)', opacity: 0.3, letterSpacing: '0.01em' }}>
+            <span style={{ fontSize: 11, color: 'var(--color-sidebar-text)', opacity: 0.55, letterSpacing: '0.01em' }}>
               © 2026
             </span>
           </div>
