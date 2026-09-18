@@ -24,10 +24,10 @@ interface MenuItem {
 
 const menuItems: MenuItem[] = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard', roles: ['admin', 'manager', 'cashier', 'pharmacist_sales', 'lab_tech'] },
-  { icon: ShoppingCart, label: 'Point of Sale', path: '/dashboard/pos', roles: ['admin', 'manager', 'cashier', 'pharmacist_sales'] },
+  { icon: ShoppingCart, label: 'Point of Sale', path: '/dashboard/pos', roles: ['admin', 'manager', 'pharmacist_sales'] },
   { icon: ClipboardList, label: 'Orders', path: '/dashboard/orders', roles: ['admin', 'manager', 'cashier', 'pharmacist_sales'] },
   { icon: CreditCard, label: 'Payment & Collections', path: '/dashboard/payment', roles: ['admin', 'manager', 'cashier'] },
-  { icon: Receipt, label: 'Sales History', path: '/dashboard/sales', roles: ['admin', 'manager', 'cashier', 'pharmacist_sales'] },
+  { icon: Receipt, label: 'Sales History', path: '/dashboard/sales', roles: ['admin', 'manager', 'cashier'] },
   { icon: Users, label: 'Customers', path: '/dashboard/customers', roles: ['admin', 'manager', 'cashier', 'pharmacist_sales', 'lab_tech'] },
 
   { icon: Package, label: 'Products', path: '/dashboard/products', roles: ['admin', 'manager', 'pharmacist_sales'] },
@@ -36,11 +36,11 @@ const menuItems: MenuItem[] = [
   { icon: Truck, label: 'Suppliers', path: '/dashboard/suppliers', roles: ['admin', 'manager', 'pharmacist_sales'] },
   { icon: FileText, label: 'Purchase Orders', path: '/dashboard/purchase-orders', roles: ['admin', 'manager', 'pharmacist_sales'] },
 
-  { icon: FlaskConical, label: 'Laboratory', path: '/dashboard/lab', roles: ['admin', 'manager', 'pharmacist_sales', 'lab_tech'] },
+  { icon: FlaskConical, label: 'Laboratory', path: '/dashboard/lab', roles: ['admin', 'manager', 'lab_tech'] },
   { icon: FileText, label: 'Lab Reports', path: '/dashboard/lab-reports', roles: ['admin', 'manager', 'lab_tech'] },
 
   { icon: ShieldAlert, label: 'Insurance & Co-Pay', path: '/dashboard/insurance', roles: ['admin', 'manager', 'pharmacist_sales'] },
-  { icon: BarChart3, label: 'Analytics', path: '/dashboard/analytics', roles: ['admin', 'manager', 'pharmacist_sales'] },
+  { icon: BarChart3, label: 'Analytics', path: '/dashboard/analytics', roles: ['admin', 'manager'] },
   { icon: TrendingUp, label: 'Profit Report', path: '/dashboard/profit-report', roles: ['admin', 'manager'] },
   { icon: ShieldAlert, label: 'Controlled Report', path: '/dashboard/controlled-report', roles: ['admin', 'manager', 'pharmacist_sales'] },
 

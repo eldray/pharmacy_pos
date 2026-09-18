@@ -124,7 +124,10 @@ export const DashboardLayout: React.FC = () => {
                 <Route path="lab" element={<LabManagement />} />
                 <Route path="lab/:id" element={<LabDetail />} />
                 <Route path="lab-reports" element={<LabReports />} />
-
+                {/* Analytics — admin/manager ONLY */}
+                {(isAdmin || isManager) && (
+                  <Route path="analytics" element={<AnalyticsPage />} />
+                )}
                 {/* Reports — controlled for admin/manager/pharmacist_sales, profit for admin/manager */}
                 <Route path="controlled-report" element={<ControlledReport />} />
                 {(isAdmin || isManager) && (
