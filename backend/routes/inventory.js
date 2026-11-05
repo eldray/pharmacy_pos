@@ -4,6 +4,7 @@ const InventoryLog = require('../models/InventoryLog');
 const Product = require('../models/Product');
 const User = require('../models/User');
 const { auth, adminAuth } = require('../middleware/auth');
+const { createdAtRange } = require('../utils/dateRange');
 
 const router = express.Router();
 
@@ -14,7 +15,7 @@ router.get('/logs', auth, async (req, res) => {
     const where = {};
 
     if (startDate && endDate) {
-      where.createdAt = { [Op.gte]: new Date(startDate), [Op.lte]: new Date(endDate) };
+      where.createdAt = createdAtRange(startDate, endDate);
     }
     if (productId) where.productId = productId;
 

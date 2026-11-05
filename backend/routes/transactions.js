@@ -8,6 +8,7 @@ const User = require('../models/User');
 const Company = require('../models/Company');
 const { auth, adminAuth } = require('../middleware/auth');
 const { recordAudit } = require('../utils/audit');
+const { createdAtRange } = require('../utils/dateRange');
 
 const router = express.Router();
 
@@ -18,7 +19,7 @@ router.get('/', auth, async (req, res) => {
     const where = {};
 
     if (startDate && endDate) {
-      where.createdAt = { [Op.gte]: new Date(startDate), [Op.lte]: new Date(endDate) };
+      where.createdAt = createdAtRange(startDate, endDate);
     }
     if (cashierId) where.cashierId = cashierId;
     if (paymentMethod) where.paymentMethod = paymentMethod;
@@ -93,7 +94,7 @@ router.get('/reports/controlled', auth, async (req, res) => {
     const { startDate, endDate } = req.query;
     const where = {};
     if (startDate && endDate) {
-      where.createdAt = { [Op.gte]: new Date(startDate), [Op.lte]: new Date(endDate) };
+      where.createdAt = createdAtRange(startDate, endDate);
     }
 
     const transactions = await Transaction.findAll({ where, order: [['createdAt', 'DESC']] });
@@ -142,7 +143,7 @@ router.get('/reports/profit', auth, async (req, res) => {
     const { startDate, endDate } = req.query;
     const where = {};
     if (startDate && endDate) {
-      where.createdAt = { [Op.gte]: new Date(startDate), [Op.lte]: new Date(endDate) };
+      where.createdAt = createdAtRange(startDate, endDate);
     }
 
     const transactions = await Transaction.findAll({ where, order: [['createdAt', 'DESC']] });

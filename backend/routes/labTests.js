@@ -3,9 +3,10 @@ const { Op } = require('sequelize');
 const { sequelize } = require('../config/database');
 const LabTest = require('../models/LabTest');
 const LabTestTemplate = require('../models/LabTestTemplate');
-const Transaction = require('../models/Transaction');
+const LabTransaction = require('../models/LabTransaction');
 const User = require('../models/User');
 const { auth, adminAuth, labAuth } = require('../middleware/auth');
+const { createdAtRange } = require('../utils/dateRange');
 
 const router = express.Router();
 
@@ -73,18 +74,14 @@ router.get('/', auth, async (req, res) => {
         if (patientName) where.patientName = { [Op.iLike]: `%${patientName}%` };
 
         if (startDate && endDate) {
-            where.createdAt = {
-                [Op.gte]: new Date(startDate),
-                [Op.lte]: new Date(endDate)
-            };
+            where.createdAt = createdAtRange(startDate, endDate);
         }
 
         const tests = await LabTest.findAll({
             where,
             include: [
-                { model: User, as: 'requester', attributes: ['id', 'name', 'email'] },
                 { model: User, as: 'performer', attributes: ['id', 'name', 'email'] },
-                { model: Transaction, as: 'transaction', attributes: ['id', 'transactionNumber'] }
+                { model: LabTransaction, as: 'transaction', attributes: ['id', 'transactionNumber'] }
             ],
             order: [['createdAt', 'DESC']]
         });
@@ -106,9 +103,8 @@ router.get('/:id', auth, async (req, res) => {
     try {
         const test = await LabTest.findByPk(req.params.id, {
             include: [
-                { model: User, as: 'requester', attributes: ['id', 'name', 'email'] },
                 { model: User, as: 'performer', attributes: ['id', 'name', 'email'] },
-                { model: Transaction, as: 'transaction', attributes: ['id', 'transactionNumber'] }
+                { model: LabTransaction, as: 'transaction', attributes: ['id', 'transactionNumber'] }
             ]
         });
         if (!test) return res.status(404).json({ msg: 'Lab test not found' });
@@ -215,7 +211,6 @@ router.put('/:id', auth, async (req, res) => {
 
         const updated = await LabTest.findByPk(test.id, {
             include: [
-                { model: User, as: 'requester', attributes: ['id', 'name', 'email'] },
                 { model: User, as: 'performer', attributes: ['id', 'name', 'email'] }
             ]
         });
@@ -251,7 +246,6 @@ router.post('/:id/results', auth, labAuth, async (req, res) => {
 
         const updated = await LabTest.findByPk(test.id, {
             include: [
-                { model: User, as: 'requester', attributes: ['id', 'name', 'email'] },
                 { model: User, as: 'performer', attributes: ['id', 'name', 'email'] }
             ]
         });

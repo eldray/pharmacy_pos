@@ -104,9 +104,12 @@ export const SalesPage: React.FC = () => {
         break;
       case 'custom':
         if (startDate && endDate) {
+          // 'YYYY-MM-DD' parses as midnight, so the end day needs to run to 23:59:59.
+          const endOfDay = new Date(endDate);
+          endOfDay.setHours(23, 59, 59, 999);
           return transactions.filter((t) => {
             const txDate = new Date(t.createdAt);
-            return txDate >= new Date(startDate) && txDate <= new Date(endDate);
+            return txDate >= new Date(startDate) && txDate <= endOfDay;
           });
         }
         return transactions;

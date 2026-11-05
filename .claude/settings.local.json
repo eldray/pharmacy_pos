@@ -1,0 +1,42 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc *)",
+      "Bash(node -e \"console.log\\(require\\('./package.json'\\).scripts.build\\)\")",
+      "Bash(node -e ' *)",
+      "Bash(node -e \"require\\('./routes/company.js'\\); console.log\\('company route OK'\\);\")",
+      "Bash(npx vite *)",
+      "Bash(timeout 25 node import-products.js)",
+      "Bash(timeout 25 node migrate.js status)",
+      "Bash(timeout 40 node migrate.js)",
+      "Bash(timeout 25 node migrate.js)",
+      "Bash(timeout 25 node -e ' *)",
+      "Bash(node -e \"require\\('./routes/products'\\); console.log\\('products route OK'\\);\")",
+      "Bash(timeout 40 node backup-db.js)",
+      "Read(//c/Program Files/PostgreSQL/**)",
+      "Read(//c/Program Files \\(x86\\)/**)",
+      "Bash(node --check backup-db.js)",
+      "Bash(timeout 60 node backup-db.js)",
+      "Bash(timeout 90 npm install express-rate-limit)",
+      "Bash(node -e \"const r=require\\('express-rate-limit'\\); console.log\\('express-rate-limit installed, version:', require\\('express-rate-limit/package.json'\\).version\\);\")",
+      "Bash(node -e \"require\\('express-rate-limit'\\)\")",
+      "Bash(git rm *)",
+      "Bash(rm -f src/offlineCache.js)",
+      "Bash(ls src/offlineCache.js)",
+      "Bash(node --check utils/errors.js)",
+      "Bash(node -e \"require\\('./utils/errors'\\); require\\('./server.js'\\) && 0\")",
+      "Read(//c/Users/iMac/.claude/projects/C--Users-iMac-Desktop-hms-pharmacy-pos/memory/**)",
+      "Bash(ls MEMORY.md)",
+      "Bash(sed 's#src/##')",
+      "Bash(node -e \"console.log\\(require\\('recharts/package.json'\\).version\\)\")",
+      "Bash(node --check routes/transactions.js)",
+      "Bash(node --check migrations/002-product-schedule.js)",
+      "Bash(timeout 30 node migrate.js)",
+      "Bash(timeout 20 node -e ' *)",
+      "Bash(node --check migrations/003-product-cost.js)",
+      "Bash(node -e \"console.log\\('react-to-print', require\\('react-to-print/package.json'\\).version\\)\")",
+      "Bash(node -e \"const p=require\\('./node_modules/react-to-print/package.json'\\); console.log\\('version:', p.version\\)\")",
+      "Bash(echo \"exit=$?\")"
+    ]
+  }
+}

@@ -28,15 +28,12 @@ async function resetDatabase() {
 
 async function terminateConnections(client, databaseName) {
     console.log(`🔌 Terminating all connections to "${databaseName}"...`);
-
-    // Terminate all connections to the database
     await client.query(`
     SELECT pg_terminate_backend(pg_stat_activity.pid)
     FROM pg_stat_activity
     WHERE pg_stat_activity.datname = $1
     AND pid <> pg_backend_pid()
   `, [databaseName]);
-
     console.log(`✅ All connections terminated`);
 }
 
@@ -46,7 +43,6 @@ async function main() {
 
         console.log('\n🔄 Starting database reset...\n');
 
-        // Get database config
         const config = {
             host: process.env.DB_HOST || '127.0.0.1',
             port: parseInt(process.env.DB_PORT || '5432'),
@@ -55,7 +51,7 @@ async function main() {
             database: process.env.DB_NAME || 'pharmacy_pos'
         };
 
-        // Connect to postgres database
+        // Step 1: Drop/recreate via the `postgres` admin DB
         const client = new Client({
             host: config.host,
             port: config.port,
@@ -67,27 +63,40 @@ async function main() {
         await client.connect();
         console.log(`✅ Connected to PostgreSQL as ${config.user}`);
 
-        // First, terminate all connections to the target database
         await terminateConnections(client, config.database);
 
-        // Drop database if exists
         console.log(`📦 Dropping database "${config.database}"...`);
         await client.query(`DROP DATABASE IF EXISTS "${config.database}"`);
         console.log(`✅ Database "${config.database}" dropped`);
 
-        // Create database
         console.log(`📦 Creating database "${config.database}"...`);
         await client.query(`CREATE DATABASE "${config.database}"`);
         console.log(`✅ Database "${config.database}" created`);
 
         await client.end();
 
-        // Run seed
-        console.log('\n🌱 Seeding database...\n');
+        // Step 2: reconnect the shared Sequelize singleton to the new DB
+        //         (authenticate() forces a fresh pool, avoiding stale OIDs)
+        await sequelize.authenticate();
+        console.log(`✅ Sequelize reconnected to "${config.database}"\n`);
+
+        // Step 3: run migrations to create the schema
+        console.log('📦 Running database migrations...');
+        const { migrate } = require('./migrate');
+        const result = await migrate('up');
+        console.log(
+            result.applied > 0
+                ? `✅ Applied ${result.applied} migration(s)\n`
+                : '✅ Database schema is up to date\n'
+        );
+
+        // Step 4: seed data
+        console.log('🌱 Seeding database...\n');
         await seedDatabase();
 
         console.log('\n🎉 Database reset complete!');
         rl.close();
+        await sequelize.close();
         process.exit(0);
     } catch (err) {
         console.error('❌ Reset failed:', err);

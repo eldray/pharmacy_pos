@@ -154,7 +154,7 @@ const isCancelled = (o: Order): boolean => o.status === 'cancelled';
 
 /* ═══════════════════════════════════════════════════════════════════ */
 export const PaymentPage: React.FC = () => {
-  const { company } = useAppStore();
+  const { company, fetchTransactions } = useAppStore();
 
   const [tab, setTab] = useState<Tab>('pos');
   const [dateFilter, setDateFilter] = useState<DateFilter>('pending');
@@ -278,6 +278,8 @@ export const PaymentPage: React.FC = () => {
       setSuccessTx(tx);
       setLastPaidOrder(selectedOrder);
       refreshList();
+      // The sale is only visible in Sales History once the shared store knows about it.
+      if (tab !== 'lab') await fetchTransactions();
 
       setSelectedOrder((prev) => {
         if (!prev) return null;

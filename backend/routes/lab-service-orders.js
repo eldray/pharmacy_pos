@@ -12,6 +12,7 @@ const {
     Transaction,
 } = require('../models');
 const { auth } = require('../middleware/auth');
+const { createdAtRange } = require('../utils/dateRange');
 
 const router = express.Router();
 
@@ -75,7 +76,7 @@ router.get('/stats/summary', auth, async (req, res) => {
         const { startDate, endDate } = req.query;
         const where = {};
         if (startDate && endDate) {
-            where.createdAt = { [Op.gte]: new Date(startDate), [Op.lte]: new Date(endDate) };
+            where.createdAt = createdAtRange(startDate, endDate);
         }
 
         const [total, pending, paid, cancelled] = await Promise.all([

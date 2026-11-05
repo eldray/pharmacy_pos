@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Plus, Edit2, Trash2, Truck, Phone, Mail, MapPin, Building,
-  Search, ArrowUpRight, Users, X, TrendingUp, Loader2
+  Search, ArrowUpRight, Users, X, TrendingUp, Loader2, Grid, List
 } from 'lucide-react';
 import { useAppStore } from '../store';
 import { Supplier } from '../types';
@@ -12,6 +12,7 @@ export const SupplierManagement: React.FC = () => {
   const [showModal, setShowModal] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
@@ -175,10 +176,41 @@ export const SupplierManagement: React.FC = () => {
               onBlur={onFieldBlur}
             />
           </div>
+
+          {/* View Mode Toggle */}
+          <div className="flex rounded-xl p-1" style={{ background: 'var(--color-bg-subtle)' }}>
+            <button
+              onClick={() => setViewMode('grid')}
+              title="Grid view"
+              className={`p-2 rounded-lg transition-all ${viewMode === 'grid'
+                ? 'surface-elevated shadow-sm'
+                : 'hover:bg-subtle'
+                }`}
+              style={{
+                color: viewMode === 'grid' ? 'var(--color-accent-text)' : 'var(--color-text-muted)'
+              }}
+            >
+              <Grid className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => setViewMode('list')}
+              title="List view"
+              className={`p-2 rounded-lg transition-all ${viewMode === 'list'
+                ? 'surface-elevated shadow-sm'
+                : 'hover:bg-subtle'
+                }`}
+              style={{
+                color: viewMode === 'list' ? 'var(--color-accent-text)' : 'var(--color-text-muted)'
+              }}
+            >
+              <List className="h-4 w-4" />
+            </button>
+          </div>
         </div>
       </Card>
 
-      {/* Suppliers Grid - Clean cards */}
+      {/* Suppliers - Grid or List */}
+      {viewMode === 'grid' ? (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filteredSuppliers.map((supplier) => (
           <Card key={supplier.id} className="p-5 border-theme hover:border-accent transition-all duration-200 group">
@@ -241,6 +273,68 @@ export const SupplierManagement: React.FC = () => {
           </Card>
         ))}
       </div>
+      ) : (
+        <Card>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[820px]">
+              <thead className="bg-subtle border-b border-theme">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase">Supplier</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase">Email</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase">Phone</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase">Location</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase">Added</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-secondary uppercase">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-theme">
+                {filteredSuppliers.map((supplier) => (
+                  <tr key={supplier.id} className="hover:bg-subtle transition-colors group">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <div className="p-1.5 rounded-lg" style={{ background: 'var(--color-success-light)', color: 'var(--color-success-text)' }}>
+                          <Truck className="h-3 w-3" />
+                        </div>
+                        <span className="font-bold text-primary text-sm group-hover:text-accent transition-colors">
+                          {supplier.name}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-primary">{supplier.email}</td>
+                    <td className="px-4 py-3 text-sm text-primary">{supplier.phone}</td>
+                    <td className="px-4 py-3 text-sm text-secondary">
+                      {supplier.city || supplier.country ? `${supplier.city}, ${supplier.country}` : '—'}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-secondary">
+                      {new Date(supplier.createdAt).toLocaleDateString()}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex gap-1 justify-end">
+                        <button
+                          onClick={() => openEditModal(supplier)}
+                          title="Edit Supplier"
+                          className="p-1.5 rounded-lg transition-all duration-200 hover:bg-subtle"
+                          style={{ color: 'var(--color-text-secondary)' }}
+                        >
+                          <Edit2 className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(supplier.id)}
+                          title="Delete Supplier"
+                          className="p-1.5 rounded-lg transition-all duration-200 hover:bg-danger-light"
+                          style={{ color: 'var(--color-danger-text)' }}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
 
       {/* Empty State - Clean */}
       {filteredSuppliers.length === 0 && (

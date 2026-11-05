@@ -181,17 +181,11 @@ const startServer = async () => {
     await createDatabaseIfNotExists();
     console.log('');
 
-    // Step 2: Connect to the database
+    // Step 2: Connect
     await sequelize.authenticate();
     console.log('✅ PostgreSQL connected');
 
-    // Step 3: Run migrations (replaces sync()).
-    //
-    // Why not sync()?
-    //   sync() recreates indexes every startup — Postgres rejects duplicates
-    //   with error 42P07. Migrations run once and are tracked, so they're
-    //   safe on every restart, and they're the industry-standard way to
-    //   manage schema changes in production.
+    // Step 3: Run migrations FIRST — they own the schema.
     console.log('📦 Running database migrations...');
     const { migrate } = require('./migrate');
     const migrationResult = await migrate('up');
@@ -201,20 +195,22 @@ const startServer = async () => {
         : '✅ Database schema is up to date'
     );
 
-    // Step 4: Seed if the database has no users.
+    // Step 4: Seed ONLY if there are no users yet.
+    //         Seed is idempotent, so this is a cheap safety check.
     const { User } = require('./models');
-    const count = await User.count();
-    if (count === 0) {
+    const userCount = await User.count();
+    if (userCount === 0) {
       console.log('🌱 Empty database — running seed...');
       const seed = require('./seed');
       await seed();
       console.log('✅ Seeding complete');
     } else {
-      console.log(`✅ Database has ${count} user(s) — skipping seed`);
+      console.log(`✅ Database has ${userCount} user(s) — skipping seed`);
     }
 
     console.log('🎉 Database initialization complete!');
     console.log(`✅ Server ready on http://${HOST}:${PORT}`);
+
     app.listen(PORT, HOST, () => {
       console.log(`✅ Server running on http://${HOST}:${PORT}`);
       console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);

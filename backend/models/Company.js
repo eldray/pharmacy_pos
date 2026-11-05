@@ -42,7 +42,7 @@ const Company = sequelize.define('Company', {
     defaultValue: false
   }
 }, {
-  tableName: 'company',
+  tableName: 'companies',
   timestamps: true
 });
 

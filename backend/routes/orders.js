@@ -2,6 +2,7 @@ const express = require('express');
 const { SalesOrder, User, Branch, InsuranceProvider, Transaction, Product, InventoryLog, Customer } = require('../models');
 const { auth } = require('../middleware/auth');
 const { sequelize } = require('../config/database');
+const { createdAtRange } = require('../utils/dateRange');
 const router = express.Router();
 
 // GET today's orders (for Payment Page cashier view)
@@ -60,7 +61,7 @@ router.get('/stats/summary', auth, async (req, res) => {
     const { Op } = require('sequelize');
     const where = {};
     if (startDate && endDate) {
-      where.createdAt = { [Op.gte]: new Date(startDate), [Op.lte]: new Date(endDate) };
+      where.createdAt = createdAtRange(startDate, endDate);
     }
 
     const [total, pending, paid, cancelled] = await Promise.all([
@@ -105,10 +106,7 @@ router.get('/', auth, async (req, res) => {
     if (cashierId) where.cashierId = cashierId;
 
     if (startDate && endDate) {
-      where.createdAt = {
-        [Op.gte]: new Date(startDate),
-        [Op.lte]: new Date(endDate),
-      };
+      where.createdAt = createdAtRange(startDate, endDate);
     }
 
     if (q && q.trim()) {
@@ -232,12 +230,13 @@ router.post('/:id/pay', auth, async (req, res) => {
 
         await InventoryLog.create({
           productId: product.id,
+          productName: product.name,
           userId: req.user.userId,
-          type: 'SALE',
-          quantityChange: -Number(item.quantity),
-          previousQuantity: previousStock,
-          newQuantity: newStock,
-          reason: `Sales Order #${order.orderNumber}`
+          userName: cashier ? cashier.name : 'Cashier',
+          type: 'outflow',
+          quantity: Number(item.quantity),
+          reference: transactionNumber,
+          notes: `Sales Order #${order.orderNumber}`
         }, { transaction: t });
       }
     }

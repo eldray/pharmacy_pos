@@ -7,6 +7,7 @@ const User = require('../models/User');
 const Company = require('../models/Company');
 const Customer = require('../models/Customer');
 const { auth, adminAuth, labAuth } = require('../middleware/auth');
+const { createdAtRange } = require('../utils/dateRange');
 
 const router = express.Router();
 
@@ -38,10 +39,7 @@ router.get('/', auth, async (req, res) => {
         }
 
         if (startDate && endDate) {
-            where.createdAt = {
-                [Op.gte]: new Date(startDate),
-                [Op.lte]: new Date(endDate),
-            };
+            where.createdAt = createdAtRange(startDate, endDate);
         }
 
         // Free-text search across number / patient / phone
