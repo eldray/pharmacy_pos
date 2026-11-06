@@ -7,6 +7,7 @@ import {
   CreditCard, ClipboardList, Users,
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
+import { useBackendOnline } from '../hooks/useBackendOnline';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -83,6 +84,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, userRole }) =
     .filter((s) => s.items.length > 0);
 
   const roleLabel = ROLE_LABELS[userRole] || userRole;
+  const backendOnline = useBackendOnline();
 
   return (
     <>
@@ -158,6 +160,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, userRole }) =
 
             <button
               onClick={onClose}
+              aria-label="Close navigation menu"
               className="lg:hidden flex items-center justify-center"
               style={{
                 width: 32, height: 32, borderRadius: 8,
@@ -204,6 +207,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, userRole }) =
             </span>
 
             <span
+              title={backendOnline ? undefined : 'Cannot reach the backend — sales need a connection'}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -212,8 +216,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, userRole }) =
                 borderRadius: 999,
                 fontSize: 11,
                 fontWeight: 600,
-                background: 'var(--color-success-light)',
-                color: 'var(--color-success-text)',
+                background: backendOnline ? 'var(--color-success-light)' : 'var(--color-danger-light)',
+                color: backendOnline ? 'var(--color-success-text)' : 'var(--color-danger-text)',
                 lineHeight: 1,
                 whiteSpace: 'nowrap',
               }}
@@ -221,12 +225,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, userRole }) =
               <span
                 style={{
                   width: 6, height: 6, borderRadius: 999,
-                  background: 'var(--color-success)',
-                  animation: 'pulse-dot 2s ease-in-out infinite',
+                  background: backendOnline ? 'var(--color-success)' : 'var(--color-danger)',
+                  animation: backendOnline ? 'pulse-dot 2s ease-in-out infinite' : undefined,
                   flexShrink: 0,
                 }}
               />
-              Online
+              {backendOnline ? 'Online' : 'Offline'}
             </span>
           </div>
         </div>

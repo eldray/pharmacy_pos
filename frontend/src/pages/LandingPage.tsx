@@ -501,7 +501,7 @@ export const LandingPage: React.FC = () => {
             style={{ color: 'rgba(255,255,255,0.75)' }}
           >
             {[
-              { Icon: Smartphone, text: 'Works Offline & Online' },
+              { Icon: Smartphone, text: 'Reads Cached · Sales Need Connection' },
               { Icon: FileText, text: 'Lifetime Free Updates' },
               { Icon: Users, text: 'Dedicated 24/7 Support' },
             ].map(({ Icon, text }) => (

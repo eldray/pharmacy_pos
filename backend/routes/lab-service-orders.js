@@ -11,10 +11,17 @@ const {
     Customer,
     Transaction,
 } = require('../models');
-const { auth } = require('../middleware/auth');
+const { auth, adminAuth } = require('../middleware/auth');
 const { createdAtRange } = require('../utils/dateRange');
+const { priceLabTests, resolveInsurance } = require('../utils/pricing');
+const { nextReference } = require('../utils/references');
+const { normalizePaymentMethod } = require('../utils/validators');
+const { AppError } = require('../utils/errors');
 
 const router = express.Router();
+const { numericIdParams } = require('../utils/numericIdParams');
+
+numericIdParams(router);
 
 const ORDER_INCLUDE = [
     { model: User, as: 'creator', attributes: ['id', 'name', 'email'] },
@@ -149,9 +156,7 @@ router.post('/', auth, async (req, res) => {
             customerId,
             patientName, patientPhone, patientEmail, patientAge, patientGender,
             tests,
-            subtotal, tax, total,
-            insuranceProviderId, insuranceProviderName, policyNumber,
-            insuranceCoverage = 0, copayAmount,
+            insuranceProviderId, policyNumber,
             notes, branchId,
         } = req.body;
 
@@ -189,7 +194,12 @@ router.post('/', auth, async (req, res) => {
             return res.status(400).json({ msg: 'Patient name is required' });
         }
 
-        const orderNumber = `LSO-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+        // Test prices come from the templates, and the insurer split from the
+        // provider record — not from the request body.
+        const priced = await priceLabTests(tests);
+        const insurance = await resolveInsurance(insuranceProviderId, priced, { taxRate: 0 });
+
+        const orderNumber = await nextReference('LSO');
 
         const order = await LabServiceOrder.create({
             orderNumber,
@@ -202,15 +212,12 @@ router.post('/', auth, async (req, res) => {
             patientEmail: resolvedEmail,
             patientAge: resolvedAge,
             patientGender: resolvedGender,
-            tests,
-            subtotal: parseFloat(subtotal) || 0,
-            tax: parseFloat(tax) || 0,
-            total: parseFloat(total) || 0,
-            insuranceProviderId: insuranceProviderId || null,
-            insuranceProviderName: insuranceProviderName || null,
+            tests: priced.lines,
+            subtotal: priced.subtotal,
+            tax: priced.tax,
+            total: priced.total,
+            ...insurance,
             policyNumber: policyNumber || null,
-            insuranceCoverage: parseFloat(insuranceCoverage) || 0,
-            copayAmount: parseFloat(copayAmount || total) || 0,
             status: 'pending_payment',
             notes: notes || null,
         });
@@ -218,6 +225,7 @@ router.post('/', auth, async (req, res) => {
         const full = await LabServiceOrder.findByPk(order.id, { include: ORDER_INCLUDE });
         res.status(201).json(full);
     } catch (err) {
+        if (err instanceof AppError) return res.status(err.status).json({ msg: err.message });
         console.error('Create lab service order error:', err);
         res.status(500).json({ msg: 'Server error', error: err.message });
     }
@@ -230,7 +238,7 @@ router.post('/:id/pay', auth, async (req, res) => {
     try {
         const { paymentMethod, paymentReference } = req.body;
 
-        const order = await LabServiceOrder.findByPk(req.params.id, { transaction: t });
+        const order = await LabServiceOrder.findByPk(req.params.id, { transaction: t, lock: t.LOCK.UPDATE });
         if (!order) {
             await t.rollback();
             return res.status(404).json({ msg: 'Lab service order not found' });
@@ -241,10 +249,11 @@ router.post('/:id/pay', auth, async (req, res) => {
         }
 
         const cashier = await User.findByPk(req.user.userId, { transaction: t });
+        const method = normalizePaymentMethod(paymentMethod) || 'cash';
 
         // ── 1. Create the LabTransaction (the actual lab work record) ───
-        const transactionNumber = `LAB-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-        const receiptNumber = `REC-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+        const transactionNumber = await nextReference('LAB', { transaction: t });
+        const receiptNumber = await nextReference('REC', { transaction: t });
 
         const labTx = await LabTransaction.create({
             transactionNumber,
@@ -256,7 +265,7 @@ router.post('/:id/pay', auth, async (req, res) => {
             patientGender: order.patientGender,
             totalAmount: order.total,
             paidAmount: order.copayAmount || order.total,
-            paymentMethod: paymentMethod || 'cash',
+            paymentMethod: method,
             paymentReference: paymentReference || null,
             paymentStatus: 'paid',
             status: 'pending',
@@ -269,13 +278,14 @@ router.post('/:id/pay', auth, async (req, res) => {
 
         // ── 2. Create LabTest rows ────────────────────────────────────
         for (const testData of order.tests || []) {
-            const testNumber = `TEST-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+            const testNumber = await nextReference('LAB', { transaction: t });
             await LabTest.create({
                 testNumber,
                 labTransactionId: labTx.id,
                 testType: testData.testType,
                 testCategory: testData.testCategory || 'General',
                 testPrice: parseFloat(testData.testPrice) || 0,
+                quantity: Math.max(1, Number(testData.quantity) || 1),
                 priority: testData.priority || 'normal',
                 sampleType: testData.sampleType || null,
                 status: 'pending',
@@ -285,24 +295,30 @@ router.post('/:id/pay', auth, async (req, res) => {
 
         // ── 3. Create the general Transaction record (unified ledger) ─
         // This makes the lab payment show up on the same reports as POS sales.
-        const txNumber = `TXN-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+        const txNumber = await nextReference('MED', { transaction: t });
         await Transaction.create({
             transactionNumber: txNumber,
             cashierId: req.user.userId,
             customerId: order.customerId,
             cashierName: cashier ? cashier.name : 'Cashier',
-            items: (order.tests || []).map((test) => ({
-                productId: null,
-                product: { name: test.testType, sku: '', category: test.testCategory || 'Lab' },
-                quantity: test.quantity || 1,
-                unitPrice: parseFloat(test.testPrice) || 0,
-                total: (parseFloat(test.testPrice) || 0) * (test.quantity || 1),
-                discount: 0,
-            })),
+            items: (order.tests || []).map((test) => {
+                const unitPrice = parseFloat(test.testPrice) || 0;
+                const quantity = Math.max(1, Number(test.quantity) || 1);
+                return {
+                    productId: null,
+                    product: { name: test.testType, sku: '', category: test.testCategory || 'Lab' },
+                    quantity,
+                    unitPrice,
+                    // Multiplying a line total by quantity used to bill
+                    // multi-unit tests twice in the ledger.
+                    total: unitPrice * quantity,
+                    discount: 0,
+                };
+            }),
             subtotal: order.subtotal,
             tax: order.tax,
             total: order.copayAmount || order.total,
-            paymentMethod: paymentMethod || 'cash',
+            paymentMethod: method,
             paymentReference: paymentReference || null,
             customerName: order.patientName,
             customerPhone: order.patientPhone,
@@ -352,10 +368,10 @@ router.post('/:id/cancel', auth, async (req, res) => {
 // ─── POST /lab-service-orders/:id/refund ──────────────────────────
 // Refund a PAID lab order. Creates a negative Transaction to reverse revenue.
 // No stock to restore (lab tests don't consume inventory).
-router.post('/:id/refund', auth, async (req, res) => {
+router.post('/:id/refund', auth, adminAuth, async (req, res) => {
     const t = await sequelize.transaction();
     try {
-        const order = await LabServiceOrder.findByPk(req.params.id, { transaction: t });
+        const order = await LabServiceOrder.findByPk(req.params.id, { transaction: t, lock: t.LOCK.UPDATE });
         if (!order) {
             await t.rollback();
             return res.status(404).json({ msg: 'Lab service order not found' });

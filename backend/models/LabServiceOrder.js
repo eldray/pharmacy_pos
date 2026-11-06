@@ -73,16 +73,7 @@ const LabServiceOrder = sequelize.define('LabServiceOrder', {
 
     notes: DataTypes.TEXT,
 
-    // ── Refund fields (MOVED HERE — they belong to attributes, not options) ──
-    refundedAt: {
-        type: DataTypes.DATE,
-        allowNull: true,
-    },
-    refundedBy: {
-        type: DataTypes.INTEGER,
-        allowNull: true,
-        references: { model: 'users', key: 'id' },
-    },
+    // ── Refund fields ──
     refundedAt: {
         type: DataTypes.DATE,
         allowNull: true,

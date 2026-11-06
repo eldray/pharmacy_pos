@@ -23,6 +23,7 @@ import {
   getRecentSections,
   getQuickActions as getRoleQuickActions,
 } from '../utils/permissions';
+import { formatPaymentMethod } from '../utils/document';
 
 /* ─── Date Filter Button ───────────────────────────────────────────────────── */
 const DateFilterBtn: React.FC<{
@@ -477,7 +478,7 @@ export const DashboardHome: React.FC = () => {
       methods[method] = (methods[method] || 0) + t.total;
     });
     return Object.entries(methods).map(([name, value]) => ({
-      name: name === 'mtn' ? 'MTN MoMo' : name === 'vodafone' ? 'Vodafone' : name === 'airteltigo' ? 'AirtelTigo' : name.charAt(0).toUpperCase() + name.slice(1),
+      name: formatPaymentMethod(name, 'short'),
       value: Math.round(value),
     }));
   }, [filteredTransactions]);
@@ -1026,7 +1027,7 @@ export const DashboardHome: React.FC = () => {
                             display: 'inline-block',
                           }}
                         >
-                          {tx.paymentMethod || 'Cash'}
+                          {formatPaymentMethod(tx.paymentMethod || 'cash', 'short')}
                         </span>
                       </div>
                     </div>

@@ -23,12 +23,22 @@ async function seedDatabase() {
     // Schema is owned by migrations. Seed only inserts data.
 
     // ==================== USERS ====================
+    // These defaults are the demo logins the sign-in screen offers; set
+    // SEED_ADMIN_PASSWORD etc. in .env for a real installation.
+    const demoPassword = (key, fallback) => {
+      const fromEnv = process.env[key];
+      if (fromEnv) return fromEnv;
+      demoPasswordsInUse = true;
+      return fallback;
+    };
+    let demoPasswordsInUse = false;
+
     const userDefs = [
-      { name: 'Admin User',      email: 'admin@pharmacy.com',      password: 'admin123',      role: 'admin' },
-      { name: 'Mark Manager',    email: 'manager@pharmacy.com',    password: 'manager123',    role: 'manager' },
-      { name: 'John Cashier',    email: 'cashier@pharmacy.com',    password: 'cashier123',    role: 'cashier' },
-      { name: 'Jane Pharmacist', email: 'pharmacist@pharmacy.com', password: 'pharmacist123', role: 'pharmacist_sales' },
-      { name: 'Dr. Sarah Lab',   email: 'lab@pharmacy.com',        password: 'lab123',        role: 'lab_tech' },
+      { name: 'Admin User',      email: 'admin@pharmacy.com',      password: demoPassword('SEED_ADMIN_PASSWORD', 'admin123'),      role: 'admin' },
+      { name: 'Mark Manager',    email: 'manager@pharmacy.com',    password: demoPassword('SEED_MANAGER_PASSWORD', 'manager123'),  role: 'manager' },
+      { name: 'John Cashier',    email: 'cashier@pharmacy.com',    password: demoPassword('SEED_CASHIER_PASSWORD', 'cashier123'),   role: 'cashier' },
+      { name: 'Jane Pharmacist', email: 'pharmacist@pharmacy.com', password: demoPassword('SEED_PHARMACIST_PASSWORD', 'pharmacist123'), role: 'pharmacist_sales' },
+      { name: 'Dr. Sarah Lab',   email: 'lab@pharmacy.com',        password: demoPassword('SEED_LAB_PASSWORD', 'lab123'),          role: 'lab_tech' },
     ];
 
     for (const u of userDefs) {
@@ -79,26 +89,41 @@ async function seedDatabase() {
       }
 
       const created = await Product.bulkCreate(rows);
-      console.log(`✅ Created ${created.length} products\n`);
+      const missingCost = created.filter((p) => !Number(p.cost)).length;
+      console.log(`✅ Created ${created.length} products`);
+      if (missingCost) {
+        console.log(`⚠️  ${missingCost} have no cost price, so profit and COGS reports show a 100% margin`);
+        console.log('   until you enter one per product in Product Management (costs are never guessed here).');
+      }
+      console.log('');
     } else {
       console.log(`✅ Products already present (${await Product.count()}) — skipping\n`);
     }
 
     // ==================== LAB TEST TEMPLATES ====================
-    if ((await LabTestTemplate.count()) === 0) {
-      const labData = loadJsonData('lab-templates.json');
-      const templates = labData?.templates || [
-        { name: 'Complete Blood Count (CBC)', category: 'Hematology',   description: 'RBC/WBC/platelets', price: 45.00, sampleType: 'Blood', resultFields: ['WBC','RBC','Hemoglobin','Hematocrit','Platelets'], instructions: 'EDTA tube.' },
-        { name: 'Malaria Test',              category: 'Parasitology', description: 'RDT for malaria',   price: 25.00, sampleType: 'Blood', resultFields: ['Result','Species'],                                  instructions: 'Rapid test.' },
-        { name: 'Blood Glucose',             category: 'Biochemistry', description: 'Blood sugar',       price: 15.00, sampleType: 'Blood', resultFields: ['Fasting','Random'],                                  instructions: '8h fast for fasting.' },
-        { name: 'Lipid Profile',             category: 'Biochemistry', description: 'Cholesterol panel', price: 55.00, sampleType: 'Blood', resultFields: ['Total Cholesterol','LDL','HDL','Triglycerides'],      instructions: '12h fast.' },
-        { name: 'Urinalysis',                category: 'Urinalysis',   description: 'Urine analysis',    price: 30.00, sampleType: 'Urine', resultFields: ['Appearance','pH','Protein','Glucose','Ketones'],      instructions: 'Mid-stream.' },
-      ];
-      const created = await LabTestTemplate.bulkCreate(templates);
-      console.log(`✅ Created ${created.length} lab test templates\n`);
-    } else {
-      console.log(`✅ Lab templates already present (${await LabTestTemplate.count()}) — skipping\n`);
+    // findOrCreate per name, not a single bulkCreate behind a `count() === 0`
+    // guard: re-running the seed must add the tests that are new to the
+    // catalogue without touching prices a pharmacy has already edited.
+    const labData = loadJsonData('lab-templates.json');
+    const templates = labData?.templates || [
+      { name: 'Complete Blood Count (CBC)', category: 'Hematology',   description: 'RBC/WBC/platelets', price: 45.00, sampleType: 'Blood', insurancePrice: 35, resultFields: [{ name: 'WBC', type: 'number', required: true }, { name: 'RBC', type: 'number', required: true }, { name: 'Hemoglobin', type: 'number', required: true }, { name: 'Platelets', type: 'number', required: true }], defaultReferenceRanges: { WBC: { referenceRange: '4.5-11.0', unit: 'x10^3/µL' }, Hemoglobin: { referenceRange: '12.0-16.0', unit: 'g/dL' } }, instructions: 'EDTA tube.' },
+      { name: 'Malaria Test',              category: 'Parasitology', description: 'RDT for malaria',   price: 25.00, sampleType: 'Blood', insurancePrice: 15, resultFields: [{ name: 'Result', type: 'text', required: true }, { name: 'Species', type: 'text', required: false }], defaultReferenceRanges: {}, instructions: 'Rapid test.' },
+      { name: 'Blood Glucose',             category: 'Biochemistry', description: 'Blood sugar',       price: 15.00, sampleType: 'Blood', insurancePrice: 10, resultFields: [{ name: 'Glucose Level', type: 'number', required: true }], defaultReferenceRanges: { 'Glucose Level': { referenceRange: '70-100', unit: 'mg/dL (fasting)' } }, instructions: '8h fast for fasting.' },
+      { name: 'Lipid Profile',             category: 'Biochemistry', description: 'Cholesterol panel', price: 55.00, sampleType: 'Blood', insurancePrice: 40, resultFields: [{ name: 'Total Cholesterol', type: 'number', required: true }, { name: 'LDL', type: 'number', required: true }, { name: 'HDL', type: 'number', required: true }, { name: 'Triglycerides', type: 'number', required: true }], defaultReferenceRanges: {}, instructions: '12h fast.' },
+      { name: 'Urinalysis',                category: 'Urinalysis',   description: 'Urine analysis',    price: 30.00, sampleType: 'Urine', insurancePrice: 20, resultFields: [{ name: 'Appearance', type: 'text', required: false }, { name: 'Protein', type: 'text', required: true }], defaultReferenceRanges: {}, instructions: 'Mid-stream.' },
+    ];
+
+    let labAdded = 0;
+    let labExisting = 0;
+    for (const t of templates) {
+      const [, wasCreated] = await LabTestTemplate.findOrCreate({
+        where: { name: t.name },
+        defaults: t,
+      });
+      if (wasCreated) labAdded++; else labExisting++;
     }
+    if (!labData?.templates) console.log('⚠️  No lab-templates.json — using the built-in fallback list');
+    console.log(`✅ Lab templates: ${labAdded} created, ${labExisting} already present (${await LabTestTemplate.count()} total)\n`);
 
     // ==================== INSURANCE PROVIDERS ====================
     const providerDefs = [
@@ -112,9 +137,13 @@ async function seedDatabase() {
     console.log(`✅ Ensured ${providerDefs.length} insurance providers\n`);
 
     // ==================== COMPANY ====================
-    await Company.findOrCreate({
-      where: { name: 'Pharmacy POS System' },
-      defaults: {
+    // Singleton table, so the guard is "does any row exist", not "does a row
+    // with this name exist". findOrCreate({ where: { name } }) used to insert a
+    // second company for an owner who had renamed the first, and the app then
+    // read and wrote whichever of the two rows Postgres happened to scan first.
+    const companyCount = await Company.count();
+    if (companyCount === 0) {
+      await Company.create({
         name: 'Pharmacy POS System',
         addressStreet: '123 Pharmacy Street',
         addressCity: 'Accra',
@@ -123,17 +152,20 @@ async function seedDatabase() {
         contactEmail: 'info@pharmacy.com',
         taxRate: 15.0,
         receiptFooter: 'Thank you for your purchase!',
-      },
-    });
-    console.log('✅ Company settings ensured\n');
+      });
+      console.log('✅ Created default company settings\n');
+    } else {
+      console.log('✅ Company settings already in place, left untouched\n');
+    }
 
     console.log('🎉 Seed completed successfully!\n');
-    console.log('📋 Default Login Credentials:');
-    console.log('   Admin:      admin@pharmacy.com      / admin123');
-    console.log('   Manager:    manager@pharmacy.com    / manager123');
-    console.log('   Cashier:    cashier@pharmacy.com    / cashier123');
-    console.log('   Pharmacist: pharmacist@pharmacy.com / pharmacist123');
-    console.log('   Lab:        lab@pharmacy.com        / lab123');
+    console.log('📋 Login Credentials:');
+    userDefs.forEach(u => console.log(`   ${u.role.padEnd(16)} ${u.email.padEnd(25)} / ${u.password}`));
+    if (demoPasswordsInUse) {
+      console.log('\n⚠️  These are the demo passwords from the sign-in screen.');
+      console.log('   For a live till, set SEED_ADMIN_PASSWORD / SEED_MANAGER_PASSWORD / … in backend/.env');
+      console.log('   and change each account password after first sign-in.');
+    }
 
     return true;
   } catch (err) {

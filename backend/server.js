@@ -1,17 +1,30 @@
 // backend/server.js
 const express = require('express');
 const cors = require('cors');
+const crypto = require('crypto');
 const dotenv = require('dotenv');
 const { Client } = require('pg');
 
 dotenv.config();
 
-// Warn about default JWT_SECRET in standalone production
-if (process.env.NODE_ENV === 'production' && !process.env.ELECTRON) {
-  if (process.env.JWT_SECRET === 'change-this-to-a-long-random-string-in-production') {
-    console.warn('⚠️  WARNING: JWT_SECRET is the default value. Change it in .env!');
+// The repository's placeholder secret is public, so any token could be forged.
+// Refuse to boot in production; elsewhere swap in a random secret for this
+// process (sessions then expire on restart instead of being guessable).
+const PLACEHOLDER_JWT = 'change-this-to-a-long-random-string-in-production';
+function enforceJwtSecret() {
+  const secret = process.env.JWT_SECRET;
+  if (secret && secret !== PLACEHOLDER_JWT && secret.length >= 32) return;
+
+  const isProduction = process.env.NODE_ENV === 'production';
+  if (isProduction) {
+    console.error('❌ JWT_SECRET is missing, is the repository placeholder, or is shorter than 32 characters.');
+    console.error('   Set a long random value in backend/.env (e.g. `node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"`).');
+    process.exit(1);
   }
+  process.env.JWT_SECRET = crypto.randomBytes(32).toString('hex');
+  console.warn('⚠️  JWT_SECRET was the placeholder — using a random secret for this process. Logins will not survive a restart.');
 }
+enforceJwtSecret();
 
 const { sequelize } = require('./config/database');
 
@@ -30,8 +43,11 @@ app.use(cors({
     const allowed = [
       'http://localhost:3000',
       'http://127.0.0.1:3000',
-      'http://localhost:5000',
-      'http://127.0.0.1:5000',
+      // This server's own origin. Module scripts send an `Origin` header even for
+      // same-origin fetches, so omitting these makes `express.static` reject the
+      // SPA's own bundle with a 500 whenever the backend runs on a non-default port.
+      `http://localhost:${PORT}`,
+      `http://127.0.0.1:${PORT}`,
       /^http:\/\/192\.168\.\d{1,3}\.\d{1,3}(:\d+)?$/,
       /^http:\/\/10\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d+)?$/,
       /^http:\/\/172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}(:\d+)?$/,
@@ -195,6 +211,12 @@ const startServer = async () => {
         : '✅ Database schema is up to date'
     );
 
+    // A model column with no migration behind it otherwise surfaces as a 500 on the
+    // first sale that touches it. Fail here, naming the column.
+    const { checkSchemaDrift } = require('./utils/checkSchema');
+    await checkSchemaDrift();
+    console.log('✅ Schema matches models');
+
     // Step 4: Seed ONLY if there are no users yet.
     //         Seed is idempotent, so this is a cheap safety check.
     const { User } = require('./models');
@@ -205,7 +227,7 @@ const startServer = async () => {
       await seed();
       console.log('✅ Seeding complete');
     } else {
-      console.log(`✅ Database has ${userCount} user(s) — skipping seed`);
+      console.log(`✅ Database has ${userCount} user(s) — skipping seed (run \`npm run seed\` to top up catalogue/reference rows)`);
     }
 
     console.log('🎉 Database initialization complete!');

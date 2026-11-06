@@ -4,6 +4,9 @@ const AuditLog = require('../models/AuditLog');
 const { auth, adminAuth } = require('../middleware/auth');
 
 const router = express.Router();
+const { numericIdParams } = require('../utils/numericIdParams');
+
+numericIdParams(router);
 
 // GET /api/audit-logs — admin-only, paginated, filterable by entity/action/user.
 router.get('/', auth, adminAuth, async (req, res) => {

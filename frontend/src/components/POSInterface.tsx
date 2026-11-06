@@ -10,8 +10,7 @@ import api, { getErrorMessage } from '../api/api';
 import { useBarcodeScanner } from '../hooks/useBarcodeScanner';
 import { ReceiptModal } from './ReceiptModal';
 import { SalesOrder } from '../types';
-
-const safeNum = (v: unknown) => { const n = Number(v); return isNaN(n) ? 0 : n; };
+import { safeNumber } from '../utils/number';
 
 /* ─── Stock badge ──────────────────────────────────────────────────── */
 const StockBadge: React.FC<{ quantity: number }> = ({ quantity }) => {
@@ -36,7 +35,7 @@ const ProductCard: React.FC<{
 }> = React.memo(({ product, onSelect, disabled }) => {
   const outOfStock = product.quantity <= 0;
   const blocked = outOfStock || disabled;
-  const price = safeNum(product.sellingPrice || product.unitPrice);
+  const price = safeNumber(product.sellingPrice || product.unitPrice);
   return (
     <button
       type="button"
@@ -671,6 +670,9 @@ export const POSInterface: React.FC = () => {
 
   /* ═══════════════════════════════════════════════════════════════════
      DUAL CO-PAY MATH — fixed (NHIS) vs percentage (private)
+     insuranceCoverage + copayAmount always equals subtotal + tax, matching
+     insuranceSplit() in backend/utils/pricing.js, so the insurer is billed for
+     its share of the VAT as well as its share of the net price.
      ═══════════════════════════════════════════════════════════════════ */
   const { insuranceCoverage, copayAmount } = useMemo(() => {
     if (saleMode !== 'insurance' || !selectedProvider) {
@@ -679,26 +681,24 @@ export const POSInterface: React.FC = () => {
 
     if (selectedProvider.coverageType === 'fixed') {
       // NHIS-style: subtract insurancePrice per unit from each line
-      let covered = 0;
       let patientSub = 0;
       cartItems.forEach((item) => {
-        const unitPrice = safeNum(item.product.sellingPrice || item.unitPrice);
-        const insPrice = safeNum(item.product.insurancePrice);
+        const unitPrice = safeNumber(item.product.sellingPrice || item.unitPrice);
+        const insPrice = safeNumber(item.product.insurancePrice);
         const lineTotal = item.quantity * unitPrice;
         // Cap coverage at lineTotal (never overpay)
         const lineCovered = Math.min(lineTotal, insPrice * item.quantity);
-        covered += lineCovered;
         patientSub += (lineTotal - lineCovered);
       });
-      const patientTax = patientSub * (taxRate / 100);
-      return { insuranceCoverage: covered, copayAmount: patientSub + patientTax };
+      const copay = patientSub + patientSub * (taxRate / 100);
+      return { insuranceCoverage: subtotal + tax - copay, copayAmount: copay };
     }
 
     // Percentage style
-    const copayPct = safeNum(selectedProvider.defaultCopayPercent) / 100;
+    const copayPct = safeNumber(selectedProvider.defaultCopayPercent) / 100;
     const patientSub = subtotal * copayPct;
-    const patientTax = patientSub * (taxRate / 100);
-    return { insuranceCoverage: subtotal - patientSub, copayAmount: patientSub + patientTax };
+    const copay = patientSub + patientSub * (taxRate / 100);
+    return { insuranceCoverage: subtotal + tax - copay, copayAmount: copay };
   }, [saleMode, selectedProvider, subtotal, tax, taxRate, cartItems]);
 
   const grandTotal = copayAmount;
@@ -723,8 +723,8 @@ export const POSInterface: React.FC = () => {
         product: { name: i.product.name, sku: i.product.sku },
         productName: i.product.name,
         quantity: i.quantity,
-        unitPrice: safeNum(i.product.sellingPrice || i.unitPrice),
-        total: i.quantity * safeNum(i.product.sellingPrice || i.unitPrice),
+        unitPrice: safeNumber(i.product.sellingPrice || i.unitPrice),
+        total: i.quantity * safeNumber(i.product.sellingPrice || i.unitPrice),
       }));
 
       const useInsurance = saleMode === 'insurance' && !!selectedProvider;
@@ -1194,7 +1194,7 @@ export const POSInterface: React.FC = () => {
 
                       <div style={{ maxHeight: '34vh', overflowY: 'auto' }}>
                         {cartItems.map((item) => {
-                          const unitPrice = safeNum(item.product.sellingPrice || item.unitPrice);
+                          const unitPrice = safeNumber(item.product.sellingPrice || item.unitPrice);
                           const lineTotal = item.quantity * unitPrice;
                           return (
                             <div
@@ -1272,7 +1272,7 @@ export const POSInterface: React.FC = () => {
                         <div className="flex justify-between">
                           <span>
                             Insurance covers
-                            {selectedProvider.coverageType === 'percentage' && ` (${100 - safeNum(selectedProvider.defaultCopayPercent)}%)`}
+                            {selectedProvider.coverageType === 'percentage' && ` (${100 - safeNumber(selectedProvider.defaultCopayPercent)}%)`}
                           </span>
                           <span style={{ fontVariantNumeric: 'tabular-nums' }}>GHS {insuranceCoverage.toFixed(2)}</span>
                         </div>
@@ -1353,7 +1353,6 @@ export const POSInterface: React.FC = () => {
           doc={lastCreatedOrder}
           mode="order"
           onClose={() => setLastCreatedOrder(null)}
-          onPrint={undefined} // internal print fallback
         />
       )}
     </div>

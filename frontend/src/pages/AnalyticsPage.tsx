@@ -7,6 +7,8 @@ import {
 } from 'lucide-react';
 import { useAppStore } from '../store';
 import { Link } from 'react-router-dom';
+import { safeNumber } from '../utils/number';
+import { formatPaymentMethod } from '../utils/document';
 
 export const AnalyticsPage: React.FC = () => {
   const [dateRange, setDateRange] = useState('today');
@@ -16,11 +18,6 @@ export const AnalyticsPage: React.FC = () => {
   const [expiryThreshold, setExpiryThreshold] = useState(30);
 
   const { transactions, products } = useAppStore();
-
-  const safeNumber = (value: any): number => {
-    const num = Number(value);
-    return isNaN(num) ? 0 : num;
-  };
 
   // --- Define field focus/blur handlers ---
   const onFieldFocus = (e: React.FocusEvent<HTMLInputElement>) => {
@@ -134,16 +131,6 @@ export const AnalyticsPage: React.FC = () => {
 
     return { totalRevenue, totalTransactions, totalItemsSold, avgTransactionValue, inventoryValue, paymentBreakdown, topProducts, dailySales: dailySalesArray, maxDaily };
   }, [filteredTransactions, products]);
-
-  const formatPaymentMethod = (m: string) => {
-    if (!m) return 'Unknown';
-    switch (m.toLowerCase()) {
-      case 'mtn': return 'MTN MoMo';
-      case 'vodafone': return 'Vodafone Cash';
-      case 'airteltigo': return 'AirtelTigo';
-      default: return m.charAt(0).toUpperCase() + m.slice(1);
-    }
-  };
 
   const exportCSV = () => {
     const rows = [

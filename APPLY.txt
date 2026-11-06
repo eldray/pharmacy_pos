@@ -1,0 +1,9 @@
+Extract this zip over the root of your pharmacy_pos repo (overwrite when asked), then:
+
+  1. DELETE electron-builder.yml        (superseded by electron-builder.yaml)
+  2. npm ci                              (root lockfile changed: concurrently/wait-on are now devDependencies)
+  3. Commit and push, then either push a tag (git tag v1.0.0 && git push origin v1.0.0)
+     or run the "Build and Release PharmacyPOS" workflow from the Actions tab.
+     The Windows installer appears as a build artifact (and on the GitHub Release for tags).
+
+Local build (must be run on Windows):  npm run build:win   ->  release\PharmacyPOS-Setup-1.0.0-x64.exe

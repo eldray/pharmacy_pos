@@ -12,7 +12,9 @@ export const SupplierManagement: React.FC = () => {
   const [showModal, setShowModal] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  // 'list' matches ProductManagement; the two catalogue screens used to open in
+  // different views for no reason a user could explain.
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
@@ -273,7 +275,7 @@ export const SupplierManagement: React.FC = () => {
           </Card>
         ))}
       </div>
-      ) : (
+      ) : filteredSuppliers.length > 0 ? (
         <Card>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[820px]">
@@ -334,7 +336,7 @@ export const SupplierManagement: React.FC = () => {
             </table>
           </div>
         </Card>
-      )}
+      ) : null}
 
       {/* Empty State - Clean */}
       {filteredSuppliers.length === 0 && (

@@ -3,6 +3,9 @@ const { Product, ProductBatch, SalesOrder } = require('../models');
 const { auth } = require('../middleware/auth');
 const { Op } = require('sequelize');
 const router = express.Router();
+const { numericIdParams } = require('../utils/numericIdParams');
+
+numericIdParams(router);
 
 // GET real-time alert count & notification list
 router.get('/', auth, async (req, res) => {

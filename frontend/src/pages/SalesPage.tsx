@@ -1,5 +1,5 @@
 // src/pages/SalesPage.tsx
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   TrendingUp,
   DollarSign,
@@ -18,10 +18,10 @@ import {
   ChevronDown
 } from 'lucide-react';
 import { useAppStore } from '../store';
-import { useReactToPrint } from 'react-to-print';
 import { Card } from '../components/ui/Card';
 import { Transaction } from '../types';
-import { ReceiptModal, ReceiptContent } from '../components/ReceiptModal';
+import { DocumentDetailsModal } from '../components/DocumentDetailsModal';
+import { formatPaymentMethod } from '../utils/document';
 
 export const SalesPage: React.FC = () => {
   const [dateRange, setDateRange] = useState('today');
@@ -29,7 +29,7 @@ export const SalesPage: React.FC = () => {
   const [endDate, setEndDate] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
-  const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showCustomDate, setShowCustomDate] = useState(false);
 
   // --- Shared field style ---
@@ -56,36 +56,6 @@ export const SalesPage: React.FC = () => {
   };
 
   const { currentUser, transactions, products } = useAppStore();
-
-  // ─── Print Ref ───────────────────────────────────────────────────────────
-  const printRef = useRef<HTMLDivElement>(null);
-
-  // ─── Print Handler using react-to-print ─────────────────────────────────
-  // react-to-print v3 API: contentRef + onAfterPrint. The print target is a
-  // separate hidden <ReceiptContent>, independent of the visible modal.
-  const handlePrint = useReactToPrint({
-    contentRef: printRef,
-    documentTitle: `Receipt-${selectedTransaction?.transactionNumber || 'Unknown'}`,
-    pageStyle: `
-      @page {
-        size: A4;
-        margin: 10mm;
-      }
-      @media print {
-        body {
-          background: white !important;
-          margin: 0 !important;
-          padding: 0 !important;
-        }
-        .no-print {
-          display: none !important;
-        }
-      }
-    `,
-    onAfterPrint: () => {
-      console.log('Print completed');
-    }
-  });
 
   // Filter transactions by date range
   const filteredTransactions = useMemo(() => {
@@ -208,9 +178,9 @@ export const SalesPage: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
-  const viewTransactionReceipt = (transaction: Transaction) => {
+  const viewTransaction = (transaction: Transaction) => {
     setSelectedTransaction(transaction);
-    setShowReceiptModal(true);
+    setShowDetailsModal(true);
   };
 
   const getPaymentMethodIcon = (method: string) => {
@@ -238,19 +208,6 @@ export const SalesPage: React.FC = () => {
         return 'var(--color-accent)';
       default:
         return 'var(--color-text-muted)';
-    }
-  };
-
-  const formatPaymentMethod = (method: string) => {
-    switch (method) {
-      case 'mtn':
-        return 'MTN Mobile Money';
-      case 'vodafone':
-        return 'Vodafone Cash';
-      case 'airteltigo':
-        return 'AirtelTigo Money';
-      default:
-        return method.charAt(0).toUpperCase() + method.slice(1);
     }
   };
 
@@ -547,7 +504,7 @@ export const SalesPage: React.FC = () => {
                         </td>
                         <td className="px-3 py-3 whitespace-nowrap">
                           <button
-                            onClick={() => viewTransactionReceipt(transaction)}
+                            onClick={() => viewTransaction(transaction)}
                             className="btn-accent flex items-center gap-1 px-3 py-1.5 text-sm"
                           >
                             <Eye className="h-3 w-3" />
@@ -584,55 +541,13 @@ export const SalesPage: React.FC = () => {
         </div>
       </Card>
 
-      {/* ─── RECEIPT MODAL ─────────────────────────────────────────────────── */}
-      {showReceiptModal && selectedTransaction && (
-        <ReceiptModal
-          transaction={selectedTransaction}
-          customerName={selectedTransaction.customerName || undefined}
-          customerPhone={selectedTransaction.customerPhone || undefined}
-          onClose={() => setShowReceiptModal(false)}
-          onPrint={handlePrint}
+      {/* ─── TRANSACTION DETAILS ───────────────────────────────────────────── */}
+      {showDetailsModal && selectedTransaction && (
+        <DocumentDetailsModal
+          doc={selectedTransaction}
+          onClose={() => setShowDetailsModal(false)}
         />
       )}
-
-      {/* ─── PRINT CONTENT (Hidden with CSS, but rendered) ────────────────── */}
-      <style>{`
-        .print-content-hidden {
-          position: absolute;
-          left: -9999px;
-          top: -9999px;
-          width: 1px;
-          height: 1px;
-          overflow: hidden;
-          opacity: 0;
-          pointer-events: none;
-        }
-        @media print {
-          .print-content-hidden {
-            position: relative !important;
-            left: auto !important;
-            top: auto !important;
-            width: 100% !important;
-            height: auto !important;
-            overflow: visible !important;
-            opacity: 1 !important;
-            pointer-events: auto !important;
-          }
-        }
-      `}</style>
-
-      {/* Use ReceiptContent here, not ReceiptModal - no modal wrapper! */}
-      <div style={{ display: 'none' }}>
-        <div ref={printRef}>
-          {selectedTransaction && (
-            <ReceiptContent
-              transaction={selectedTransaction}
-              customerName={selectedTransaction.customerName || undefined}
-              customerPhone={selectedTransaction.customerPhone || undefined}
-            />
-          )}
-        </div>
-      </div>
     </div>
   );
 };

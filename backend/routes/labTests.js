@@ -7,8 +7,14 @@ const LabTransaction = require('../models/LabTransaction');
 const User = require('../models/User');
 const { auth, adminAuth, labAuth } = require('../middleware/auth');
 const { createdAtRange } = require('../utils/dateRange');
+const { pick } = require('../utils/validators');
+const { nextReference } = require('../utils/references');
+const { labTestFieldsFor } = require('../utils/editableFields');
 
 const router = express.Router();
+const { numericIdParams } = require('../utils/numericIdParams');
+
+numericIdParams(router);
 
 // ==================== TEST TEMPLATES ====================
 
@@ -128,11 +134,31 @@ router.post('/', auth, async (req, res) => {
         const user = await User.findByPk(req.user.userId);
         if (!user) return res.status(404).json({ msg: 'User not found' });
 
-        const testNumber = `LAB-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+        const testNumber = await nextReference('LAB');
+
+        // The template owns the price — a client-supplied testPrice here would
+        // flow straight into the ledger and the lab revenue reports.
+        const template = await LabTestTemplate.findOne({ where: { name: req.body.testType } });
+        if (req.body.testType && !template) {
+            return res.status(400).json({ msg: `Unknown lab test: ${req.body.testType}` });
+        }
+        const quantity = Math.max(1, parseInt(req.body.quantity) || 1);
+
+        // A test always belongs to a lab transaction (`labTransactionId` is NOT
+        // NULL); asking for one without a transaction used to fail as a
+        // Sequelize validation error.
+        const labTransactionId = parseInt(req.body.labTransactionId || req.body.transactionId);
+        const parent = Number.isInteger(labTransactionId)
+            ? await LabTransaction.findByPk(labTransactionId)
+            : null;
+        if (!parent) {
+            return res.status(400).json({ msg: 'A lab test needs an existing lab transaction (labTransactionId)' });
+        }
 
         // Clean and prepare the data
         const testData = {
             testNumber,
+            labTransactionId: parent.id,
             requestedBy: req.user.userId,
             requestedByName: user.name,
             status: 'pending',
@@ -143,13 +169,12 @@ router.post('/', auth, async (req, res) => {
             ...(req.body.patientAge && { patientAge: parseInt(req.body.patientAge) }),
             ...(req.body.patientGender && { patientGender: req.body.patientGender }),
             ...(req.body.testType && { testType: req.body.testType }),
-            ...(req.body.testCategory && { testCategory: req.body.testCategory }),
-            ...(req.body.testPrice && { testPrice: parseFloat(req.body.testPrice) }),
+            testCategory: req.body.testCategory || template?.category,
+            testPrice: Number(template.price),
+            quantity,
             ...(req.body.priority && { priority: req.body.priority }),
             ...(req.body.notes && { notes: req.body.notes }),
-            ...(req.body.sampleType && { sampleType: req.body.sampleType }),
-            ...(req.body.quantity && { quantity: parseInt(req.body.quantity) }),
-            ...(req.body.transactionId && { transactionId: parseInt(req.body.transactionId) }),
+            ...(template?.sampleType && { sampleType: template.sampleType }),
         };
 
         // Ensure required fields
@@ -175,17 +200,15 @@ router.put('/:id', auth, async (req, res) => {
         if (!test) return res.status(404).json({ msg: 'Lab test not found' });
 
         const user = await User.findByPk(req.user.userId);
-        const updates = { ...req.body };
 
-        // Lab users can only update results, status, and notes
-        if (user.role === 'lab') {
-            const allowedFields = ['status', 'results', 'resultSummary', 'resultInterpretation', 'notes', 'sampleReceivedAt'];
-            Object.keys(updates).forEach(key => {
-                if (!allowedFields.includes(key)) {
-                    delete updates[key];
-                }
-            });
+        // Field allow-lists. The old check compared against role 'lab', but the
+        // ENUM value is 'lab_tech', so it never ran and any authenticated user
+        // could rewrite testPrice/patientName through `{ ...req.body }`.
+        const allowedFields = labTestFieldsFor(user.role);
+        if (!allowedFields.length) {
+            return res.status(403).json({ msg: 'Lab staff only' });
         }
+        const updates = pick(req.body, allowedFields);
 
         // Handle status transitions
         if (updates.status === 'completed' && !test.completedAt) {
@@ -279,7 +302,10 @@ router.get('/stats/summary', auth, async (req, res) => {
             }
         });
 
-        const todayRevenue = todayTests.reduce((sum, t) => sum + parseFloat(t.testPrice), 0);
+        // testPrice is the unit price, so a 3-unit test is 3 × its price.
+        const todayRevenue = todayTests.reduce(
+            (sum, t) => sum + (parseFloat(t.testPrice) || 0) * (Number(t.quantity) || 1), 0
+        );
 
         res.json({
             total,

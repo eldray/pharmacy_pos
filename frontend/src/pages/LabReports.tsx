@@ -7,22 +7,12 @@ import {
 } from 'lucide-react';
 import { useAppStore } from '../store';
 import { Card, CardHeader } from '../components/ui/Card';
+import { safeNumber } from '../utils/number';
+import { formatPaymentMethod } from '../utils/document';
 
 /* ─── Types ──────────────────────────────────────────────────────────────── */
 type DateRange = 'today' | 'week' | 'month' | 'quarter' | 'year' | 'custom';
 type ViewTab   = 'tests' | 'patients' | 'revenue';
-
-/* ─── Helpers ────────────────────────────────────────────────────────────── */
-const safeNum = (v: unknown): number => { const n = Number(v); return isNaN(n) ? 0 : n; };
-
-const fmtPayment = (m: string) => {
-  switch ((m || '').toLowerCase()) {
-    case 'mtn':        return 'MTN Mobile Money';
-    case 'vodafone':   return 'Vodafone Cash';
-    case 'airteltigo': return 'AirtelTigo Money';
-    default:           return m ? m.charAt(0).toUpperCase() + m.slice(1) : 'Unknown';
-  }
-};
 
 /* ─── Sub-components ─────────────────────────────────────────────────────── */
 
@@ -247,7 +237,7 @@ export const LabReports: React.FC = () => {
   );
 
   const analytics = useMemo(() => {
-    const totalRevenue    = filteredTxns.reduce((s, t) => s + safeNum(t.totalAmount), 0);
+    const totalRevenue    = filteredTxns.reduce((s, t) => s + safeNumber(t.totalAmount), 0);
     const totalTests      = filteredTests.length;
     const completedTests  = filteredTests.filter((t: any) => t.status === 'completed').length;
     const pendingTests    = filteredTests.filter((t: any) => ['pending', 'in_progress'].includes(t.status)).length;
@@ -264,7 +254,8 @@ export const LabReports: React.FC = () => {
 
     const rev = filteredTests.reduce((acc: Record<string, number>, t: any) => {
       const k = t.testType || 'Unknown';
-      acc[k] = (acc[k] || 0) + safeNum(t.testPrice);
+      // testPrice is the unit price; a 5-unit request earned 5 × that.
+      acc[k] = (acc[k] || 0) + safeNumber(t.testPrice) * (safeNumber(t.quantity) || 1);
       return acc;
     }, {});
     const topRevenueTests = Object.entries(rev).sort((a, b) => b[1] - a[1]).slice(0, 10);
@@ -278,7 +269,7 @@ export const LabReports: React.FC = () => {
 
     const pmBreakdown = filteredTxns.reduce((acc: Record<string, number>, t) => {
       const k = t.paymentMethod || 'unknown';
-      acc[k] = (acc[k] || 0) + safeNum(t.totalAmount);
+      acc[k] = (acc[k] || 0) + safeNumber(t.totalAmount);
       return acc;
     }, {});
 
@@ -774,7 +765,7 @@ export const LabReports: React.FC = () => {
                 return (
                   <BarRow
                     key={method}
-                    label={fmtPayment(method)}
+                    label={formatPaymentMethod(method)}
                     value={`GHS ${a.toFixed(2)}`}
                     pct={analytics.totalRevenue > 0 ? (a / analytics.totalRevenue) * 100 : 0}
                     barColor="var(--gradient-accent)"

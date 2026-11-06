@@ -3,14 +3,6 @@ require('dotenv').config();
 const { Client } = require('pg');
 const { sequelize } = require('./config/database');
 
-// Import all your models here
-// Make sure all models are imported so Sequelize knows about them
-const User = require('./models/User'); // Adjust path as needed
-const Product = require('./models/Product'); // Adjust path as needed
-// const Sale = require('./models/Sale');
-// const SaleItem = require('./models/SaleItem');
-// ... import all your models
-
 // Function to create database if it doesn't exist
 async function createDatabaseIfNotExists() {
     const config = {
@@ -69,11 +61,24 @@ async function initDatabase() {
         await sequelize.authenticate();
         console.log('✅ Connected to database successfully');
 
-        // Step 3: Sync all models (this creates all tables)
-        // force: false - doesn't drop tables if they exist
-        // alter: true - updates tables to match models without losing data
-        await sequelize.sync({ alter: true });
-        console.log('✅ All tables created/updated successfully');
+        // Step 3: Migrations own the schema.
+        //
+        // This used to be `sequelize.sync({ alter: true })`, which rewrote live tables
+        // on every run — adding missing columns, changing types and dropping anything no
+        // model declared, while holding an ACCESS EXCLUSIVE lock on a table the till may
+        // be selling out of. Nothing here may alter data silently, so drift is reported
+        // and the operator has to write a migration for it.
+        const { migrate } = require('./migrate');
+        const migrationResult = await migrate('up');
+        console.log(migrationResult.applied > 0
+            ? `✅ Applied ${migrationResult.applied} migration(s)`
+            : '✅ Database schema is up to date');
+
+        const { reportSchemaDrift } = require('./utils/checkSchema');
+        const drift = await reportSchemaDrift();
+        if (drift.missing.length || drift.missingTables.length) {
+            throw new Error('Schema does not match the models — add a migration for the columns listed above.');
+        }
 
         // Optional: Show all tables that were created
         const tables = await sequelize.query(

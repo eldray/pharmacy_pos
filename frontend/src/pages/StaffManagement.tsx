@@ -7,6 +7,7 @@ import {
 import api, { getErrorMessage } from '../api/api';
 import { useAppStore } from '../store';
 import { User, Branch, StaffProfile } from '../types';
+import { Card } from '../components/ui/Card';
 
 const VALID_ROLES = ['admin', 'manager', 'pharmacist_sales', 'cashier', 'lab_tech'] as const;
 type ValidRole = typeof VALID_ROLES[number];
@@ -112,57 +113,90 @@ export const StaffManagement: React.FC = () => {
   });
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-6 pb-6">
       {/* Header */}
       <div className="flex justify-between items-center flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <Users className="w-7 h-7 text-indigo-600" /> HR & Staff Management
+          <h1 className="text-base font-bold flex items-center gap-2" style={{ color: 'var(--color-text-primary)' }}>
+            <Users className="w-5 h-5" style={{ color: 'var(--color-accent-text)' }} /> HR & Staff Management
           </h1>
-          <p className="text-gray-500">
+          <p className="text-[0.72rem] mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
             Manage user accounts and their HR profiles. One row per user.
           </p>
         </div>
         {isAdmin && (
           <button
             onClick={() => setShowCreateModal(true)}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-lg flex items-center gap-2 font-medium shadow-sm transition"
+            className="btn-accent flex items-center gap-2 px-4 py-1.5 text-[0.75rem]"
           >
-            <UserPlus className="w-5 h-5" /> Add New User
+            <UserPlus className="w-4 h-4" /> Add New User
           </button>
         )}
       </div>
 
       {success && (
-        <div className="bg-emerald-50 text-emerald-700 p-4 rounded-lg border border-emerald-200 flex items-center gap-2">
+        <div
+          className="p-4 rounded-lg flex items-center gap-2 text-sm"
+          style={{
+            background: 'var(--color-success-light)',
+            color: 'var(--color-success-text)',
+            border: '1px solid var(--color-success)',
+          }}
+        >
           <CheckCircle className="w-5 h-5" /> {success}
         </div>
       )}
       {error && (
-        <div className="bg-rose-50 text-rose-700 p-4 rounded-lg border border-rose-200 flex items-center gap-2">
+        <div
+          className="p-4 rounded-lg flex items-center gap-2 text-sm"
+          style={{
+            background: 'var(--color-danger-light)',
+            color: 'var(--color-danger-text)',
+            border: '1px solid var(--color-danger)',
+          }}
+        >
           <AlertCircle className="w-5 h-5" /> {error}
-          <button onClick={() => setError('')} className="ml-auto text-rose-700">
+          <button
+            onClick={() => setError('')}
+            className="ml-auto"
+            style={{ color: 'var(--color-danger-text)' }}
+          >
             <X className="w-4 h-4" />
           </button>
         </div>
       )}
 
       {/* Filters */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 flex flex-col sm:flex-row gap-3">
+      <Card className="p-4 border-theme flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
-          <Search className="w-5 h-5 absolute left-3 top-3 text-gray-400" />
+          <Search className="w-5 h-5 absolute left-3 top-3 text-muted" />
           <input
             type="text"
             placeholder="Search by name, email, employee ID, or department..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 border-gray-300"
+            className="input-base w-full pl-10 pr-4 py-2 text-sm"
+            style={{
+              background: 'var(--color-input-bg)',
+              border: '1px solid var(--color-input-border)',
+              borderRadius: 'var(--radius-md)',
+              color: 'var(--color-input-text)',
+              outline: 'none',
+            }}
+            onFocus={(e) => {
+              e.currentTarget.style.borderColor = 'var(--color-input-border-focus)';
+              e.currentTarget.style.boxShadow = '0 0 0 2px var(--color-input-ring)';
+            }}
+            onBlur={(e) => {
+              e.currentTarget.style.borderColor = 'var(--color-input-border)';
+              e.currentTarget.style.boxShadow = 'none';
+            }}
           />
         </div>
         <select
           value={roleFilter}
           onChange={(e) => setRoleFilter(e.target.value as any)}
-          className="border rounded-lg px-3 py-2 border-gray-300"
+          className="select-base px-3 py-2 text-sm"
         >
           <option value="all">All Roles</option>
           {VALID_ROLES.map((r) => (
@@ -172,56 +206,56 @@ export const StaffManagement: React.FC = () => {
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value as any)}
-          className="border rounded-lg px-3 py-2 border-gray-300"
+          className="select-base px-3 py-2 text-sm"
         >
           <option value="all">All Status</option>
           <option value="active">Active</option>
           <option value="blocked">Blocked</option>
         </select>
-      </div>
+      </Card>
 
       {/* Table */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      <Card noPadding className="border-theme overflow-hidden">
         {isLoading ? (
           <div className="p-12 text-center">
-            <Loader2 className="w-8 h-8 animate-spin mx-auto text-indigo-600" />
+            <Loader2 className="w-8 h-8 animate-spin mx-auto" style={{ color: 'var(--color-accent-text)' }} />
           </div>
         ) : filtered.length === 0 ? (
           <div className="p-12 text-center">
-            <Users className="w-12 h-12 mx-auto text-gray-300 mb-3" />
-            <p className="text-gray-500">No users match your filters.</p>
+            <Users className="w-12 h-12 mx-auto text-muted mb-3" />
+            <p className="text-muted">No users match your filters.</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse min-w-[900px]">
-              <thead>
-                <tr className="bg-gray-50 border-b text-gray-600 font-semibold text-sm">
-                  <th className="p-4">User</th>
-                  <th className="p-4">Role</th>
-                  <th className="p-4">HR Profile</th>
-                  <th className="p-4">Branch</th>
-                  <th className="p-4">Status</th>
-                  <th className="p-4 text-right">Actions</th>
+              <thead className="bg-subtle border-b border-theme">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase">User</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase">Role</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase">HR Profile</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase">Branch</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase">Status</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-secondary uppercase">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-theme">
                 {filtered.map((u) => {
                   const profile = u.staffProfile;
                   const isSelf = u.id === currentUser?.id;
                   return (
-                    <tr key={u.id} className="hover:bg-gray-50/50">
+                    <tr key={u.id} className="hover:bg-subtle transition-colors">
                       {/* User */}
                       <td className="p-4">
-                        <div className="font-semibold text-gray-900">{u.name}</div>
-                        <div className="text-xs text-gray-500">{u.email}</div>
+                        <div className="font-semibold text-primary">{u.name}</div>
+                        <div className="text-xs text-muted">{u.email}</div>
                         {isSelf && (
-                          <span className="text-[10px] font-bold text-indigo-600">YOU</span>
+                          <span className="text-[10px] font-bold text-accent">YOU</span>
                         )}
                       </td>
 
                       {/* Role */}
                       <td className="p-4">
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700">
+                        <span className={`badge ${VALID_ROLES.includes(u.role as ValidRole) ? `badge-${u.role}` : 'badge-secondary'}`}>
                           {ROLE_LABELS[u.role as ValidRole] || u.role}
                         </span>
                       </td>
@@ -230,36 +264,33 @@ export const StaffManagement: React.FC = () => {
                       <td className="p-4">
                         {profile ? (
                           <div className="text-sm">
-                            <div className="font-medium text-gray-800">{profile.designation}</div>
-                            <div className="text-xs text-gray-500">{profile.department}</div>
-                            <div className="text-xs font-mono text-indigo-600 mt-0.5">
+                            <div className="font-medium text-primary">{profile.designation}</div>
+                            <div className="text-xs text-muted">{profile.department}</div>
+                            <div className="text-xs font-mono text-accent mt-0.5">
                               ID: {profile.employeeId}
                             </div>
                           </div>
                         ) : (
-                          <span className="text-xs text-gray-400 italic">Not linked</span>
+                          <span className="text-xs text-muted italic">Not linked</span>
                         )}
                       </td>
 
                       {/* Branch */}
                       <td className="p-4">
                         {profile?.branch ? (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
+                          <span className="badge badge-info">
                             <Building className="w-3 h-3 mr-1" />
                             {profile.branch.name}
                           </span>
                         ) : (
-                          <span className="text-xs text-gray-400">All branches</span>
+                          <span className="text-xs text-muted">All branches</span>
                         )}
                       </td>
 
                       {/* Status */}
                       <td className="p-4">
                         <span
-                          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${u.status === 'blocked'
-                            ? 'bg-rose-100 text-rose-800'
-                            : 'bg-emerald-100 text-emerald-800'
-                            }`}
+                          className={`badge gap-1 ${u.status === 'blocked' ? 'badge-danger' : 'badge-success'}`}
                         >
                           {u.status === 'blocked' ? (
                             <><Ban className="w-3 h-3" /> Blocked</>
@@ -344,7 +375,7 @@ export const StaffManagement: React.FC = () => {
             </table>
           </div>
         )}
-      </div>
+      </Card>
 
       {/* Create user modal (with optional HR section) */}
       {showCreateModal && (
@@ -487,46 +518,67 @@ const UserFormModal: React.FC<{
   const fieldStyle: React.CSSProperties = {
     fontSize: 13, background: 'var(--color-input-bg)',
     border: '1px solid var(--color-input-border)',
-    borderRadius: 6, color: 'var(--color-input-text)',
+    borderRadius: 'var(--radius-md)', color: 'var(--color-input-text)',
     padding: '8px 12px', outline: 'none', height: 38, width: '100%',
+    transition: 'border-color 100ms ease, box-shadow 100ms ease',
+  };
+
+  const onFieldFocus = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => {
+    e.currentTarget.style.borderColor = 'var(--color-input-border-focus)';
+    e.currentTarget.style.boxShadow = '0 0 0 2px var(--color-input-ring)';
+  };
+
+  const onFieldBlur = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => {
+    e.currentTarget.style.borderColor = 'var(--color-input-border)';
+    e.currentTarget.style.boxShadow = 'none';
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={onClose}>
+    <div className="fixed inset-0 bg-overlay flex items-center justify-center p-4 z-modal" onClick={onClose}>
       <div
         onClick={(e) => e.stopPropagation()}
-        className="bg-white rounded-2xl max-w-lg w-full shadow-2xl flex flex-col"
+        className="surface-elevated rounded-2xl max-w-lg w-full shadow-2xl flex flex-col border-theme"
         style={{ maxHeight: '90vh' }}
       >
-        <div className="flex items-center justify-between px-6 py-4 border-b">
-          <h2 className="text-xl font-bold text-gray-900">
+        <div className="flex items-center justify-between px-6 py-4 rounded-t-2xl bg-brand text-white">
+          <h2 className="text-xl font-bold">
             {isEdit ? 'Edit User' : 'Create User'}
           </h2>
-          <button onClick={onClose} className="p-1 rounded hover:bg-gray-100">
-            <X className="w-5 h-5 text-gray-400" />
+          <button
+            onClick={onClose}
+            className="p-2 rounded-xl text-white/80 hover:text-white hover:bg-white/10 transition-colors"
+          >
+            <X className="w-5 h-5" />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
           {error && (
-            <div className="bg-rose-50 text-rose-700 p-3 rounded-lg text-sm border border-rose-200">
+            <div
+              className="p-3 rounded-lg text-sm"
+              style={{
+                background: 'var(--color-danger-light)',
+                color: 'var(--color-danger-text)',
+                border: '1px solid var(--color-danger)',
+              }}
+            >
               {error}
             </div>
           )}
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Full Name *</label>
-            <input type="text" value={name} onChange={(e) => setName(e.target.value)} style={fieldStyle} placeholder="e.g. John Mensah" />
+            <label className="block text-sm font-medium text-secondary mb-1">Full Name *</label>
+            <input type="text" value={name} onChange={(e) => setName(e.target.value)} style={fieldStyle} onFocus={onFieldFocus} onBlur={onFieldBlur} placeholder="e.g. John Mensah" />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} style={fieldStyle} placeholder="john@pharmacy.com" />
+            <label className="block text-sm font-medium text-secondary mb-1">Email *</label>
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} style={fieldStyle} onFocus={onFieldFocus} onBlur={onFieldBlur} placeholder="john@pharmacy.com" />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Role *</label>
-            <select value={role} onChange={(e) => setRole(e.target.value as ValidRole)} style={fieldStyle}>
+            <label className="block text-sm font-medium text-secondary mb-1">Role *</label>
+            <select value={role} onChange={(e) => setRole(e.target.value as ValidRole)} style={fieldStyle} onFocus={onFieldFocus} onBlur={onFieldBlur}>
               {VALID_ROLES.map((r) => (
                 <option key={r} value={r}>{ROLE_LABELS[r]}</option>
               ))}
@@ -537,15 +589,15 @@ const UserFormModal: React.FC<{
             <>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
-                  <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} style={fieldStyle} placeholder="leave blank to keep" />
+                  <label className="block text-sm font-medium text-secondary mb-1">New Password</label>
+                  <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} style={fieldStyle} onFocus={onFieldFocus} onBlur={onFieldBlur} placeholder="leave blank to keep" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Confirm</label>
-                  <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} style={fieldStyle} />
+                  <label className="block text-sm font-medium text-secondary mb-1">Confirm</label>
+                  <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} style={fieldStyle} onFocus={onFieldFocus} onBlur={onFieldBlur} />
                 </div>
               </div>
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-muted">
                 Leave password fields blank to keep the current password.
               </p>
             </>
@@ -553,18 +605,18 @@ const UserFormModal: React.FC<{
             <>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Password *</label>
-                  <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} style={fieldStyle} placeholder="min 6 chars" />
+                  <label className="block text-sm font-medium text-secondary mb-1">Password *</label>
+                  <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} style={fieldStyle} onFocus={onFieldFocus} onBlur={onFieldBlur} placeholder="min 6 chars" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Confirm *</label>
-                  <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} style={fieldStyle} />
+                  <label className="block text-sm font-medium text-secondary mb-1">Confirm *</label>
+                  <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} style={fieldStyle} onFocus={onFieldFocus} onBlur={onFieldBlur} />
                 </div>
               </div>
 
               {/* HR section — optional on create */}
-              <div style={{ paddingTop: 12, borderTop: '1px solid #E5E7EB' }}>
-                <label className="flex items-center gap-2 cursor-pointer text-sm font-medium text-gray-800">
+              <div style={{ paddingTop: 12, borderTop: '1px solid var(--color-border)' }}>
+                <label className="flex items-center gap-2 cursor-pointer text-sm font-medium text-primary">
                   <input
                     type="checkbox"
                     checked={withProfile}
@@ -572,7 +624,7 @@ const UserFormModal: React.FC<{
                   />
                   Also create HR profile now
                 </label>
-                <p className="text-xs text-gray-500 mt-1 ml-6">
+                <p className="text-xs text-muted mt-1 ml-6">
                   Leave unchecked to add HR details later from the main list.
                 </p>
 
@@ -580,22 +632,22 @@ const UserFormModal: React.FC<{
                   <div className="space-y-3 mt-3 pl-6">
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Employee ID *</label>
-                        <input type="text" value={employeeId} onChange={(e) => setEmployeeId(e.target.value)} style={fieldStyle} placeholder="EMP-001" />
+                        <label className="block text-sm font-medium text-secondary mb-1">Employee ID *</label>
+                        <input type="text" value={employeeId} onChange={(e) => setEmployeeId(e.target.value)} style={fieldStyle} onFocus={onFieldFocus} onBlur={onFieldBlur} placeholder="EMP-001" />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Designation *</label>
-                        <input type="text" value={designation} onChange={(e) => setDesignation(e.target.value)} style={fieldStyle} placeholder="e.g. Staff Pharmacist" />
+                        <label className="block text-sm font-medium text-secondary mb-1">Designation *</label>
+                        <input type="text" value={designation} onChange={(e) => setDesignation(e.target.value)} style={fieldStyle} onFocus={onFieldFocus} onBlur={onFieldBlur} placeholder="e.g. Staff Pharmacist" />
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
-                        <input type="text" value={department} onChange={(e) => setDepartment(e.target.value)} style={fieldStyle} />
+                        <label className="block text-sm font-medium text-secondary mb-1">Department</label>
+                        <input type="text" value={department} onChange={(e) => setDepartment(e.target.value)} style={fieldStyle} onFocus={onFieldFocus} onBlur={onFieldBlur} />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Branch</label>
-                        <select value={branchId} onChange={(e) => setBranchId(e.target.value)} style={fieldStyle}>
+                        <label className="block text-sm font-medium text-secondary mb-1">Branch</label>
+                        <select value={branchId} onChange={(e) => setBranchId(e.target.value)} style={fieldStyle} onFocus={onFieldFocus} onBlur={onFieldBlur}>
                           <option value="">All branches</option>
                           {branches.map((b) => (
                             <option key={b.id} value={b.id}>{b.name}</option>
@@ -604,8 +656,8 @@ const UserFormModal: React.FC<{
                       </div>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Monthly Salary</label>
-                      <input type="number" value={salary} onChange={(e) => setSalary(e.target.value)} style={fieldStyle} placeholder="0.00" />
+                      <label className="block text-sm font-medium text-secondary mb-1">Monthly Salary</label>
+                      <input type="number" value={salary} onChange={(e) => setSalary(e.target.value)} style={fieldStyle} onFocus={onFieldFocus} onBlur={onFieldBlur} placeholder="0.00" />
                     </div>
                   </div>
                 )}
@@ -614,15 +666,15 @@ const UserFormModal: React.FC<{
           )}
         </form>
 
-        <div className="flex justify-end gap-3 px-6 py-4 border-t">
-          <button type="button" onClick={onClose} disabled={busy} className="px-4 py-2 border rounded-lg text-gray-700 hover:bg-gray-50">
+        <div className="flex justify-end gap-3 px-6 py-4 border-t border-theme">
+          <button type="button" onClick={onClose} disabled={busy} className="btn-ghost px-4 py-2">
             Cancel
           </button>
           <button
             type="submit"
             onClick={handleSubmit}
             disabled={busy}
-            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium flex items-center gap-2 disabled:opacity-60"
+            className="btn-accent px-4 py-2 flex items-center gap-2"
           >
             {busy && <Loader2 className="w-4 h-4 animate-spin" />}
             {busy ? 'Saving…' : (isEdit ? 'Save Changes' : 'Create User')}
@@ -687,57 +739,78 @@ const StaffProfileModal: React.FC<{
   const fieldStyle: React.CSSProperties = {
     fontSize: 13, background: 'var(--color-input-bg)',
     border: '1px solid var(--color-input-border)',
-    borderRadius: 6, color: 'var(--color-input-text)',
+    borderRadius: 'var(--radius-md)', color: 'var(--color-input-text)',
     padding: '8px 12px', outline: 'none', height: 38, width: '100%',
+    transition: 'border-color 100ms ease, box-shadow 100ms ease',
+  };
+
+  const onFieldFocus = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => {
+    e.currentTarget.style.borderColor = 'var(--color-input-border-focus)';
+    e.currentTarget.style.boxShadow = '0 0 0 2px var(--color-input-ring)';
+  };
+
+  const onFieldBlur = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => {
+    e.currentTarget.style.borderColor = 'var(--color-input-border)';
+    e.currentTarget.style.boxShadow = 'none';
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={onClose}>
+    <div className="fixed inset-0 bg-overlay flex items-center justify-center p-4 z-modal" onClick={onClose}>
       <div
         onClick={(e) => e.stopPropagation()}
-        className="bg-white rounded-2xl max-w-lg w-full shadow-2xl flex flex-col"
+        className="surface-elevated rounded-2xl max-w-lg w-full shadow-2xl flex flex-col border-theme"
         style={{ maxHeight: '90vh' }}
       >
-        <div className="flex items-center justify-between px-6 py-4 border-b">
+        <div className="flex items-center justify-between px-6 py-4 rounded-t-2xl bg-brand text-white">
           <div>
-            <h2 className="text-xl font-bold text-gray-900">
+            <h2 className="text-xl font-bold">
               {existing ? 'Edit HR Profile' : 'Create HR Profile'}
             </h2>
-            <p className="text-xs text-gray-500 mt-0.5">
+            <p className="text-xs text-white/70 mt-0.5">
               For user: <strong>{user.name}</strong> ({ROLE_LABELS[user.role as ValidRole] || user.role})
             </p>
           </div>
-          <button onClick={onClose} className="p-1 rounded hover:bg-gray-100">
-            <X className="w-5 h-5 text-gray-400" />
+          <button
+            onClick={onClose}
+            className="p-2 rounded-xl text-white/80 hover:text-white hover:bg-white/10 transition-colors"
+          >
+            <X className="w-5 h-5" />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
           {error && (
-            <div className="bg-rose-50 text-rose-700 p-3 rounded-lg text-sm border border-rose-200">
+            <div
+              className="p-3 rounded-lg text-sm"
+              style={{
+                background: 'var(--color-danger-light)',
+                color: 'var(--color-danger-text)',
+                border: '1px solid var(--color-danger)',
+              }}
+            >
               {error}
             </div>
           )}
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Employee ID *</label>
-              <input type="text" value={employeeId} onChange={(e) => setEmployeeId(e.target.value)} style={fieldStyle} placeholder="EMP-001" />
+              <label className="block text-sm font-medium text-secondary mb-1">Employee ID *</label>
+              <input type="text" value={employeeId} onChange={(e) => setEmployeeId(e.target.value)} style={fieldStyle} onFocus={onFieldFocus} onBlur={onFieldBlur} placeholder="EMP-001" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Designation *</label>
-              <input type="text" value={designation} onChange={(e) => setDesignation(e.target.value)} style={fieldStyle} />
+              <label className="block text-sm font-medium text-secondary mb-1">Designation *</label>
+              <input type="text" value={designation} onChange={(e) => setDesignation(e.target.value)} style={fieldStyle} onFocus={onFieldFocus} onBlur={onFieldBlur} />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
-              <input type="text" value={department} onChange={(e) => setDepartment(e.target.value)} style={fieldStyle} />
+              <label className="block text-sm font-medium text-secondary mb-1">Department</label>
+              <input type="text" value={department} onChange={(e) => setDepartment(e.target.value)} style={fieldStyle} onFocus={onFieldFocus} onBlur={onFieldBlur} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Branch</label>
-              <select value={branchId} onChange={(e) => setBranchId(e.target.value)} style={fieldStyle}>
+              <label className="block text-sm font-medium text-secondary mb-1">Branch</label>
+              <select value={branchId} onChange={(e) => setBranchId(e.target.value)} style={fieldStyle} onFocus={onFieldFocus} onBlur={onFieldBlur}>
                 <option value="">All branches</option>
                 {branches.map((b) => (
                   <option key={b.id} value={b.id}>{b.name}</option>
@@ -748,19 +821,19 @@ const StaffProfileModal: React.FC<{
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
-              <input type="tel" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} style={fieldStyle} />
+              <label className="block text-sm font-medium text-secondary mb-1">Phone</label>
+              <input type="tel" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} style={fieldStyle} onFocus={onFieldFocus} onBlur={onFieldBlur} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Hire Date</label>
-              <input type="date" value={hireDate} onChange={(e) => setHireDate(e.target.value)} style={fieldStyle} />
+              <label className="block text-sm font-medium text-secondary mb-1">Hire Date</label>
+              <input type="date" value={hireDate} onChange={(e) => setHireDate(e.target.value)} style={fieldStyle} onFocus={onFieldFocus} onBlur={onFieldBlur} />
             </div>
           </div>
 
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
-              <select value={employmentType} onChange={(e) => setEmploymentType(e.target.value as any)} style={fieldStyle}>
+              <label className="block text-sm font-medium text-secondary mb-1">Type</label>
+              <select value={employmentType} onChange={(e) => setEmploymentType(e.target.value as any)} style={fieldStyle} onFocus={onFieldFocus} onBlur={onFieldBlur}>
                 <option value="full_time">Full Time</option>
                 <option value="part_time">Part Time</option>
                 <option value="contract">Contract</option>
@@ -768,12 +841,12 @@ const StaffProfileModal: React.FC<{
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Salary</label>
-              <input type="number" value={salary} onChange={(e) => setSalary(e.target.value)} style={fieldStyle} />
+              <label className="block text-sm font-medium text-secondary mb-1">Salary</label>
+              <input type="number" value={salary} onChange={(e) => setSalary(e.target.value)} style={fieldStyle} onFocus={onFieldFocus} onBlur={onFieldBlur} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-              <select value={status} onChange={(e) => setStatus(e.target.value as any)} style={fieldStyle}>
+              <label className="block text-sm font-medium text-secondary mb-1">Status</label>
+              <select value={status} onChange={(e) => setStatus(e.target.value as any)} style={fieldStyle} onFocus={onFieldFocus} onBlur={onFieldBlur}>
                 <option value="active">Active</option>
                 <option value="on_leave">On Leave</option>
                 <option value="suspended">Suspended</option>
@@ -783,15 +856,15 @@ const StaffProfileModal: React.FC<{
           </div>
         </form>
 
-        <div className="flex justify-end gap-3 px-6 py-4 border-t">
-          <button type="button" onClick={onClose} disabled={busy} className="px-4 py-2 border rounded-lg text-gray-700 hover:bg-gray-50">
+        <div className="flex justify-end gap-3 px-6 py-4 border-t border-theme">
+          <button type="button" onClick={onClose} disabled={busy} className="btn-ghost px-4 py-2">
             Cancel
           </button>
           <button
             type="button"
             onClick={handleSubmit}
             disabled={busy}
-            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium flex items-center gap-2 disabled:opacity-60"
+            className="btn-accent px-4 py-2 flex items-center gap-2"
           >
             {busy && <Loader2 className="w-4 h-4 animate-spin" />}
             {busy ? 'Saving…' : (existing ? 'Save Changes' : 'Create Profile')}

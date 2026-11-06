@@ -9,8 +9,6 @@ import { useAppStore } from '../store';
 import { Customer, InsuranceProvider, CustomerInsurance } from '../types';
 import { Card } from '../components/ui/Card';
 
-const safeNum = (v: unknown) => { const n = Number(v); return isNaN(n) ? 0 : n; };
-
 export const CustomersPage: React.FC = () => {
     const { currentUser } = useAppStore();
 

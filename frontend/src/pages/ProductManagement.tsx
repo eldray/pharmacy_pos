@@ -1,5 +1,5 @@
 // src/pages/ProductManagement.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Plus, Edit2, Trash2, Package, Barcode, X, Calendar, Search,
   ArrowUpRight, Zap, TrendingUp, Grid, List, ChevronDown, ChevronUp,
@@ -37,6 +37,11 @@ export const ProductManagement: React.FC = () => {
     unitPrice: '',
     sellingPrice: '',
     insurancePrice: '',
+    cost: '',
+    packageType: 'Box',
+    dispensingUnit: 'Tablet',
+    unitsPerPackage: '',
+    packagePrice: '',
     schedule: 'none',
   });
   // When true, the category field shows a free-text input for a new category.
@@ -87,20 +92,23 @@ export const ProductManagement: React.FC = () => {
     fetchProducts();
   }, [fetchProducts]);
 
-  const filteredProducts = products.filter(product =>
+  const filteredProducts = useMemo(() => products.filter(product =>
     product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     product.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
     product.category.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  ), [products, searchQuery]);
 
-  const lowStockProducts = products.filter(p => p.quantity < 20);
+  const lowStockProducts = useMemo(() => products.filter(p => p.quantity < 20), [products]);
   const totalProducts = products.length;
 
   // Pagination logic
   const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
-  const currentProducts = filteredProducts.slice(startIndex, endIndex);
+  const currentProducts = useMemo(
+    () => filteredProducts.slice(startIndex, endIndex),
+    [filteredProducts, startIndex, endIndex]
+  );
 
   const goToPage = (page: number) => {
     setCurrentPage(Math.max(1, Math.min(page, totalPages)));
@@ -119,6 +127,7 @@ export const ProductManagement: React.FC = () => {
       unitPrice: '',
       sellingPrice: '',
       insurancePrice: '',
+      cost: '',
       packageType: 'Box',
       dispensingUnit: 'Tablet',
       unitsPerPackage: '100',
@@ -138,6 +147,7 @@ export const ProductManagement: React.FC = () => {
       unitPrice: product.unitPrice.toString(),
       sellingPrice: (product.sellingPrice || '').toString(),
       insurancePrice: (product.insurancePrice || '').toString(),
+      cost: (product.cost ?? '').toString(),
       packageType: product.packageType || 'Box',
       dispensingUnit: product.dispensingUnit || 'Tablet',
       unitsPerPackage: (product.unitsPerPackage || 1).toString(),
@@ -215,6 +225,7 @@ export const ProductManagement: React.FC = () => {
         unitPrice: parseFloat(formData.unitPrice),
         sellingPrice: formData.sellingPrice ? parseFloat(formData.sellingPrice) : undefined,
         insurancePrice: formData.insurancePrice ? parseFloat(formData.insurancePrice) : undefined,
+        cost: formData.cost ? parseFloat(formData.cost) : undefined,
         packageType: formData.packageType || 'Box',
         dispensingUnit: formData.dispensingUnit || 'Tablet',
         unitsPerPackage: parseInt(formData.unitsPerPackage) || 1,
@@ -395,6 +406,8 @@ export const ProductManagement: React.FC = () => {
             <div className="flex rounded-xl p-1" style={{ background: 'var(--color-bg-subtle)' }}>
               <button
                 onClick={() => setViewMode('grid')}
+                aria-label="Grid view"
+                aria-pressed={viewMode === 'grid'}
                 className={`p-2 rounded-lg transition-all ${viewMode === 'grid'
                   ? 'surface-elevated shadow-sm'
                   : 'hover:bg-subtle'
@@ -407,6 +420,8 @@ export const ProductManagement: React.FC = () => {
               </button>
               <button
                 onClick={() => setViewMode('list')}
+                aria-label="List view"
+                aria-pressed={viewMode === 'list'}
                 className={`p-2 rounded-lg transition-all ${viewMode === 'list'
                   ? 'surface-elevated shadow-sm'
                   : 'hover:bg-subtle'
@@ -456,6 +471,7 @@ export const ProductManagement: React.FC = () => {
                     className="p-1.5 rounded-lg transition-all duration-200 hover:bg-subtle"
                     style={{ color: 'var(--color-text-secondary)' }}
                     title="Edit Product"
+                    aria-label="Edit product"
                   >
                     <Edit2 className="h-3 w-3" />
                   </button>
@@ -464,6 +480,7 @@ export const ProductManagement: React.FC = () => {
                     className="p-1.5 rounded-lg transition-all duration-200 hover:bg-info-light"
                     style={{ color: 'var(--color-info-text)' }}
                     title="View History"
+                    aria-label="View product history"
                   >
                     <History className="h-3 w-3" />
                   </button>
@@ -476,6 +493,7 @@ export const ProductManagement: React.FC = () => {
                       cursor: deleteLoading === product.id ? 'not-allowed' : 'pointer',
                     }}
                     title="Delete Product"
+                    aria-label="Delete product"
                   >
                     {deleteLoading === product.id ? (
                       <Loader2 className="h-3 w-3 animate-spin" />
@@ -589,6 +607,7 @@ export const ProductManagement: React.FC = () => {
                           className="p-1.5 rounded-lg transition-all duration-200 hover:bg-subtle"
                           style={{ color: 'var(--color-text-secondary)' }}
                           title="Edit Product"
+                          aria-label="Edit product"
                         >
                           <Edit2 className="h-3 w-3" />
                         </button>
@@ -597,6 +616,7 @@ export const ProductManagement: React.FC = () => {
                           className="p-1.5 rounded-lg transition-all duration-200 hover:bg-info-light"
                           style={{ color: 'var(--color-info-text)' }}
                           title="View History"
+                          aria-label="View product history"
                         >
                           <History className="h-3 w-3" />
                         </button>
@@ -609,6 +629,7 @@ export const ProductManagement: React.FC = () => {
                             cursor: deleteLoading === product.id ? 'not-allowed' : 'pointer',
                           }}
                           title="Delete Product"
+                          aria-label="Delete product"
                         >
                           {deleteLoading === product.id ? (
                             <Loader2 className="h-3 w-3 animate-spin" />
@@ -651,7 +672,12 @@ export const ProductManagement: React.FC = () => {
 
       {/* Product Form Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-overlay flex items-center justify-center p-4 z-modal">
+        <div
+          className="fixed inset-0 bg-overlay flex items-center justify-center p-4 z-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-label={editingProduct ? 'Edit product' : 'Add new product'}
+        >
           <div className="surface-elevated rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto border-theme">
             <div className="sticky top-0 bg-brand text-white rounded-t-2xl px-6 py-4">
               <div className="flex items-center justify-between">
@@ -660,6 +686,7 @@ export const ProductManagement: React.FC = () => {
                 </h2>
                 <button
                   onClick={() => setShowModal(false)}
+                  aria-label="Close dialog"
                   className="text-white/80 hover:text-white transition-colors p-2 hover:bg-white/10 rounded-xl"
                 >
                   <X className="h-6 w-6" />
@@ -801,6 +828,26 @@ export const ProductManagement: React.FC = () => {
                     onFocus={onFieldFocus}
                     onBlur={onFieldBlur}
                   />
+                </div>
+
+                {/* Cost Price */}
+                <div>
+                  <label className="block text-sm font-semibold text-primary mb-2">Cost Price (GHS)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={formData.cost}
+                    onChange={(e) => setFormData({ ...formData, cost: e.target.value })}
+                    placeholder="e.g. 1.80 (What you paid the supplier)"
+                    className="input-base w-full text-sm"
+                    style={fieldStyle}
+                    onFocus={onFieldFocus}
+                    onBlur={onFieldBlur}
+                  />
+                  <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
+                    Used for profit and COGS reports only — never shown to the customer.
+                  </p>
                 </div>
 
                 {/* Live Co-Pay Badge */}

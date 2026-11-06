@@ -3,53 +3,54 @@ productName: PharmacyPOS
 
 directories:
   output: release
-  buildResources: build
+  # NOTE: "build/" is gitignored, so icons live in a tracked folder instead.
+  buildResources: build-resources
 
-# Files bundled into the asar
+# Packed into app.asar: just the Electron shell.
 files:
   - main.cjs
   - preload.js
   - package.json
+  - build-resources/icon.ico
 
-# Bundled alongside the asar (not compressed — needed at runtime)
+# Shipped next to the asar under <install dir>/resources/.
+# The backend comes from build-staging/ (created by `npm run prepare:backend`):
+# production-only node_modules, no .env, no uploads, no logs/backups.
 extraResources:
-  - from: backend
+  - from: build-staging/backend
     to: backend
-    filter:
-      - "**/*"
-      - "!*.log"
-      - "!*.db"           # No SQLite db needed anymore
-      - "!*.db-shm"
-      - "!*.db-wal"
   - from: frontend/dist
     to: frontend/dist
 
 asar: true
-asarUnpack:
-  - backend/node_modules/**/*   # native addons must be outside asar
-  - frontend/dist/**/*
 
-# PostgreSQL has no native addon to rebuild — safe to enable
+# Backend deps (pg, sequelize, bcryptjs, ...) are pure JavaScript, so nothing
+# needs rebuilding against Electron's ABI.
 npmRebuild: false
-npmSkipBuildFromSource: false
 
 # ─── Windows ──────────────────────────────────────────────────────────────────
 win:
   target:
-    - nsis
-    - portable
-  icon: build/icon.ico
-  artifactName: ${productName}-Setup-${version}-${arch}.${ext}
+    - target: nsis
+      arch:
+        - x64
+  icon: build-resources/icon.ico
 
 nsis:
+  artifactName: ${productName}-Setup-${version}-${arch}.${ext}
   oneClick: false
+  perMachine: false            # per-user install, no admin rights needed
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   createStartMenuShortcut: true
-  installerIcon: build/icon.ico
-  uninstallerIcon: build/icon.ico
-  installerHeaderIcon: build/icon.ico
   shortcutName: PharmacyPOS
+  installerIcon: build-resources/icon.ico
+  uninstallerIcon: build-resources/icon.ico
+  installerHeaderIcon: build-resources/icon.ico
+  deleteAppDataOnUninstall: false   # keep the user's DB settings on uninstall
+
+portable:
+  artifactName: ${productName}-Portable-${version}-${arch}.${ext}
 
 # ─── Linux ────────────────────────────────────────────────────────────────────
 linux:
@@ -57,7 +58,6 @@ linux:
     - deb
     - AppImage
   category: Utility
-  icon: build/icons
   maintainer: Emmanuel Appiah <emk.appiah@gmail.com>
   artifactName: ${productName}-${version}-${arch}.${ext}
   desktop:
@@ -89,6 +89,5 @@ mac:
     - dmg
     - zip
   category: public.app-category.business
-  icon: build/icon.icns
 
 publish: null

@@ -1,5 +1,5 @@
 // src/pages/LabManagement.tsx
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
     FlaskConical, Plus, Search, Eye, RefreshCw, CheckCircle, XCircle,
     Clock, Loader2, Calendar, ChevronLeft, ChevronRight, Ban,
@@ -11,11 +11,6 @@ import { Card } from '../components/ui/Card';
 import { LabRequestModal } from '../components/LabRequestModal';
 import { ReceiptModal } from '../components/ReceiptModal';
 import { LabTransaction } from '../types';
-
-const safeNum = (v: unknown): number => {
-    const n = Number(v);
-    return isNaN(n) ? 0 : n;
-};
 
 type DateFilter = 'today' | 'week' | 'month' | 'all';
 
@@ -41,7 +36,9 @@ export const LabManagement: React.FC = () => {
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 10;
 
-    const dateRange = useMemo(() => {
+    // Resolved at request time, not memoised at mount: a till left open across
+    // midnight would otherwise keep the previous day in the 'today' window.
+    const getDateRange = useCallback(() => {
         const now = new Date();
         const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
         const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
@@ -57,6 +54,7 @@ export const LabManagement: React.FC = () => {
         setLoading(true);
         setError(null);
         try {
+            const dateRange = getDateRange();
             await Promise.all([
                 fetchLabTransactions({
                     status: statusFilter !== 'all' ? statusFilter : undefined,
@@ -74,7 +72,7 @@ export const LabManagement: React.FC = () => {
         } finally {
             setLoading(false);
         }
-    }, [statusFilter, dateRange, searchQuery, fetchLabTransactions, fetchLabTestTemplates, getLabTransactionStats]);
+    }, [statusFilter, getDateRange, searchQuery, fetchLabTransactions, fetchLabTestTemplates, getLabTransactionStats]);
 
     useEffect(() => { loadData(); }, [loadData]);
 
@@ -100,22 +98,25 @@ export const LabManagement: React.FC = () => {
 
     const handleCancel = async (order: LabTransaction) => {
         if (!window.confirm(`Cancel lab order ${order.transactionNumber}?`)) return;
-        try {
-            await cancelLabTransaction(order.id);
-            loadData();
-        } catch {
+        // cancelLabTransaction now swallows the error and returns false on
+        // failure (matching the sibling transaction actions in the store).
+        const cancelled = await cancelLabTransaction(order.id);
+        if (!cancelled) {
             alert('Failed to cancel order');
+            return;
         }
+        loadData();
     };
 
     const handlePay = async (order: LabTransaction) => {
         if (!window.confirm(`Collect payment for ${order.transactionNumber}?`)) return;
-        try {
-            await payLabTransaction(order.id, { paymentMethod: 'cash' });
-            loadData();
-        } catch {
+        // payLabTransaction returns null when the request fails.
+        const paid = await payLabTransaction(order.id, { paymentMethod: 'cash' });
+        if (!paid) {
             alert('Failed to record payment');
+            return;
         }
+        loadData();
     };
 
     const DateFilterBtn: React.FC<{ label: string; value: DateFilter }> = ({ label, value }) => (
@@ -426,7 +427,6 @@ export const LabManagement: React.FC = () => {
                     doc={printOrder}
                     mode="order"
                     onClose={() => setPrintOrder(null)}
-                    onPrint={undefined}
                 />
             )}
         </div>

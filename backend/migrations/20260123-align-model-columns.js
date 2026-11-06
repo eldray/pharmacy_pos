@@ -19,6 +19,8 @@ function modelFor(db, tableName) {
 
 const q = (name) => `"${name}"`;
 const lit = (value) => `'${String(value).replace(/'/g, "''")}'`;
+// Matches Sequelize's inline enum rendering: ENUM('Male', 'Female', 'it''s')
+const ENUM_LITERAL = /^ENUM\((?:\s*'(?:[^']|'')*'\s*,?)*\)/i;
 
 // Columns this migration is expected to add, so `down` reverses only those.
 const REVERSIBLE = {
@@ -53,15 +55,20 @@ module.exports = {
         const commentMark = /\s+COMMENT\s+/i.exec(generated);
         const type = commentMark ? generated.slice(0, commentMark.index) : generated;
 
+        let columnType = type;
         if (def.type && def.type.key === 'ENUM') {
           const typeName = `enum_${tableName}_${attr}`;
           await run(
             `DO $$ BEGIN CREATE TYPE ${q(typeName)} AS ENUM (${def.type.values.map(lit).join(', ')});` +
             ` EXCEPTION WHEN duplicate_object THEN NULL; END $$;`
           );
+          // Sequelize renders an ENUM attribute as the literal text ENUM('a', 'b'),
+          // which is not a Postgres type. Point the column at the type created above
+          // (keeping any NOT NULL / DEFAULT suffix the generator appended).
+          columnType = type.replace(ENUM_LITERAL, q(typeName));
         }
 
-        await run(`ALTER TABLE ${q(tableName)} ADD COLUMN IF NOT EXISTS ${q(attr)} ${type}`);
+        await run(`ALTER TABLE ${q(tableName)} ADD COLUMN IF NOT EXISTS ${q(attr)} ${columnType}`);
 
         if (def.references) {
           const target = def.references.model;

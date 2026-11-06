@@ -6,34 +6,48 @@ on:
       - 'v*'
   workflow_dispatch:
 
+permissions:
+  contents: write   # needed to attach the installer to a GitHub Release on tag pushes
+
 jobs:
   build-windows:
-    # Run the job inside the recommended Docker container
-    runs-on: ubuntu-latest # We use Linux to run the Windows-compatible Docker container
-
-    container:
-      image: electronuserland/builder:wine
-      options: --user 1001
+    # Build natively on Windows: the installer's .exe icon/metadata is edited
+    # with the real toolchain (no wine) and the result is what users run.
+    runs-on: windows-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install Dependencies and Build
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            frontend/package-lock.json
+            backend/package-lock.json
+
+      - name: Install root and frontend dependencies
         run: |
-          # Install project dependencies (Node 20 is pre-installed in this image)
           npm ci
-          cd frontend && npm ci && cd ..
-          cd backend && npm ci && cd ..
+          npm ci --prefix frontend
 
-          # Build the frontend
-          cd frontend && npm run build && cd ..
+      # Builds the frontend, stages a production-only backend, then runs
+      # electron-builder --win nsis --x64  (see package.json "build:win").
+      - name: Build Windows installer
+        run: npm run build:win
 
-          # Build the Windows portable Electron app
-          npx electron-builder --win portable --x64
-
-      - name: Upload Windows Artifact
+      - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
-          name: PharmacyPOS-Windows-Portable
+          name: PharmacyPOS-Windows-Installer
           path: release/*.exe
+          if-no-files-found: error
+
+      - name: Attach installer to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*.exe

@@ -7,6 +7,9 @@ const { validatePassword, validateEmail } = require('../utils/validators');
 const { StaffProfile, Branch } = require('../models');
 
 const router = express.Router();
+const { numericIdParams } = require('../utils/numericIdParams');
+
+numericIdParams(router);
 
 // Never let passwords reach the audit log.
 const safeUser = (u) => ({
@@ -263,6 +266,10 @@ router.patch('/profile', auth, async (req, res) => {
     if (newPassword) updates.password = newPassword;
 
     await user.update(updates);
+    await recordAudit(req, {
+      action: 'update', entity: 'User', entityId: user.id,
+      changes: { self: true, name, email, passwordChanged: !!newPassword },
+    });
     const result = await User.findByPk(user.id, { attributes: { exclude: ['password'] } });
     res.json(result);
   } catch (err) {

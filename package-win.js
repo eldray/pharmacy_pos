@@ -13,9 +13,9 @@ try {
   console.log('No previous builds to clean');
 }
 
-// Build frontend
-console.log('🏗️  Building frontend...');
-execSync('npm run build:frontend', { stdio: 'inherit' });
+// Build frontend + stage the production-only backend (build-staging/backend)
+console.log('🏗️  Building frontend and staging backend...');
+execSync('npm run build:prepare', { stdio: 'inherit' });
 
 // Build Windows directory version
 console.log('🔨 Building Windows app (directory version)...');

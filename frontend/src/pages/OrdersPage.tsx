@@ -10,15 +10,17 @@ import api, { getErrorMessage } from '../api/api';
 import { useAppStore } from '../store';
 import { SalesOrder } from '../types';
 import { Card } from '../components/ui/Card';
-
-const safeNum = (v: unknown) => { const n = Number(v); return isNaN(n) ? 0 : n; };
+import { DocumentDetailsModal } from '../components/DocumentDetailsModal';
+import { printDocument } from '../utils/receiptHtml';
+import { describePrintOutcome } from '../utils/printEngine';
+import { safeNumber } from '../utils/number';
 
 type StatusFilter = 'all' | 'pending_payment' | 'paid' | 'cancelled';
 type DateFilter = 'today' | 'week' | 'month' | 'all' | 'custom';
 
 export const OrdersPage: React.FC = () => {
     const navigate = useNavigate();
-    const { currentUser, company } = useAppStore();
+    const { currentUser, company, fetchProducts } = useAppStore();
 
     const [orders, setOrders] = useState<SalesOrder[]>([]);
     const [stats, setStats] = useState({ total: 0, pending: 0, paid: 0, cancelled: 0, revenue: 0 });
@@ -30,6 +32,7 @@ export const OrdersPage: React.FC = () => {
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
+    const [detailOrder, setDetailOrder] = useState<SalesOrder | null>(null);
     const itemsPerPage = 15;
 
     // Compute date range from dateFilter
@@ -101,80 +104,9 @@ export const OrdersPage: React.FC = () => {
     };
 
     // ── Print receipt for a PAID order ────────────────────────────────
-    const handlePrint = (order: SalesOrder) => {
-        const co = company;
-        const items = Array.isArray(order.items) ? order.items : [];
-        const itemRows = items.map((item: any) =>
-            `<div class="item-row">
-        <span class="item-name">${item?.product?.name || item?.productName || 'Item'}</span>
-        <span class="item-qty">${item?.quantity || 0}</span>
-        <span class="item-price">${safeNum(item?.unitPrice).toFixed(2)}</span>
-        <span class="item-total">${(safeNum(item?.quantity) * safeNum(item?.unitPrice)).toFixed(2)}</span>
-      </div>`
-        ).join('');
-
-        const html = `<!DOCTYPE html><html><head>
-      <title>Receipt - ${order.orderNumber}</title>
-      <style>
-        * { margin:0; padding:0; box-sizing:border-box; }
-        body { font-family:'Courier New',monospace; font-size:9pt; max-width:72mm; margin:0 auto; padding:4mm 2mm; line-height:1.4; color:#000; }
-        .header { text-align:center; border-bottom:1px dashed #000; padding-bottom:4mm; margin-bottom:3mm; }
-        .company-name { font-size:12pt; font-weight:bold; text-transform:uppercase; letter-spacing:1px; }
-        .divider { border-bottom:1px dashed #000; margin:2mm 0; }
-        .row { display:flex; justify-content:space-between; padding:0.5mm 0; font-size:8pt; }
-        .items-header { display:flex; border-bottom:1px solid #000; padding-bottom:1mm; margin-bottom:1mm; font-weight:bold; font-size:8pt; }
-        .item-row { display:flex; padding:0.5mm 0; border-bottom:1px dotted #ccc; font-size:8pt; }
-        .item-name { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-        .item-qty { width:24px; text-align:center; }
-        .item-price { width:48px; text-align:right; }
-        .item-total { width:48px; text-align:right; font-weight:bold; }
-        .totals { margin-top:2mm; padding-top:2mm; border-top:1px dashed #000; }
-        .total-final { font-size:11pt; font-weight:bold; border-top:2px solid #000; padding-top:1mm; margin-top:1mm; }
-        .ins-box { border:1px dashed #000; padding:1mm 2mm; margin:2mm 0; font-size:7.5pt; }
-        .footer { text-align:center; margin-top:3mm; padding-top:3mm; border-top:1px dashed #000; font-size:7pt; color:#666; }
-      </style>
-    </head><body>
-      <div class="header">
-        <div class="company-name">${co?.name || 'PHARMACY POS'}</div>
-        ${co?.contact?.phone ? `<div style="font-size:7pt;color:#555;">${co.contact.phone}</div>` : ''}
-      </div>
-      <div class="row"><span>Order #:</span><span>${order.orderNumber}</span></div>
-      <div class="row"><span>Date:</span><span>${new Date(order.createdAt).toLocaleString()}</span></div>
-      <div class="row"><span>Cashier:</span><span>${order.cashierName || 'Cashier'}</span></div>
-      <div class="row"><span>Patient:</span><span>${order.customerName || 'Walk-in'}</span></div>
-      ${order.customerPhone ? `<div class="row"><span>Phone:</span><span>${order.customerPhone}</span></div>` : ''}
-      <div class="divider"></div>
-      <div class="items-header">
-        <span class="item-name">Item</span>
-        <span class="item-qty">Qty</span>
-        <span class="item-price">Price</span>
-        <span class="item-total">Total</span>
-      </div>
-      ${itemRows || '<div style="text-align:center;padding:2mm;color:#999;">No items</div>'}
-      <div class="divider"></div>
-      <div class="totals">
-        <div class="row"><span>Subtotal:</span><span>GHS ${safeNum(order.subtotal).toFixed(2)}</span></div>
-        <div class="row"><span>VAT:</span><span>GHS ${safeNum(order.tax).toFixed(2)}</span></div>
-        ${order.insuranceProviderName ? `
-        <div class="ins-box">
-          <div><strong>Insurance: ${order.insuranceProviderName}</strong></div>
-          ${order.policyNumber ? `<div>Policy: ${order.policyNumber}</div>` : ''}
-          <div>Insurance covers: GHS ${safeNum(order.insuranceCoverage).toFixed(2)}</div>
-          <div><strong>Patient Co-Pay: GHS ${safeNum(order.copayAmount).toFixed(2)}</strong></div>
-        </div>` : ''}
-        <div class="row total-final"><span>AMOUNT PAID:</span><span>GHS ${safeNum(order.copayAmount || order.total).toFixed(2)}</span></div>
-      </div>
-      <div class="footer"><div>Thank you for your visit!</div></div>
-    </body></html>`;
-
-        const win = window.open('', '_blank', 'width=340,height=620');
-        if (!win) { alert('Please allow pop-ups to print receipts.'); return; }
-        win.document.open();
-        win.document.write(html);
-        win.document.close();
-        win.focus();
-        win.onload = () => { win.print(); win.onafterprint = () => win.close(); };
-        setTimeout(() => { if (!win.closed) { win.print(); win.onafterprint = () => win.close(); } }, 400);
+    const handlePrint = async (order: SalesOrder) => {
+        const message = describePrintOutcome(await printDocument(order, { company }));
+        if (message) alert(message);
     };
 
     // ── Cancel order ──────────────────────────────────────────────────
@@ -183,6 +115,9 @@ export const OrdersPage: React.FC = () => {
         try {
             await api.post(`/orders/${order.id}/cancel`);
             loadData();
+            // Cancelling a paid order restores its stock server-side; force the
+            // products refetch past the 30s freshness guard so stock stays accurate.
+            await fetchProducts(true);
         } catch (err) {
             alert(getErrorMessage(err));
         }
@@ -284,7 +219,7 @@ export const OrdersPage: React.FC = () => {
                         <div>
                             <p className="text-sm font-medium" style={{ color: 'var(--color-success-text)' }}>Revenue</p>
                             <p className="text-2xl font-bold tabular-nums" style={{ color: 'var(--color-success-text)' }}>
-                                GHS {safeNum(stats.revenue).toFixed(2)}
+                                GHS {safeNumber(stats.revenue).toFixed(2)}
                             </p>
                         </div>
                         <div className="p-2.5 rounded-lg" style={{ background: 'var(--color-success)', color: 'var(--color-accent-fg)' }}>
@@ -431,11 +366,11 @@ export const OrdersPage: React.FC = () => {
                                                 </td>
                                                 <td className="px-4 py-3 text-right">
                                                     <p className="font-bold text-sm tabular-nums" style={{ color: 'var(--color-accent-text)' }}>
-                                                        GHS {safeNum(order.copayAmount || order.total).toFixed(2)}
+                                                        GHS {safeNumber(order.copayAmount || order.total).toFixed(2)}
                                                     </p>
                                                     {order.insuranceProviderName && (
                                                         <p className="text-[0.65rem] text-muted">
-                                                            cover: GHS {safeNum(order.insuranceCoverage).toFixed(2)}
+                                                            cover: GHS {safeNumber(order.insuranceCoverage).toFixed(2)}
                                                         </p>
                                                     )}
                                                 </td>
@@ -467,6 +402,12 @@ export const OrdersPage: React.FC = () => {
                                                                         <Ban className="h-3 w-3" /> Cancel
                                                                     </button>
                                                                 )}
+                                                                <button
+                                                                    onClick={() => setDetailOrder(order)}
+                                                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded text-xs font-semibold btn-ghost"
+                                                                >
+                                                                    <Eye className="h-3 w-3" /> View
+                                                                </button>
                                                             </>
                                                         )}
                                                         {order.status === 'paid' && (
@@ -478,7 +419,7 @@ export const OrdersPage: React.FC = () => {
                                                                     <Printer className="h-3 w-3" /> Reprint
                                                                 </button>
                                                                 <button
-                                                                    onClick={() => navigate(`/dashboard/sales`)}
+                                                                    onClick={() => setDetailOrder(order)}
                                                                     className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded text-xs font-semibold btn-ghost"
                                                                 >
                                                                     <Eye className="h-3 w-3" /> View
@@ -524,6 +465,13 @@ export const OrdersPage: React.FC = () => {
                         </div>
                     )}
                 </Card>
+            )}
+
+            {detailOrder && (
+                <DocumentDetailsModal
+                    doc={detailOrder}
+                    onClose={() => setDetailOrder(null)}
+                />
             )}
         </div>
     );

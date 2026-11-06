@@ -34,6 +34,29 @@ export const BranchManagement: React.FC = () => {
   const canCreateTransfer = ['admin', 'manager', 'pharmacist_sales'].includes(currentUser?.role || '');
   const canApproveTransfer = ['admin', 'manager'].includes(currentUser?.role || '');
 
+  // --- Shared field style (matches SupplierManagement reference pattern) ---
+  const fieldStyle: React.CSSProperties = {
+    background: 'var(--color-input-bg)',
+    border: '1px solid var(--color-input-border)',
+    borderRadius: 'var(--radius-md)',
+    color: 'var(--color-input-text)',
+    outline: 'none',
+    fontSize: '0.875rem',
+    padding: '10px 14px',
+    width: '100%',
+    transition: 'border-color 100ms ease, box-shadow 100ms ease',
+  };
+
+  const onFieldFocus = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    e.currentTarget.style.borderColor = 'var(--color-input-border-focus)';
+    e.currentTarget.style.boxShadow = '0 0 0 2px var(--color-input-ring)';
+  };
+
+  const onFieldBlur = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    e.currentTarget.style.borderColor = 'var(--color-input-border)';
+    e.currentTarget.style.boxShadow = 'none';
+  };
+
   const [branchForm, setBranchForm] = useState({
     name: '', code: '', type: 'branch' as 'branch' | 'warehouse',
     address: '', phone: '', email: '', isMain: false,
@@ -103,20 +126,21 @@ export const BranchManagement: React.FC = () => {
   }, [transfers, transferStatusFilter]);
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-6 pb-6">
       {/* Header */}
       <div className="flex justify-between items-center flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <Building2 className="w-7 h-7 text-indigo-600" /> Multi-Branch & Warehouse
+          <h1 className="text-base font-bold flex items-center gap-2" style={{ color: 'var(--color-text-primary)' }}>
+            <Building2 className="w-5 h-5" style={{ color: 'var(--color-accent-text)' }} /> Multi-Branch & Warehouse
           </h1>
-          <p className="text-gray-500">Manage warehouses, branches, and inter-branch stock transfers.</p>
+          <p className="text-[0.72rem] mt-0.5" style={{ color: 'var(--color-text-muted)' }}>Manage warehouses, branches, and inter-branch stock transfers.</p>
         </div>
         <div className="flex gap-2 flex-wrap">
           {canCreateTransfer && (
             <button
               onClick={() => setShowTransferModal(true)}
-              className="bg-white border border-indigo-600 text-indigo-600 hover:bg-indigo-50 px-4 py-2.5 rounded-lg flex items-center gap-2 font-medium shadow-sm transition"
+              className="btn-ghost flex items-center gap-2 px-4 py-2.5 text-[0.75rem] transition"
+              style={{ color: 'var(--color-accent-text)', borderColor: 'var(--color-accent)' }}
             >
               <ArrowRightLeft className="w-5 h-5" /> New Stock Transfer
             </button>
@@ -124,7 +148,7 @@ export const BranchManagement: React.FC = () => {
           {canManageBranches && (
             <button
               onClick={() => setShowBranchModal(true)}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-lg flex items-center gap-2 font-medium shadow-sm transition"
+              className="btn-accent flex items-center gap-2 px-4 py-2.5 text-[0.75rem]"
             >
               <Plus className="w-5 h-5" /> Add Branch / Warehouse
             </button>
@@ -133,29 +157,43 @@ export const BranchManagement: React.FC = () => {
       </div>
 
       {success && (
-        <div className="bg-emerald-50 text-emerald-700 p-4 rounded-lg border border-emerald-200 flex items-center gap-2">
+        <div
+          className="p-4 rounded-lg flex items-center gap-2"
+          style={{ background: 'var(--color-success-light)', color: 'var(--color-success-text)', border: '1px solid var(--color-success)' }}
+        >
           <CheckCircle className="w-5 h-5" /> {success}
         </div>
       )}
       {error && (
-        <div className="bg-rose-50 text-rose-700 p-4 rounded-lg border border-rose-200">
+        <div
+          className="p-4 rounded-lg"
+          style={{ background: 'var(--color-danger-light)', color: 'var(--color-danger-text)', border: '1px solid var(--color-danger)' }}
+        >
           {error}
         </div>
       )}
 
       {/* Tabs */}
-      <div className="flex border-b border-gray-200">
+      <div className="flex border-b border-theme">
         <button
           onClick={() => setActiveTab('branches')}
-          className={`px-6 py-3 font-medium text-sm border-b-2 flex items-center gap-2 ${activeTab === 'branches' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'
-            }`}
+          className="px-6 py-3 font-medium text-sm flex items-center gap-2 transition-colors"
+          style={{
+            borderBottom: '2px solid',
+            borderColor: activeTab === 'branches' ? 'var(--color-accent)' : 'transparent',
+            color: activeTab === 'branches' ? 'var(--color-accent-text)' : 'var(--color-text-muted)',
+          }}
         >
           <Building2 className="w-4 h-4" /> Locations ({branches.length})
         </button>
         <button
           onClick={() => setActiveTab('transfers')}
-          className={`px-6 py-3 font-medium text-sm border-b-2 flex items-center gap-2 ${activeTab === 'transfers' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'
-            }`}
+          className="px-6 py-3 font-medium text-sm flex items-center gap-2 transition-colors"
+          style={{
+            borderBottom: '2px solid',
+            borderColor: activeTab === 'transfers' ? 'var(--color-accent)' : 'transparent',
+            color: activeTab === 'transfers' ? 'var(--color-accent-text)' : 'var(--color-text-muted)',
+          }}
         >
           <ArrowRightLeft className="w-4 h-4" /> Stock Transfers ({transfers.length})
         </button>
@@ -166,36 +204,41 @@ export const BranchManagement: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {isLoading ? (
             <Card className="p-12 text-center col-span-full">
-              <Loader2 className="w-8 h-8 animate-spin mx-auto text-indigo-600" />
+              <Loader2 className="w-8 h-8 animate-spin mx-auto" style={{ color: 'var(--color-accent-text)' }} />
             </Card>
           ) : branches.length === 0 ? (
             <Card className="p-12 text-center col-span-full">
-              <Building2 className="w-12 h-12 mx-auto text-gray-300 mb-3" />
-              <p className="text-gray-500">No branches yet. Add your first location to get started.</p>
+              <Building2 className="w-12 h-12 mx-auto text-muted mb-3" />
+              <p className="text-secondary">No branches yet. Add your first location to get started.</p>
             </Card>
           ) : branches.map((b) => (
-            <div key={b.id} className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm space-y-3">
+            <Card key={b.id} className="p-6 space-y-3">
               <div className="flex justify-between items-start">
                 <div className="flex items-center gap-3">
-                  <div className={`p-3 rounded-lg ${b.type === 'warehouse' ? 'bg-amber-100 text-amber-700' : 'bg-indigo-100 text-indigo-700'}`}>
+                  <div
+                    className="p-3 rounded-lg"
+                    style={{
+                      background: b.type === 'warehouse' ? 'var(--color-warning-light)' : 'var(--color-accent-light)',
+                      color: b.type === 'warehouse' ? 'var(--color-warning-text)' : 'var(--color-accent-text)',
+                    }}
+                  >
                     {b.type === 'warehouse' ? <Warehouse className="w-6 h-6" /> : <Building2 className="w-6 h-6" />}
                   </div>
                   <div>
-                    <h3 className="font-bold text-gray-900 text-lg">{b.name}</h3>
-                    <div className="text-xs font-mono text-gray-400">Code: {b.code}</div>
+                    <h3 className="font-bold text-primary text-lg">{b.name}</h3>
+                    <div className="text-xs font-mono text-muted">Code: {b.code}</div>
                   </div>
                 </div>
-                <span className={`px-2.5 py-0.5 text-xs rounded-full font-medium ${b.type === 'warehouse' ? 'bg-amber-50 text-amber-800 border border-amber-200' : 'bg-blue-50 text-blue-800 border border-blue-200'
-                  }`}>
+                <span className={`badge ${b.type === 'warehouse' ? 'badge-warning' : 'badge-info'}`}>
                   {b.type.toUpperCase()}
                 </span>
               </div>
-              <div className="space-y-1.5 text-sm text-gray-600 pt-2 border-t border-gray-100">
-                {b.address && <div className="flex items-center gap-2"><MapPin className="w-4 h-4 text-gray-400" /> {b.address}</div>}
-                {b.phone && <div className="flex items-center gap-2"><Phone className="w-4 h-4 text-gray-400" /> {b.phone}</div>}
-                {b.email && <div className="flex items-center gap-2"><Mail className="w-4 h-4 text-gray-400" /> {b.email}</div>}
+              <div className="space-y-1.5 text-sm text-secondary pt-2 border-t border-theme">
+                {b.address && <div className="flex items-center gap-2"><MapPin className="w-4 h-4 text-muted" /> {b.address}</div>}
+                {b.phone && <div className="flex items-center gap-2"><Phone className="w-4 h-4 text-muted" /> {b.phone}</div>}
+                {b.email && <div className="flex items-center gap-2"><Mail className="w-4 h-4 text-muted" /> {b.email}</div>}
               </div>
-            </div>
+            </Card>
           ))}
         </div>
       )}
@@ -205,64 +248,65 @@ export const BranchManagement: React.FC = () => {
         <div className="space-y-4">
           {/* Status filter */}
           <div className="flex items-center gap-2 flex-wrap">
-            <Filter className="w-4 h-4 text-gray-400" />
-            <span className="text-sm font-medium text-gray-600">Status:</span>
+            <Filter className="w-4 h-4 text-muted" />
+            <span className="text-sm font-medium text-secondary">Status:</span>
             {(['all', 'pending', 'in_transit', 'completed', 'rejected'] as const).map((s) => (
               <button
                 key={s}
                 onClick={() => setTransferStatusFilter(s)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${transferStatusFilter === s
-                    ? 'bg-indigo-600 text-white'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
+                style={{
+                  background: transferStatusFilter === s ? 'var(--color-accent)' : 'var(--color-bg-subtle)',
+                  color: transferStatusFilter === s ? 'var(--color-accent-fg)' : 'var(--color-text-secondary)',
+                }}
               >
                 {s === 'all' ? 'All' : s.replace('_', ' ')}
               </button>
             ))}
           </div>
 
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+          <Card noPadding className="overflow-hidden">
             {isLoading ? (
               <div className="p-12 text-center">
-                <Loader2 className="w-8 h-8 animate-spin mx-auto text-indigo-600" />
+                <Loader2 className="w-8 h-8 animate-spin mx-auto" style={{ color: 'var(--color-accent-text)' }} />
               </div>
             ) : filteredTransfers.length === 0 ? (
               <div className="p-12 text-center">
-                <ArrowRightLeft className="w-12 h-12 mx-auto text-gray-300 mb-3" />
-                <p className="text-gray-500">No stock transfers {transferStatusFilter !== 'all' ? `with status "${transferStatusFilter}"` : ''} yet.</p>
+                <ArrowRightLeft className="w-12 h-12 mx-auto text-muted mb-3" />
+                <p className="text-secondary">No stock transfers {transferStatusFilter !== 'all' ? `with status "${transferStatusFilter}"` : ''} yet.</p>
               </div>
             ) : (
               <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-gray-50 border-b text-gray-600 font-semibold text-sm">
-                    <th className="p-4">Transfer #</th>
-                    <th className="p-4">Route</th>
-                    <th className="p-4">Items</th>
-                    <th className="p-4">Requested By</th>
-                    <th className="p-4">Status</th>
-                    <th className="p-4">Date</th>
-                    <th className="p-4 text-right">Actions</th>
+                <thead className="bg-subtle border-b border-theme">
+                  <tr>
+                    <th className="p-4 text-left text-xs font-semibold text-secondary uppercase">Transfer #</th>
+                    <th className="p-4 text-left text-xs font-semibold text-secondary uppercase">Route</th>
+                    <th className="p-4 text-left text-xs font-semibold text-secondary uppercase">Items</th>
+                    <th className="p-4 text-left text-xs font-semibold text-secondary uppercase">Requested By</th>
+                    <th className="p-4 text-left text-xs font-semibold text-secondary uppercase">Status</th>
+                    <th className="p-4 text-left text-xs font-semibold text-secondary uppercase">Date</th>
+                    <th className="p-4 text-right text-xs font-semibold text-secondary uppercase">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="divide-y divide-theme">
                   {filteredTransfers.map((t) => {
                     const badge = STATUS_BADGES[t.status] || STATUS_BADGES.pending;
                     return (
-                      <tr key={t.id} className="hover:bg-gray-50/50">
-                        <td className="p-4 font-mono font-semibold text-indigo-600 text-sm">{t.transferNumber}</td>
+                      <tr key={t.id} className="hover:bg-subtle transition-colors">
+                        <td className="p-4 font-mono font-semibold text-sm text-accent">{t.transferNumber}</td>
                         <td className="p-4">
                           <div className="flex items-center gap-2 text-sm">
-                            <span className="text-gray-700">{t.fromBranch?.name || 'N/A'}</span>
-                            <ArrowRightLeft className="w-3.5 h-3.5 text-gray-400" />
-                            <span className="text-gray-700">{t.toBranch?.name || 'N/A'}</span>
+                            <span className="text-secondary">{t.fromBranch?.name || 'N/A'}</span>
+                            <ArrowRightLeft className="w-3.5 h-3.5 text-muted" />
+                            <span className="text-secondary">{t.toBranch?.name || 'N/A'}</span>
                           </div>
                         </td>
-                        <td className="p-4 text-sm text-gray-600">
+                        <td className="p-4 text-sm text-secondary">
                           {t.items?.length || 0} item{(t.items?.length || 0) !== 1 ? 's' : ''}
                         </td>
-                        <td className="p-4 text-sm text-gray-600">
+                        <td className="p-4 text-sm text-secondary">
                           <div className="flex items-center gap-1">
-                            <User className="w-3 h-3 text-gray-400" />
+                            <User className="w-3 h-3 text-muted" />
                             {t.requester?.name || 'Unknown'}
                           </div>
                         </td>
@@ -274,7 +318,7 @@ export const BranchManagement: React.FC = () => {
                             {badge.label}
                           </span>
                         </td>
-                        <td className="p-4 text-sm text-gray-500">
+                        <td className="p-4 text-sm text-secondary">
                           {new Date(t.createdAt).toLocaleDateString()}
                         </td>
                         <td className="p-4">
@@ -310,10 +354,10 @@ export const BranchManagement: React.FC = () => {
                               </button>
                             )}
                             {(t.status === 'completed' || t.status === 'rejected') && (
-                              <span className="text-xs text-gray-400">No actions</span>
+                              <span className="text-xs text-muted">No actions</span>
                             )}
                             {!canApproveTransfer && t.status === 'pending' && (
-                              <span className="text-xs text-gray-400">Awaiting approval</span>
+                              <span className="text-xs text-muted">Awaiting approval</span>
                             )}
                           </div>
                         </td>
@@ -323,66 +367,66 @@ export const BranchManagement: React.FC = () => {
                 </tbody>
               </table>
             )}
-          </div>
+          </Card>
         </div>
       )}
 
       {/* Add Branch Modal */}
       {showBranchModal && canManageBranches && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={() => setShowBranchModal(false)}>
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-overlay backdrop-blur-sm flex items-center justify-center p-4 z-modal" onClick={() => setShowBranchModal(false)}>
+          <div className="surface-elevated rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 border-theme" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between">
-              <h2 className="text-xl font-bold text-gray-900">Add New Location / Branch</h2>
-              <button onClick={() => setShowBranchModal(false)} className="p-1 rounded hover:bg-gray-100"><X className="w-5 h-5 text-gray-400" /></button>
+              <h2 className="text-xl font-bold text-primary">Add New Location / Branch</h2>
+              <button onClick={() => setShowBranchModal(false)} className="p-1 rounded-lg hover:bg-subtle transition-colors"><X className="w-5 h-5 text-muted" /></button>
             </div>
-            {error && <div className="bg-rose-50 text-rose-700 p-3 rounded-lg text-sm">{error}</div>}
+            {error && <div className="p-3 rounded-lg text-sm" style={{ background: 'var(--color-danger-light)', color: 'var(--color-danger-text)' }}>{error}</div>}
             <form onSubmit={handleBranchSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Branch Name *</label>
+                <label className="block text-sm font-medium text-secondary mb-1">Branch Name *</label>
                 <input type="text" required placeholder="e.g. Central Warehouse"
                   value={branchForm.name} onChange={(e) => setBranchForm({ ...branchForm, name: e.target.value })}
-                  className="w-full border rounded-lg p-2.5 border-gray-300" />
+                  className="input-base w-full text-sm" style={fieldStyle} onFocus={onFieldFocus} onBlur={onFieldBlur} />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Branch Code *</label>
+                  <label className="block text-sm font-medium text-secondary mb-1">Branch Code *</label>
                   <input type="text" required placeholder="WH-01"
                     value={branchForm.code} onChange={(e) => setBranchForm({ ...branchForm, code: e.target.value })}
-                    className="w-full border rounded-lg p-2.5 border-gray-300" />
+                    className="input-base w-full text-sm" style={fieldStyle} onFocus={onFieldFocus} onBlur={onFieldBlur} />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                  <label className="block text-sm font-medium text-secondary mb-1">Type</label>
                   <select value={branchForm.type} onChange={(e) => setBranchForm({ ...branchForm, type: e.target.value as any })}
-                    className="w-full border rounded-lg p-2.5 border-gray-300">
+                    className="select-base w-full">
                     <option value="branch">Branch (Retail POS)</option>
                     <option value="warehouse">Central Warehouse</option>
                   </select>
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+                <label className="block text-sm font-medium text-secondary mb-1">Address</label>
                 <input type="text" value={branchForm.address} onChange={(e) => setBranchForm({ ...branchForm, address: e.target.value })}
-                  className="w-full border rounded-lg p-2.5 border-gray-300" />
+                  className="input-base w-full text-sm" style={fieldStyle} onFocus={onFieldFocus} onBlur={onFieldBlur} />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                  <label className="block text-sm font-medium text-secondary mb-1">Phone</label>
                   <input type="tel" value={branchForm.phone} onChange={(e) => setBranchForm({ ...branchForm, phone: e.target.value })}
-                    className="w-full border rounded-lg p-2.5 border-gray-300" />
+                    className="input-base w-full text-sm" style={fieldStyle} onFocus={onFieldFocus} onBlur={onFieldBlur} />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                  <label className="block text-sm font-medium text-secondary mb-1">Email</label>
                   <input type="email" value={branchForm.email} onChange={(e) => setBranchForm({ ...branchForm, email: e.target.value })}
-                    className="w-full border rounded-lg p-2.5 border-gray-300" />
+                    className="input-base w-full text-sm" style={fieldStyle} onFocus={onFieldFocus} onBlur={onFieldBlur} />
                 </div>
               </div>
-              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+              <label className="flex items-center gap-2 text-sm text-secondary cursor-pointer">
                 <input type="checkbox" checked={branchForm.isMain} onChange={(e) => setBranchForm({ ...branchForm, isMain: e.target.checked })} />
                 Mark as main branch
               </label>
-              <div className="flex justify-end gap-3 pt-4 border-t">
-                <button type="button" onClick={() => setShowBranchModal(false)} className="px-4 py-2 border rounded-lg text-gray-700 hover:bg-gray-50">Cancel</button>
-                <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">Create Branch</button>
+              <div className="flex justify-end gap-3 pt-4 border-t border-theme">
+                <button type="button" onClick={() => setShowBranchModal(false)} className="btn-ghost px-4 py-2">Cancel</button>
+                <button type="submit" className="btn-accent px-4 py-2">Create Branch</button>
               </div>
             </form>
           </div>
@@ -466,38 +510,49 @@ const TransferModal: React.FC<{
     border: '1px solid var(--color-input-border)',
     borderRadius: 6, color: 'var(--color-input-text)',
     padding: '8px 12px', outline: 'none', height: 38, width: '100%',
+    transition: 'border-color 100ms ease, box-shadow 100ms ease',
+  };
+
+  const onFieldFocus = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    e.currentTarget.style.borderColor = 'var(--color-input-border-focus)';
+    e.currentTarget.style.boxShadow = '0 0 0 2px var(--color-input-ring)';
+  };
+
+  const onFieldBlur = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    e.currentTarget.style.borderColor = 'var(--color-input-border)';
+    e.currentTarget.style.boxShadow = 'none';
   };
 
   return (
     <div
-      className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+      className="fixed inset-0 bg-overlay backdrop-blur-sm flex items-center justify-center p-4 z-modal"
       onClick={onClose}
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl flex flex-col"
+        className="surface-elevated rounded-2xl max-w-2xl w-full shadow-2xl flex flex-col border-theme"
         style={{ maxHeight: '90vh' }}
       >
-        <div className="flex items-center justify-between px-6 py-4 border-b">
-          <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-            <ArrowRightLeft className="w-5 h-5 text-indigo-600" /> New Stock Transfer
+        <div className="flex items-center justify-between px-6 py-4 border-b border-theme">
+          <h2 className="text-xl font-bold text-primary flex items-center gap-2">
+            <ArrowRightLeft className="w-5 h-5" style={{ color: 'var(--color-accent-text)' }} /> New Stock Transfer
           </h2>
-          <button onClick={onClose} className="p-1 rounded hover:bg-gray-100">
-            <X className="w-5 h-5 text-gray-400" />
+          <button onClick={onClose} className="p-1 rounded-lg hover:bg-subtle transition-colors">
+            <X className="w-5 h-5 text-muted" />
           </button>
         </div>
 
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
           {error && (
-            <div className="bg-rose-50 text-rose-700 p-3 rounded-lg text-sm border border-rose-200">
+            <div className="p-3 rounded-lg text-sm" style={{ background: 'var(--color-danger-light)', color: 'var(--color-danger-text)', border: '1px solid var(--color-danger)' }}>
               {error}
             </div>
           )}
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">From Branch *</label>
-              <select value={fromBranchId} onChange={(e) => setFromBranchId(e.target.value)} style={fieldStyle}>
+              <label className="block text-sm font-medium text-secondary mb-1">From Branch *</label>
+              <select value={fromBranchId} onChange={(e) => setFromBranchId(e.target.value)} style={fieldStyle} onFocus={onFieldFocus} onBlur={onFieldBlur}>
                 <option value="">-- Select source --</option>
                 {branches.map((b) => (
                   <option key={b.id} value={b.id}>{b.name} ({b.code})</option>
@@ -505,8 +560,8 @@ const TransferModal: React.FC<{
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">To Branch *</label>
-              <select value={toBranchId} onChange={(e) => setToBranchId(e.target.value)} style={fieldStyle}>
+              <label className="block text-sm font-medium text-secondary mb-1">To Branch *</label>
+              <select value={toBranchId} onChange={(e) => setToBranchId(e.target.value)} style={fieldStyle} onFocus={onFieldFocus} onBlur={onFieldBlur}>
                 <option value="">-- Select destination --</option>
                 {branches.filter((b) => String(b.id) !== fromBranchId).map((b) => (
                   <option key={b.id} value={b.id}>{b.name} ({b.code})</option>
@@ -517,13 +572,13 @@ const TransferModal: React.FC<{
 
           <div>
             <div className="flex items-center justify-between mb-2">
-              <label className="text-sm font-medium text-gray-700 flex items-center gap-1">
+              <label className="text-sm font-medium text-secondary flex items-center gap-1">
                 <Package className="w-4 h-4" /> Items ({items.length})
               </label>
               <button
                 type="button"
                 onClick={addItem}
-                className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-1"
+                className="text-xs font-semibold text-accent hover:opacity-80 flex items-center gap-1 transition-opacity"
               >
                 <Plus className="w-3 h-3" /> Add Item
               </button>
@@ -537,6 +592,8 @@ const TransferModal: React.FC<{
                       value={it.productId}
                       onChange={(e) => handleProductChange(idx, e.target.value)}
                       style={fieldStyle}
+                      onFocus={onFieldFocus}
+                      onBlur={onFieldBlur}
                     >
                       <option value="">-- Select product --</option>
                       {products.map((p) => (
@@ -552,6 +609,8 @@ const TransferModal: React.FC<{
                     value={it.quantity}
                     onChange={(e) => updateItem(idx, { quantity: parseInt(e.target.value) || 0 })}
                     style={{ ...fieldStyle, width: 90 }}
+                    onFocus={onFieldFocus}
+                    onBlur={onFieldBlur}
                     placeholder="Qty"
                   />
                   <button
@@ -570,30 +629,32 @@ const TransferModal: React.FC<{
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+            <label className="block text-sm font-medium text-secondary mb-1">Notes</label>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Reason for transfer, urgency, etc."
               rows={2}
               style={{ ...fieldStyle, height: 'auto', minHeight: 60, resize: 'vertical' }}
+              onFocus={onFieldFocus}
+              onBlur={onFieldBlur}
             />
           </div>
 
-          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800">
+          <div className="rounded-lg p-3 text-xs" style={{ background: 'var(--color-warning-light)', border: '1px solid var(--color-warning)', color: 'var(--color-warning-text)' }}>
             <strong>Note:</strong> Stock is only deducted from the source branch when a manager/admin marks the transfer as <em>Completed</em>.
           </div>
         </div>
 
-        <div className="flex justify-end gap-3 px-6 py-4 border-t">
-          <button type="button" onClick={onClose} disabled={busy} className="px-4 py-2 border rounded-lg text-gray-700 hover:bg-gray-50">
+        <div className="flex justify-end gap-3 px-6 py-4 border-t border-theme">
+          <button type="button" onClick={onClose} disabled={busy} className="btn-ghost px-4 py-2">
             Cancel
           </button>
           <button
             type="button"
             onClick={handleSubmit}
             disabled={busy}
-            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium flex items-center gap-2 disabled:opacity-60"
+            className="btn-accent px-4 py-2 flex items-center gap-2"
           >
             {busy && <Loader2 className="w-4 h-4 animate-spin" />}
             {busy ? 'Submitting…' : 'Submit Transfer Request'}

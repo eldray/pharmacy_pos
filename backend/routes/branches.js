@@ -19,6 +19,9 @@ const {
 const { recordAudit } = require('../utils/audit');
 
 const router = express.Router();
+const { numericIdParams } = require('../utils/numericIdParams');
+
+numericIdParams(router);
 
 // ═══════════════════════════════════════════════════════════════════
 // BRANCHES
@@ -224,7 +227,8 @@ router.put('/transfers/:id/status', auth, adminOrManagerAuth, async (req, res) =
       return res.status(400).json({ success: false, message: `Status must be one of: ${VALID.join(', ')}` });
     }
 
-    const transfer = await StockTransfer.findByPk(req.params.id, { transaction: t });
+    // Locked: two managers approving at once used to move the stock twice.
+    const transfer = await StockTransfer.findByPk(req.params.id, { transaction: t, lock: t.LOCK.UPDATE });
     if (!transfer) {
       await t.rollback();
       return res.status(404).json({ success: false, message: 'Transfer not found' });
@@ -243,15 +247,23 @@ router.put('/transfers/:id/status', auth, adminOrManagerAuth, async (req, res) =
     // When completing a transfer, move the stock
     if (status === 'completed' && transfer.status !== 'completed') {
       for (const item of transfer.items || []) {
-        // Deduct from source BranchInventory
+        const qty = Number(item.quantity) || 0;
+
+        // Deduct from source BranchInventory — locked, and a shortfall aborts
+        // the whole transfer instead of Math.max(0, …) hiding it.
         const sourceInv = await BranchInventory.findOne({
           where: { branchId: transfer.fromBranchId, productId: item.productId },
           transaction: t,
+          lock: t.LOCK.UPDATE,
         });
-        if (sourceInv) {
-          const newQty = Math.max(0, sourceInv.quantity - item.quantity);
-          await sourceInv.update({ quantity: newQty }, { transaction: t });
+        if (!sourceInv || Number(sourceInv.quantity) < qty) {
+          await t.rollback();
+          return res.status(400).json({
+            success: false,
+            message: `Source branch has ${sourceInv ? sourceInv.quantity : 0} of product ${item.productId}, needs ${qty}`
+          });
         }
+        await sourceInv.update({ quantity: Number(sourceInv.quantity) - qty }, { transaction: t });
 
         // Add to destination BranchInventory (create if missing)
         const [destInv, created] = await BranchInventory.findOrCreate({
@@ -259,7 +271,8 @@ router.put('/transfers/:id/status', auth, adminOrManagerAuth, async (req, res) =
           defaults: { quantity: 0, reorderLevel: 10 },
           transaction: t,
         });
-        await destInv.update({ quantity: destInv.quantity + item.quantity }, { transaction: t });
+        if (!created) await destInv.reload({ transaction: t, lock: t.LOCK.UPDATE });
+        await destInv.update({ quantity: Number(destInv.quantity) + qty }, { transaction: t });
 
         // Inventory log for audit
         await InventoryLog.create({

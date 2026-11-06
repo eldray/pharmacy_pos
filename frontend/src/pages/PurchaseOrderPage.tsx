@@ -10,6 +10,7 @@ import { useAppStore } from '../store';
 import { PurchaseOrder, PurchaseOrderItem, Supplier, Product } from '../types';
 import { Card } from '../components/ui/Card';
 import * as XLSX from 'xlsx';
+import { safeNumber } from '../utils/number';
 
 export const PurchaseOrderPage: React.FC = () => {
   const [showCreatePage, setShowCreatePage] = useState(false);
@@ -416,7 +417,9 @@ export const PurchaseOrderPage: React.FC = () => {
       const updatedPO = await updatePurchaseOrder(poId, updates);
       if (updatedPO) {
         fetchPurchaseOrders();
-        fetchProducts();
+        // Receiving a PO adds stock server-side; force the refetch to bypass the
+        // store's 30s products freshness guard so the new quantity is picked up.
+        fetchProducts(true);
         setShowDetailPage(false);
         alert('Purchase order marked as received and inventory updated');
       } else {
@@ -486,12 +489,6 @@ export const PurchaseOrderPage: React.FC = () => {
   const getSupplierName = (po: PurchaseOrder) => {
     const supplier = suppliers.find(s => s.id === po.supplierId);
     return supplier?.name || po.supplierName || 'Unknown Supplier';
-  };
-
-  // Safe number helper
-  const safeNumber = (value: any): number => {
-    const num = Number(value);
-    return isNaN(num) ? 0 : num;
   };
 
   // Excel template download

@@ -13,7 +13,7 @@ let theme = 'light';
 try {
   const parsed = JSON.parse(persisted || '{}');
   if (parsed?.state?.theme) theme = parsed.state.theme;
-} catch { }
+} catch { /* unreadable preference — keep the light default */ }
 document.documentElement.setAttribute('data-theme', theme);
 
 ReactDOM.createRoot(document.getElementById('root')).render(

@@ -183,6 +183,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         <div className="flex items-center" style={{ gap: '12px' }}>
           <button
             onClick={onMenuClick}
+            aria-label="Open navigation menu"
             className="lg:hidden flex items-center justify-center"
             style={{ width: 36, height: 36, borderRadius: '6px', background: 'transparent', border: 'none', color: 'var(--color-text-secondary)', cursor: 'pointer', padding: 4 }}
             onMouseEnter={handleMouseEnter}
@@ -217,6 +218,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                 onClick={() => { setShowNotifications(!showNotifications); setShowUserMenu(false); }}
                 className="relative flex items-center justify-center"
                 title="Notifications"
+                aria-label={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ''}`}
+                aria-haspopup="true"
+                aria-expanded={showNotifications}
                 style={{ width: 36, height: 36, borderRadius: '6px', background: 'transparent', border: 'none', color: 'var(--color-text-secondary)', cursor: 'pointer', padding: 4 }}
                 onMouseEnter={handleMouseEnter}
                 onMouseLeave={handleMouseLeave}

@@ -47,7 +47,14 @@ const Company = sequelize.define('Company', {
 });
 
 Company.getCompany = async function () {
-  let company = await this.findOne();
+  // Ordered on purpose. Seed used to key its company row on the name, so a till
+  // whose owner had renamed it ended up with a second row alongside the original,
+  // and an unordered findOne returned whichever tuple the heap scan reached first
+  // — a settings save and the very next read could land on different rows, which
+  // is why edited settings looked like they never took effect. Migration
+  // 20261106-dedupe-companies.js collapses the duplicates; this keeps the read
+  // deterministic if any install still has more than one.
+  let company = await this.findOne({ order: [['id', 'ASC']] });
   if (!company) {
     company = await this.create({});
   }

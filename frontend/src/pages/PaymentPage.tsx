@@ -9,8 +9,10 @@ import api, { getErrorMessage } from '../api/api';
 import { SalesOrder, LabTransaction, PaymentMethod } from '../types';
 import { useAppStore } from '../store';
 import { useSearchParams } from 'react-router-dom';
-
-const safeNum = (v: unknown) => { const n = Number(v); return isNaN(n) ? 0 : n; };
+import { safeNumber } from '../utils/number';
+import { formatPaymentMethod, normalizeDocument } from '../utils/document';
+import { printDocument } from '../utils/receiptHtml';
+import { describePrintOutcome } from '../utils/printEngine';
 
 type Tab = 'pos' | 'lab';
 type DateFilter = 'pending' | 'today' | 'yesterday' | 'week' | 'month' | 'all';
@@ -143,7 +145,7 @@ const getItems = (o: Order): any[] =>
     : ((o as SalesOrder).items || []);
 
 const amountDue = (o: Order): number =>
-  safeNum((o as any).copayAmount) || safeNum((o as any).totalAmount) || safeNum((o as any).total);
+  safeNumber((o as any).copayAmount) || safeNumber((o as any).totalAmount) || safeNumber((o as any).total);
 
 const isPaid = (o: Order): boolean =>
   isLab(o)
@@ -154,7 +156,7 @@ const isCancelled = (o: Order): boolean => o.status === 'cancelled';
 
 /* ═══════════════════════════════════════════════════════════════════ */
 export const PaymentPage: React.FC = () => {
-  const { company, fetchTransactions } = useAppStore();
+  const { company, refreshStockAndTransactions } = useAppStore();
 
   const [tab, setTab] = useState<Tab>('pos');
   const [dateFilter, setDateFilter] = useState<DateFilter>('pending');
@@ -278,11 +280,18 @@ export const PaymentPage: React.FC = () => {
       setSuccessTx(tx);
       setLastPaidOrder(selectedOrder);
       refreshList();
-      // The sale is only visible in Sales History once the shared store knows about it.
-      if (tab !== 'lab') await fetchTransactions();
+      // A POS sale decrements product stock server-side. Force-refresh products
+      // (fetchProducts has a 30s freshness guard) alongside the transactions
+      // slice, otherwise Products/low-stock stay stale and the UI can oversell.
+      // The sale is only visible in Sales History once the store knows about it.
+      if (tab !== 'lab') await refreshStockAndTransactions();
 
       setSelectedOrder((prev) => {
         if (!prev) return null;
+        // Merge what the server just settled (method, reference, cashier, paid
+        // amount) back into the row. Patching only the status flags left the
+        // paid receipt printing "Payment N/A" for the rest of the session.
+        if (tx && String(tx.id ?? '') === String(prev.id)) return { ...prev, ...tx } as any;
         if (isLab(prev)) {
           return { ...prev, paymentStatus: 'paid', status: 'in_progress' } as any;
         }
@@ -307,6 +316,9 @@ export const PaymentPage: React.FC = () => {
         : `/orders/${selectedOrder.id}/cancel`;
       await api.post(url);
       refreshList();
+      // Cancelling a paid POS order restores its stock server-side, so the same
+      // product/transaction invalidation as a sale is required here.
+      if (tab !== 'lab') await refreshStockAndTransactions();
       setSelectedOrder((prev) => prev ? { ...prev, status: 'cancelled' } as any : null);
     } catch (err) {
       setError(getErrorMessage(err));
@@ -316,111 +328,26 @@ export const PaymentPage: React.FC = () => {
   };
 
   /* ── Receipt printer (handles both POS and Lab) ──────────────── */
-  const handlePrint = (order: Order | null, tx: any) => {
+  const handlePrint = async (order: Order | null, tx: any) => {
     if (!order || !tx) return;
-    const co = company;
-    const lab = isLab(order);
 
-    const items: { name: string; qty: number; price: number }[] = lab
-      ? getItems(order).map((t: any) => ({
-        name: t.testType,
-        qty: t.quantity || 1,
-        price: safeNum(t.testPrice),
-      }))
-      : getItems(order).map((i: any) => ({
-        name: i?.product?.name || i?.productName || 'Item',
-        qty: i?.quantity || 0,
-        price: safeNum(i?.unitPrice),
-      }));
+    // The payment record carries the method and reference, the order carries the
+    // items and totals. The thermal template reads one document, so merge them.
+    const receiptDoc = {
+      ...order,
+      transactionNumber: (order as any).transactionNumber || tx.transactionNumber,
+      paymentMethod: tx.paymentMethod,
+      paymentReference: tx.paymentReference,
+      cashierName: tx.cashierName || (order as any).cashierName,
+      paymentStatus: 'paid',
+      createdAt: tx.createdAt || (order as any).createdAt,
+      paidAt: tx.paidAt || (order as any).paidAt || tx.createdAt,
+    } as unknown as Order;
 
-    const itemRows = items.map((it) =>
-      `<div class="item-row">
-        <span class="item-name">${it.name}</span>
-        <span class="item-qty">${it.qty}</span>
-        <span class="item-price">${it.price.toFixed(2)}</span>
-        <span class="item-total">${(it.qty * it.price).toFixed(2)}</span>
-      </div>`).join('');
-
-    const num = docNumber(order) || tx.transactionNumber || '';
-    const patient = displayName(order);
-    const phone = displayPhone(order);
-
-    const subtotal = safeNum((order as any).subtotal);
-    const tax = safeNum((order as any).tax);
-    const insuranceCoverage = safeNum((order as any).insuranceCoverage);
-    const copay = safeNum((order as any).copayAmount);
-    const total = safeNum((order as any).totalAmount) || safeNum((order as any).total);
-    const finalAmount = copay || total;
-
-    const html = `<!DOCTYPE html><html><head>
-      <title>Receipt - ${num}</title>
-      <style>
-        * { margin:0; padding:0; box-sizing:border-box; }
-        body { font-family:'Courier New',monospace; font-size:9pt; max-width:72mm; margin:0 auto; padding:4mm 2mm; line-height:1.4; color:#000; background:#fff; }
-        .header { text-align:center; border-bottom:1px dashed #000; padding-bottom:4mm; margin-bottom:3mm; }
-        .company-name { font-size:12pt; font-weight:bold; text-transform:uppercase; letter-spacing:1px; }
-        .divider { border-bottom:1px dashed #000; margin:2mm 0; }
-        .row { display:flex; justify-content:space-between; padding:0.5mm 0; font-size:8pt; }
-        .items-header { display:flex; border-bottom:1px solid #000; padding-bottom:1mm; margin-bottom:1mm; font-weight:bold; font-size:8pt; }
-        .item-row { display:flex; padding:0.5mm 0; border-bottom:1px dotted #ccc; font-size:8pt; }
-        .item-name { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-        .item-qty { width:24px; text-align:center; }
-        .item-price { width:48px; text-align:right; }
-        .item-total { width:48px; text-align:right; font-weight:bold; }
-        .totals { margin-top:2mm; padding-top:2mm; border-top:1px dashed #000; }
-        .total-final { font-size:11pt; font-weight:bold; border-top:2px solid #000; padding-top:1mm; margin-top:1mm; }
-        .ins-box { border:1px dashed #000; padding:1mm 2mm; margin:2mm 0; font-size:7.5pt; }
-        .footer { text-align:center; margin-top:3mm; padding-top:3mm; border-top:1px dashed #000; font-size:7pt; color:#666; }
-      </style>
-    </head><body>
-      <div class="header">
-        <div class="company-name">${co?.name || 'PHARMACY POS'}</div>
-        ${co?.contact?.phone ? `<div style="font-size:7pt;color:#555;">${co.contact.phone}</div>` : ''}
-        ${lab ? '<div style="font-size:7.5pt;font-weight:bold;margin-top:2mm;">LABORATORY SERVICES</div>' : ''}
-      </div>
-      <div class="row"><span>${lab ? 'Order' : 'Receipt'}:</span><span>${num}</span></div>
-      ${tx.transactionNumber ? `<div class="row"><span>TXN:</span><span>${tx.transactionNumber}</span></div>` : ''}
-      <div class="row"><span>Date:</span><span>${new Date(tx.createdAt || new Date()).toLocaleString()}</span></div>
-      <div class="row"><span>Cashier:</span><span>${tx.cashierName || 'Cashier'}</span></div>
-      <div class="row"><span>${lab ? 'Patient' : 'Customer'}:</span><span>${patient || 'Walk-in'}</span></div>
-      ${phone ? `<div class="row"><span>Phone:</span><span>${phone}</span></div>` : ''}
-      <div class="row"><span>Payment:</span><span>${(tx.paymentMethod || 'Cash').toUpperCase()}</span></div>
-      ${tx.paymentReference ? `<div class="row"><span>Ref:</span><span>${tx.paymentReference}</span></div>` : ''}
-      <div class="divider"></div>
-      <div class="items-header">
-        <span class="item-name">${lab ? 'Test' : 'Item'}</span>
-        <span class="item-qty">Qty</span>
-        <span class="item-price">Price</span>
-        <span class="item-total">Total</span>
-      </div>
-      ${itemRows || '<div style="text-align:center;padding:2mm;color:#999;">No items</div>'}
-      <div class="divider"></div>
-      <div class="totals">
-        <div class="row"><span>Subtotal:</span><span>GHS ${subtotal.toFixed(2)}</span></div>
-        <div class="row"><span>VAT:</span><span>GHS ${tax.toFixed(2)}</span></div>
-        ${(order as any).insuranceProviderName ? `
-        <div class="ins-box">
-          <div><strong>Insurance: ${(order as any).insuranceProviderName}</strong></div>
-          ${(order as any).policyNumber ? `<div>Policy: ${(order as any).policyNumber}</div>` : ''}
-          <div>Insurance covers: GHS ${insuranceCoverage.toFixed(2)}</div>
-          <div><strong>Patient Co-Pay: GHS ${copay.toFixed(2)}</strong></div>
-        </div>` : ''}
-        <div class="row total-final"><span>AMOUNT PAID:</span><span>GHS ${finalAmount.toFixed(2)}</span></div>
-      </div>
-      <div class="footer">
-        <div>Thank you for your visit!</div>
-        <div style="margin-top:1mm;">Keep this receipt for your records.</div>
-      </div>
-    </body></html>`;
-
-    const win = window.open('', '_blank', 'width=340,height=620');
-    if (!win) { alert('Please allow pop-ups to print receipts.'); return; }
-    win.document.open();
-    win.document.write(html);
-    win.document.close();
-    win.focus();
-    win.onload = () => { win.print(); win.onafterprint = () => win.close(); };
-    setTimeout(() => { if (!win.closed) { win.print(); win.onafterprint = () => win.close(); } }, 400);
+    const message = describePrintOutcome(
+      await printDocument(receiptDoc, { company, mode: 'receipt' }),
+    );
+    if (message) alert(message);
   };
 
   return (
@@ -513,7 +440,7 @@ export const PaymentPage: React.FC = () => {
           onBlur={(e) => { e.target.style.borderColor = 'var(--color-input-border)'; e.target.style.boxShadow = 'none'; }}
         />
         {searchQuery && (
-          <button onClick={() => { setSearchQuery(''); }} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)' }}>
+          <button onClick={() => { setSearchQuery(''); }} aria-label="Clear search" style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)' }}>
             <X style={{ width: 14, height: 14 }} />
           </button>
         )}
@@ -521,9 +448,9 @@ export const PaymentPage: React.FC = () => {
 
       {/* Error */}
       {error && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 14px', borderRadius: '8px', background: 'var(--color-danger-light)', color: 'var(--color-danger-text)', border: '1px solid var(--color-danger)', fontSize: '13px' }}>
+        <div role="alert" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 14px', borderRadius: '8px', background: 'var(--color-danger-light)', color: 'var(--color-danger-text)', border: '1px solid var(--color-danger)', fontSize: '13px' }}>
           <AlertCircle style={{ width: 16, height: 16, flexShrink: 0 }} /> {error}
-          <button onClick={() => setError('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: 'inherit' }}>
+          <button onClick={() => setError('')} aria-label="Dismiss error" style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: 'inherit' }}>
             <X style={{ width: 14, height: 14 }} />
           </button>
         </div>
@@ -625,6 +552,9 @@ export const PaymentPage: React.FC = () => {
           ) : (() => {
             const lab = isLab(selectedOrder);
             const items = getItems(selectedOrder);
+            // Lab rows have no subtotal/tax columns, so the shared normaliser has
+            // to derive them from the lines the same way the receipt does.
+            const norm = normalizeDocument(selectedOrder);
             const patientName = displayName(selectedOrder);
             const patientPhone = displayPhone(selectedOrder);
             const num = docNumber(selectedOrder);
@@ -632,6 +562,14 @@ export const PaymentPage: React.FC = () => {
             const paid = isPaid(selectedOrder);
             const cancelled = isCancelled(selectedOrder);
             const age = ageChip(selectedOrder.createdAt);
+            // The settlement record the server created for this exact order. A paid
+            // POS order stays a sales_orders row, but the slip the customer walks out
+            // with is the transactions row, which has its own MED- number and knows
+            // the payment method. Reprinting without it numbered the receipt after
+            // the pending order, so it never matched Sales History.
+            const settledTx = successTx && String(lastPaidOrder?.id ?? '') === String(selectedOrder.id)
+              ? successTx
+              : null;
 
             return (
               <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
@@ -682,8 +620,8 @@ export const PaymentPage: React.FC = () => {
                         <div style={{ color: 'var(--color-info-text)' }}>Policy: <strong>{(selectedOrder as any).policyNumber}</strong></div>
                       )}
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, color: 'var(--color-info-text)' }}>
-                        <span>Insurance covers: GHS {safeNum((selectedOrder as any).insuranceCoverage).toFixed(2)}</span>
-                        <span style={{ fontWeight: 700 }}>Co-Pay: GHS {safeNum((selectedOrder as any).copayAmount).toFixed(2)}</span>
+                        <span>Insurance covers: GHS {safeNumber((selectedOrder as any).insuranceCoverage).toFixed(2)}</span>
+                        <span style={{ fontWeight: 700 }}>Co-Pay: GHS {safeNumber((selectedOrder as any).copayAmount).toFixed(2)}</span>
                       </div>
                     </div>
                   )}
@@ -698,7 +636,7 @@ export const PaymentPage: React.FC = () => {
                           ? item.testType
                           : (item?.product?.name || item?.productName || 'Item');
                         const qty = item.quantity || 0;
-                        const unitPrice = lab ? safeNum(item.testPrice) : safeNum(item.unitPrice);
+                        const unitPrice = lab ? safeNumber(item.testPrice) : safeNumber(item.unitPrice);
                         return (
                           <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '9px 14px', borderBottom: i < items.length - 1 ? '1px solid var(--color-border)' : 'none', fontSize: '13px' }}>
                             <div>
@@ -724,15 +662,15 @@ export const PaymentPage: React.FC = () => {
                   {/* Totals */}
                   <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: 'var(--color-text-muted)' }}>
-                      <span>Subtotal</span><span style={{ fontVariantNumeric: 'tabular-nums' }}>GHS {safeNum((selectedOrder as any).subtotal).toFixed(2)}</span>
+                      <span>Subtotal</span><span style={{ fontVariantNumeric: 'tabular-nums' }}>GHS {(norm?.subtotal ?? 0).toFixed(2)}</span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: 'var(--color-text-muted)' }}>
-                      <span>Tax</span><span style={{ fontVariantNumeric: 'tabular-nums' }}>GHS {safeNum((selectedOrder as any).tax).toFixed(2)}</span>
+                      <span>Tax</span><span style={{ fontVariantNumeric: 'tabular-nums' }}>GHS {(norm?.tax ?? 0).toFixed(2)}</span>
                     </div>
                     {(selectedOrder as any).insuranceProviderName && (
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: 'var(--color-info-text)' }}>
                         <span>Insurance ({(selectedOrder as any).insuranceProviderName})</span>
-                        <span style={{ fontVariantNumeric: 'tabular-nums' }}>− GHS {safeNum((selectedOrder as any).insuranceCoverage).toFixed(2)}</span>
+                        <span style={{ fontVariantNumeric: 'tabular-nums' }}>− GHS {safeNumber((selectedOrder as any).insuranceCoverage).toFixed(2)}</span>
                       </div>
                     )}
                     <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '8px', borderTop: '2px solid var(--color-border)', marginTop: '4px' }}>
@@ -757,10 +695,12 @@ export const PaymentPage: React.FC = () => {
                         <CheckCircle style={{ width: 18, height: 18 }} /> This order has been paid
                       </div>
                       <button
-                        onClick={() => handlePrint(selectedOrder, {
+                        onClick={() => handlePrint(selectedOrder, settledTx || {
                           transactionNumber: num,
                           cashierName: (selectedOrder as any).cashierName,
-                          paymentMethod: (selectedOrder as any).paymentMethod || 'N/A',
+                          // Left undefined on purpose: the receipt drops the payment
+                          // row rather than printing a placeholder when it is unknown.
+                          paymentMethod: (selectedOrder as any).paymentMethod,
                           paymentReference: (selectedOrder as any).paymentReference,
                           createdAt: new Date(),
                         })}
@@ -797,7 +737,7 @@ export const PaymentPage: React.FC = () => {
                               }}
                             >
                               {paymentIcons[pm]}
-                              {pm === 'cash' ? 'Cash' : pm === 'card' ? 'Card' : pm === 'mtn' ? 'MTN' : pm === 'vodafone' ? 'Vodafone' : 'AirtelTigo'}
+                              {formatPaymentMethod(pm, 'short')}
                             </button>
                           ))}
                         </div>

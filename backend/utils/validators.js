@@ -18,4 +18,24 @@ function validateEmail(email) {
   return null;
 }
 
-module.exports = { validatePassword, validateEmail };
+// Payment methods arrive as 'Cash', 'cash' or 'MTN' depending on which client
+// made the sale, and the reports group on this column — so store one form.
+// Unknown values keep their own spelling (lowercased) rather than being dropped.
+const PAYMENT_METHODS = ['cash', 'card', 'mtn', 'vodafone', 'airteltigo', 'insurance', 'refund'];
+function normalizePaymentMethod(value) {
+  if (value == null) return null;
+  const collapsed = String(value).trim().toLowerCase().replace(/[\s_-]+/g, '');
+  return PAYMENT_METHODS.includes(collapsed) ? collapsed : String(value).trim().toLowerCase();
+}
+
+// Field allow-list for PUT/PATCH handlers: `{ ...req.body }` lets a client
+// rewrite protected columns (price, status, ids), so copy only known fields.
+function pick(source = {}, allowedKeys = []) {
+  const out = {};
+  for (const key of allowedKeys) {
+    if (Object.prototype.hasOwnProperty.call(source, key)) out[key] = source[key];
+  }
+  return out;
+}
+
+module.exports = { validatePassword, validateEmail, normalizePaymentMethod, pick, PAYMENT_METHODS };

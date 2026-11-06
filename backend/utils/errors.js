@@ -18,6 +18,20 @@ class AppError extends Error {
 //   router.get('/', asyncHandler(async (req, res) => { ... }))
 const asyncHandler = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
+// Errors a client should see as a 4xx carrying their own message: a thrown
+// AppError, or a Sequelize validation/unique failure.
+function isClientError(err) {
+  return err instanceof AppError
+    || err.name === 'SequelizeValidationError'
+    || err.name === 'SequelizeUniqueConstraintError';
+}
+
+// Flatten a client error into one human-readable message.
+function clientMessage(err) {
+  const fromErrors = err.errors?.map((e) => e.message).filter(Boolean).join(', ');
+  return fromErrors || err.message || 'Invalid data';
+}
+
 // Express error-handling middleware (must be registered last).
 function errorHandler(err, req, res, next) {
   // Map common Sequelize validation errors to 400 with a useful message.
@@ -43,4 +57,4 @@ function errorHandler(err, req, res, next) {
   });
 }
 
-module.exports = { AppError, asyncHandler, errorHandler };
+module.exports = { AppError, asyncHandler, errorHandler, isClientError, clientMessage };

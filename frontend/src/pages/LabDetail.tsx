@@ -1,7 +1,7 @@
 // src/pages/LabDetail.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { useReactToPrint } from 'react-to-print';
+import { printFragment, describePrintOutcome } from '../utils/printEngine';
 import {
     ArrowLeft,
     Printer,
@@ -44,7 +44,9 @@ import { useAppStore } from '../store';
 import { Card } from '../components/ui/Card';
 import { LabResultEntry } from '../components/LabResultEntry';
 import { LabResultPrint } from '../components/LabResultPrint';
-import { ReceiptModal, ReceiptContent } from '../components/ReceiptModal';
+import { ReceiptModal } from '../components/ReceiptModal';
+import { safeNumber } from '../utils/number';
+import { formatPaymentMethod } from '../utils/document';
 
 export const LabDetail: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -71,12 +73,6 @@ export const LabDetail: React.FC = () => {
 
     // ── Print Refs ──────────────────────────────────────────────────────────
     const printReportRef = useRef<HTMLDivElement>(null);
-    const printReceiptRef = useRef<HTMLDivElement>(null);
-
-    const safeNumber = (value: any): number => {
-        const num = Number(value);
-        return isNaN(num) ? 0 : num;
-    };
 
     useEffect(() => {
         if (id) {
@@ -102,67 +98,21 @@ export const LabDetail: React.FC = () => {
     };
 
     // ── Print Handlers ──────────────────────────────────────────────────────
-    const handlePrintReport = useReactToPrint({
-        contentRef: printReportRef,  // ← Use contentRef
-        documentTitle: `Lab-Report-${transaction?.transactionNumber || 'Unknown'}`,
-        pageStyle: `
-            @page {
-                size: A4;
-                margin: 10mm;
-            }
-            @media print {
-                body {
-                    background: white !important;
-                    margin: 0 !important;
-                    padding: 0 !important;
-                }
-                .no-print {
-                    display: none !important;
-                }
-                .print-content {
-                    display: block !important;
-                }
-                .fixed.inset-0 {
-                    display: none !important;
-                }
-            }
-        `,
-        onBeforePrint: () => {
-            setShowPrintModal(false);
-            return Promise.resolve();
-        }
-    });
-
-    const handlePrintReceipt = useReactToPrint({
-        contentRef: printReceiptRef,  // ← Use contentRef
-        documentTitle: `Receipt-${transaction?.transactionNumber || 'Unknown'}`,
-        pageStyle: `
-            @page {
-                size: A4;
-                margin: 10mm;
-            }
-            @media print {
-                body {
-                    background: white !important;
-                    margin: 0 !important;
-                    padding: 0 !important;
-                }
-                .no-print {
-                    display: none !important;
-                }
-                .print-content {
-                    display: block !important;
-                }
-                .fixed.inset-0 {
-                    display: none !important;
-                }
-            }
-        `,
-        onBeforePrint: () => {
-            setShowReceiptModal(false);
-            return Promise.resolve();
-        }
-    });
+    // The report is printed as its own A4 document rather than through the page,
+    // because the app-wide print stylesheet hides everything that is not marked
+    // .print-content — which left the laboratory report printing on blank paper.
+    const handlePrintReport = async () => {
+        const node = printReportRef.current;
+        if (!node) return;
+        setShowPrintModal(false);
+        const message = describePrintOutcome(
+            await printFragment(node.innerHTML, {
+                profile: 'a4',
+                title: `Lab Report ${transaction?.transactionNumber || ''}`.trim(),
+            }),
+        );
+        if (message) alert(message);
+    };
 
     const getStatusConfig = (status: string) => {
         const config: Record<string, { bg: string; color: string; icon: React.ReactNode; label: string }> = {
@@ -363,27 +313,6 @@ export const LabDetail: React.FC = () => {
     const completedTests = transaction.labTests?.filter((t: any) => t.status === 'completed').length || 0;
     const pendingTests = transaction.labTests?.filter((t: any) => t.status === 'pending' || t.status === 'in_progress').length || 0;
     const totalAmount = safeNumber(transaction.totalAmount);
-
-    const receiptTransaction = {
-        id: transaction.id,
-        transactionNumber: transaction.transactionNumber,
-        items: transaction.labTests?.map((test: any) => ({
-            product: { name: test.testType },
-            quantity: 1,
-            unitPrice: safeNumber(test.testPrice),
-            total: safeNumber(test.testPrice),
-        })) || [],
-        subtotal: totalAmount,
-        tax: 0,
-        total: totalAmount,
-        discount: 0,
-        paymentMethod: transaction.paymentMethod || 'cash',
-        paymentReference: transaction.paymentReference,
-        cashierName: transaction.requestedByName,
-        customerName: transaction.patientName,
-        customerPhone: transaction.patientPhone,
-        createdAt: transaction.createdAt,
-    };
 
     return (
         <div className="space-y-6 pb-8">
@@ -721,7 +650,7 @@ export const LabDetail: React.FC = () => {
                                 </div>
                                 <div className="flex justify-between items-center py-2">
                                     <span className="text-sm" style={{ color: 'var(--color-text-muted)' }}>Payment Method</span>
-                                    <span className="text-sm font-medium text-primary capitalize">{transaction.paymentMethod || 'N/A'}</span>
+                                    <span className="text-sm font-medium text-primary">{formatPaymentMethod(transaction.paymentMethod)}</span>
                                 </div>
                             </div>
                         </Card>
@@ -898,7 +827,12 @@ export const LabDetail: React.FC = () => {
                                                     {statusConfig.label}
                                                 </span>
                                                 <span className="text-sm font-bold" style={{ color: 'var(--color-accent-text)' }}>
-                                                    GHS {safeNumber(test.testPrice).toFixed(2)}
+                                                    GHS {(safeNumber(test.testPrice) * (safeNumber(test.quantity) || 1)).toFixed(2)}
+                                                    {(safeNumber(test.quantity) || 1) > 1 && (
+                                                        <span className="ml-1 text-xs font-normal" style={{ color: 'var(--color-text-muted)' }}>
+                                                            ({safeNumber(test.quantity)} × {safeNumber(test.testPrice).toFixed(2)})
+                                                        </span>
+                                                    )}
                                                 </span>
                                                 {isExpanded ? <ChevronUp size={18} style={{ color: 'var(--color-text-muted)' }} /> : <ChevronDown size={18} style={{ color: 'var(--color-text-muted)' }} />}
                                             </div>
@@ -934,9 +868,12 @@ export const LabDetail: React.FC = () => {
                                                         </span>
                                                     </div>
                                                     <div>
-                                                        <p className="text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>Price</p>
+                                                        <p className="text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>Unit Price</p>
                                                         <p className="text-sm font-bold" style={{ color: 'var(--color-accent-text)' }}>
                                                             GHS {safeNumber(test.testPrice).toFixed(2)}
+                                                            <span className="ml-1 text-xs font-normal" style={{ color: 'var(--color-text-muted)' }}>
+                                                                × {safeNumber(test.quantity) || 1}
+                                                            </span>
                                                         </p>
                                                     </div>
                                                 </div>
@@ -1168,61 +1105,14 @@ export const LabDetail: React.FC = () => {
 
             {/* ── RECEIPT MODAL ────────────────────────────────────────────── */}
             {showReceiptModal && (
-                <div className="fixed inset-0 bg-overlay flex items-center justify-center p-4 z-modal no-print">
-                    <div className="surface-elevated rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto border-theme">
-                        <div className="sticky top-0 p-4" style={{
-                            background: 'var(--gradient-accent)',
-                            color: '#fff',
-                            borderRadius: '12px 12px 0 0',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                        }}>
-                            <div className="flex items-center gap-3">
-                                <Receipt size={24} />
-                                <h2 className="text-lg font-bold">Receipt</h2>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <button
-                                    onClick={handlePrintReceipt}
-                                    className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors flex items-center gap-2 text-sm"
-                                >
-                                    <Printer size={16} />
-                                    Print
-                                </button>
-                                <button
-                                    onClick={() => setShowReceiptModal(false)}
-                                    className="p-2 hover:bg-white/20 rounded-lg transition-colors"
-                                >
-                                    <XCircle size={24} />
-                                </button>
-                            </div>
-                        </div>
-                        <div className="p-6">
-                            <ReceiptModal
-                                transaction={receiptTransaction}
-                                customerName={transaction.patientName}
-                                customerPhone={transaction.patientPhone}
-                                onClose={() => setShowReceiptModal(false)}
-                                onPrint={handlePrintReceipt}
-                            />
-                        </div>
-                    </div>
-                </div>
+                <ReceiptModal
+                    doc={transaction}
+                    mode={transaction.paymentStatus === 'paid' ? 'receipt' : 'order'}
+                    onClose={() => setShowReceiptModal(false)}
+                />
             )}
 
-            {/* ── HIDDEN PRINT CONTENT FOR RECEIPT ────────────────────────── */}
-            <div style={{ position: 'absolute', left: '-9999px', top: '-9999px', width: '1px', height: '1px', overflow: 'hidden' }}>
-                {transaction && (
-                    <ReceiptContent
-                        ref={printReceiptRef}
-                        transaction={receiptTransaction}
-                        customerName={transaction.patientName}
-                        customerPhone={transaction.patientPhone}
-                    />
-                )}
-            </div>
-
+            {/* ── HIDDEN PRINT CONTENT FOR REPORT ─────────────────────────── */}
             <div style={{ position: 'absolute', left: '-9999px', top: '-9999px', width: '1px', height: '1px', overflow: 'hidden' }}>
                 <div ref={printReportRef}>
                     {transaction && (

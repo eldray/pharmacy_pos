@@ -1,4 +1,5 @@
 const { sequelize, DataTypes } = require('../config/database');
+const { normalizePaymentMethod } = require('../utils/validators');
 
 const Transaction = sequelize.define('Transaction', {
   id: {
@@ -41,7 +42,15 @@ const Transaction = sequelize.define('Transaction', {
   },
   paymentMethod: {
     type: DataTypes.STRING,
-    allowNull: false
+    allowNull: false,
+    // Normalised here rather than only in the routes: this column is a plain
+    // string (lab_transactions uses a strict ENUM), so any client that posts
+    // 'Cash' used to store it verbatim and drop out of the Sales History
+    // payment breakdown, which groups on the lowercase value. Every write
+    // path — /pay, POS, insurance, a future import — passes through here.
+    set(value) {
+      this.setDataValue('paymentMethod', value == null ? null : normalizePaymentMethod(value));
+    }
   },
   paymentReference: DataTypes.STRING,
   discount: {

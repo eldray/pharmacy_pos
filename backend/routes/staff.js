@@ -5,6 +5,9 @@ const { auth, adminOrManagerAuth } = require('../middleware/auth');
 const { recordAudit } = require('../utils/audit');
 
 const router = express.Router();
+const { numericIdParams } = require('../utils/numericIdParams');
+
+numericIdParams(router);
 
 const STAFF_INCLUDE = [
   { model: User, as: 'user', attributes: ['id', 'name', 'email', 'role', 'status'] },

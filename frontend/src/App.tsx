@@ -1,25 +1,31 @@
 // src/App.tsx
 import React, { useEffect, useState } from 'react';
+import { AlertCircle, RefreshCw, X } from 'lucide-react';
 import { useAppStore, initStore } from './store';
 import { Login } from './components/Login';
 import { DashboardLayout } from './components/DashboardLayout';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { LandingPage } from './pages/LandingPage';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import './App.css'; 
 
 function App() {
-  const { currentUser, setCurrentUser } = useAppStore();
+  // initErrors lives in the store because initStore also runs from Login.tsx —
+  // a sign-in during a backend outage shows this same banner, not an empty dashboard.
+  const { currentUser, setCurrentUser, initErrors, setInitErrors } = useAppStore();
   const [isLoading, setIsLoading] = useState(true);
+
+  const runInit = (role: string) => initStore(role);
 
   useEffect(() => {
     const token = localStorage.getItem('auth_token');
     if (token) {
       import('./api/auth')
         .then(({ verifyToken }) => verifyToken(token))
-        .then((user) => {
+        .then(async (user) => {
           if (user) {
             setCurrentUser(user);
-            initStore(user.role);
+            await runInit(user.role);
           } else {
             localStorage.removeItem('auth_token');
           }
@@ -33,6 +39,14 @@ function App() {
     }
   }, [setCurrentUser]);
 
+  const handleRetryInit = async () => {
+    if (!currentUser) return;
+    setInitErrors([]);
+    setIsLoading(true);
+    await runInit(currentUser.role);
+    setIsLoading(false);
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -45,12 +59,60 @@ function App() {
   }
 
   return (
-    <Routes>
-      <Route path="/" element={<LandingPage />} />
-      <Route path="/login" element={!currentUser ? <Login /> : <Navigate to="/dashboard" replace />} />
-      <Route path="/dashboard/*" element={currentUser ? <DashboardLayout /> : <Navigate to="/login" replace />} />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    <>
+      {initErrors.length > 0 && (
+        <div
+          role="alert"
+          className="fixed left-1/2 -translate-x-1/2 flex items-start gap-3"
+          style={{
+            top: 12,
+            zIndex: 'var(--z-modal)',
+            background: 'var(--color-danger-light)',
+            border: '1px solid var(--color-danger)',
+            borderRadius: 10,
+            boxShadow: 'var(--shadow-xl)',
+            padding: '10px 14px',
+            maxWidth: '92vw',
+            width: 'min(560px, 92vw)',
+          }}
+        >
+          <AlertCircle style={{ width: 18, height: 18, flexShrink: 0, color: 'var(--color-danger-text)', marginTop: 2 }} />
+          <div style={{ color: 'var(--color-danger-text)', fontSize: '0.78rem', lineHeight: 1.5 }}>
+            <strong>Some data couldn&apos;t be loaded.</strong> The connection to the server may be down.
+            <ul style={{ margin: '4px 0 0', paddingLeft: 16, listStyle: 'disc' }}>
+              {initErrors.map((e) => (
+                <li key={e}>{e}</li>
+              ))}
+            </ul>
+          </div>
+          <div className="flex items-center gap-2" style={{ marginLeft: 'auto', flexShrink: 0 }}>
+            <button
+              onClick={handleRetryInit}
+              aria-label="Retry loading data"
+              className="btn-ghost flex items-center gap-1"
+              style={{ fontSize: '0.72rem', padding: '5px 10px', color: 'var(--color-danger-text)' }}
+            >
+              <RefreshCw style={{ width: 12, height: 12 }} /> Retry
+            </button>
+            <button
+              onClick={() => setInitErrors([])}
+              aria-label="Dismiss error"
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-danger-text)' }}
+            >
+              <X style={{ width: 14, height: 14 }} />
+            </button>
+          </div>
+        </div>
+      )}
+      <ErrorBoundary>
+        <Routes>
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/login" element={!currentUser ? <Login /> : <Navigate to="/dashboard" replace />} />
+          <Route path="/dashboard/*" element={currentUser ? <DashboardLayout /> : <Navigate to="/login" replace />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </ErrorBoundary>
+    </>
   );
 }
 

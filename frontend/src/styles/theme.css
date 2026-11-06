@@ -563,6 +563,19 @@ body {
     transform: none;
 }
 
+/* Base shape for the legacy `.badge` spans used by Orders, Payments and the
+   inventory log. ui/Badge renders the same pill, so a status chip looks the
+   same whether it came from the list or from a details dialog. */
+.badge {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    line-height: 1.4;
+    white-space: nowrap;
+}
+
 .badge-success {
     background-color: var(--color-success-light);
     color: var(--color-success-text);

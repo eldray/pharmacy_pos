@@ -45,9 +45,25 @@
             page-break-inside: avoid !important;
         }
 
-        /* Remove modal overlays */
-        .fixed.inset-0 {
+        /* Remove modal overlays. A modal the user has explicitly asked to print
+           (its panel is marked .print-content) is paper, not chrome, and used to
+           be hidden along with the rest — which printed blank sheets. */
+        .fixed.inset-0:not(:has(.print-content)) {
             display: none !important;
+        }
+
+        .fixed.inset-0:has(.print-content) {
+            position: static !important;
+            display: block !important;
+            background: none !important;
+            padding: 0 !important;
+        }
+
+        /* A modal scrolls on screen; on paper the clip cuts the report off. */
+        .fixed.inset-0 .print-content,
+        .fixed.inset-0 .print-content * {
+            max-height: none !important;
+            overflow: visible !important;
         }
     }
 

@@ -192,10 +192,12 @@ export const CompanySettings: React.FC = () => {
           website: company.contact?.website || '',
         },
         receiptSettings: {
-          header: company.receiptSettings?.header || '',
-          footer: company.receiptSettings?.footer || '',
-          taxRate: company.receiptSettings?.taxRate || 15,
-          includeTaxId: company.receiptSettings?.includeTaxId || false,
+          header: company.receiptSettings?.header ?? '',
+          footer: company.receiptSettings?.footer ?? '',
+          // `|| 15` read a deliberate 0% VAT as "missing" and put 15 back in the
+          // box, so the next Save re-persisted 15 and the zero never stuck.
+          taxRate: company.receiptSettings?.taxRate ?? 15,
+          includeTaxId: company.receiptSettings?.includeTaxId ?? false,
         },
       });
     }
@@ -542,7 +544,7 @@ export const CompanySettings: React.FC = () => {
                     <label style={labelStyle}>Tax Rate (%)</label>
                     <input type="number" step="0.01" min="0" max="100"
                       value={formData.receiptSettings.taxRate}
-                      onChange={(e) => handleChange('receiptSettings.taxRate', parseFloat(e.target.value))}
+                      onChange={(e) => handleChange('receiptSettings.taxRate', parseFloat(e.target.value) || 0)}
                       style={fieldStyle} onFocus={onF} onBlur={onB} />
                   </div>
                   <div

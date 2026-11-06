@@ -4,6 +4,9 @@ const Supplier = require('../models/Supplier');
 const { auth, adminAuth } = require('../middleware/auth');
 
 const router = express.Router();
+const { numericIdParams } = require('../utils/numericIdParams');
+
+numericIdParams(router);
 
 // Get all suppliers
 router.get('/', auth, async (req, res) => {

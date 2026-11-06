@@ -2,9 +2,13 @@
 const express = require('express');
 const { Op } = require('sequelize');
 const { Customer, CustomerInsurance, InsuranceProvider, SalesOrder, LabTransaction } = require('../models');
-const { auth } = require('../middleware/auth');
+const { auth, adminOrManagerAuth } = require('../middleware/auth');
+const { recordAudit } = require('../utils/audit');
 
 const router = express.Router();
+const { numericIdParams } = require('../utils/numericIdParams');
+
+numericIdParams(router);
 
 // ─── Helper: always include insurances + provider ─────────────────
 const CUSTOMER_INCLUDE = [
@@ -126,6 +130,10 @@ router.post('/', auth, async (req, res) => {
         }
 
         const full = await Customer.findByPk(customer.id, { include: CUSTOMER_INCLUDE });
+        await recordAudit(req, {
+            action: 'create', entity: 'Customer', entityId: customer.id,
+            changes: { fullName: customer.fullName, policiesAdded: Array.isArray(insurances) ? insurances.length : 0 }
+        });
         res.status(201).json(full);
     } catch (err) {
         console.error('Create customer error:', err);
@@ -159,6 +167,10 @@ router.put('/:id', auth, async (req, res) => {
         });
 
         const full = await Customer.findByPk(customer.id, { include: CUSTOMER_INCLUDE });
+        await recordAudit(req, {
+            action: 'update', entity: 'Customer', entityId: customer.id,
+            changes: { phone, email, gender, dob, status }
+        });
         res.json(full);
     } catch (err) {
         console.error('Update customer error:', err);
@@ -167,13 +179,17 @@ router.put('/:id', auth, async (req, res) => {
 });
 
 // ─── DELETE /customers/:id — soft-ish (mark inactive) ─────────────
-router.delete('/:id', auth, async (req, res) => {
+router.delete('/:id', auth, adminOrManagerAuth, async (req, res) => {
     try {
         const customer = await Customer.findByPk(req.params.id);
         if (!customer) return res.status(404).json({ msg: 'Customer not found' });
 
         // Prefer to keep history — mark inactive instead of hard delete
         await customer.update({ status: 'inactive' });
+        await recordAudit(req, {
+            action: 'deactivate', entity: 'Customer', entityId: customer.id,
+            changes: { fullName: customer.fullName }
+        });
         res.json({ msg: 'Customer deactivated' });
     } catch (err) {
         console.error('Delete customer error:', err);
@@ -231,6 +247,10 @@ router.post('/:id/insurances', auth, async (req, res) => {
         const full = await CustomerInsurance.findByPk(insurance.id, {
             include: [{ model: InsuranceProvider, as: 'provider' }],
         });
+        await recordAudit(req, {
+            action: 'add_insurance', entity: 'CustomerInsurance', entityId: insurance.id,
+            changes: { customerId: customer.id, insuranceProviderId, policyNumber, isPrimary: insurance.isPrimary }
+        });
         res.status(201).json(full);
     } catch (err) {
         console.error('Attach insurance error:', err);
@@ -267,6 +287,10 @@ router.put('/:id/insurances/:insId', auth, async (req, res) => {
         const full = await CustomerInsurance.findByPk(insurance.id, {
             include: [{ model: InsuranceProvider, as: 'provider' }],
         });
+        await recordAudit(req, {
+            action: 'update_insurance', entity: 'CustomerInsurance', entityId: insurance.id,
+            changes: { customerId: Number(req.params.id), insuranceProviderId, policyNumber, isPrimary, status }
+        });
         res.json(full);
     } catch (err) {
         console.error('Update insurance error:', err);
@@ -275,7 +299,7 @@ router.put('/:id/insurances/:insId', auth, async (req, res) => {
 });
 
 // ─── DELETE /customers/:id/insurances/:insId ──────────────────────
-router.delete('/:id/insurances/:insId', auth, async (req, res) => {
+router.delete('/:id/insurances/:insId', auth, adminOrManagerAuth, async (req, res) => {
     try {
         const insurance = await CustomerInsurance.findOne({
             where: { id: req.params.insId, customerId: req.params.id },
@@ -283,6 +307,10 @@ router.delete('/:id/insurances/:insId', auth, async (req, res) => {
         if (!insurance) return res.status(404).json({ msg: 'Insurance not found' });
 
         await insurance.destroy();
+        await recordAudit(req, {
+            action: 'remove_insurance', entity: 'CustomerInsurance', entityId: insurance.id,
+            changes: { customerId: Number(req.params.id), policyNumber: insurance.policyNumber }
+        });
         res.json({ msg: 'Insurance removed' });
     } catch (err) {
         console.error('Delete insurance error:', err);

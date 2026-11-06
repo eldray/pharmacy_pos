@@ -1,10 +1,57 @@
 {
     "templates": [
         {
+            "name": "Activated Partial Thromboplastin Time (aPTT)",
+            "category": "Hematology",
+            "description": "Intrinsic coagulation pathway",
+            "price": 50,
+            "insurancePrice": null,
+            "sampleType": "Blood",
+            "resultFields": [
+                {
+                    "name": "aPTT",
+                    "type": "number",
+                    "required": true
+                }
+            ],
+            "defaultReferenceRanges": {
+                "aPTT": {
+                    "referenceRange": "25-37",
+                    "unit": "seconds"
+                }
+            },
+            "instructions": "Citrate tube; mix gently and send immediately.",
+            "isActive": true
+        },
+        {
+            "name": "Blood Group and Rhesus (Rh) Type",
+            "category": "Hematology",
+            "description": "ABO grouping with Rh(D) typing",
+            "price": 25,
+            "insurancePrice": null,
+            "sampleType": "Blood",
+            "resultFields": [
+                {
+                    "name": "Blood Group",
+                    "type": "text",
+                    "required": true
+                },
+                {
+                    "name": "Rh Factor",
+                    "type": "text",
+                    "required": true
+                }
+            ],
+            "defaultReferenceRanges": {},
+            "instructions": "No fasting required. Bring a previous blood group card if available.",
+            "isActive": true
+        },
+        {
             "name": "Complete Blood Count (CBC)",
             "category": "Hematology",
             "description": "Complete blood count with differential",
-            "price": 50.00,
+            "price": 50,
+            "insurancePrice": 35,
             "sampleType": "Blood",
             "resultFields": [
                 {
@@ -59,19 +106,387 @@
                 }
             ],
             "defaultReferenceRanges": {
-                "WBC": "4.5-11.0 x10^3/µL",
-                "RBC": "4.2-5.4 x10^6/µL",
-                "Hemoglobin": "12.0-16.0 g/dL",
-                "Hematocrit": "36-48%",
-                "Platelets": "150-400 x10^3/µL"
+                "WBC": {
+                    "referenceRange": "4.5-11.0",
+                    "unit": "x10^3/µL"
+                },
+                "RBC": {
+                    "referenceRange": "4.2-5.4",
+                    "unit": "x10^6/µL"
+                },
+                "Hemoglobin": {
+                    "referenceRange": "12.0-16.0",
+                    "unit": "g/dL"
+                },
+                "Hematocrit": {
+                    "referenceRange": "36-48",
+                    "unit": "%"
+                },
+                "Platelets": {
+                    "referenceRange": "150-400",
+                    "unit": "x10^3/µL"
+                }
             },
-            "instructions": "Collect EDTA whole blood. Mix thoroughly before analysis."
+            "instructions": "Collect EDTA whole blood. Mix thoroughly before analysis.",
+            "isActive": true
+        },
+        {
+            "name": "Erythrocyte Sedimentation Rate (ESR)",
+            "category": "Hematology",
+            "description": "Sedimentation rate as a marker of inflammation",
+            "price": 20,
+            "insurancePrice": null,
+            "sampleType": "Blood",
+            "resultFields": [
+                {
+                    "name": "ESR",
+                    "type": "number",
+                    "required": true
+                }
+            ],
+            "defaultReferenceRanges": {
+                "ESR": {
+                    "referenceRange": "0-20",
+                    "unit": "mm/hr"
+                }
+            },
+            "instructions": "Collect in sodium citrate tube and analyse within 4 hours.",
+            "isActive": true
+        },
+        {
+            "name": "Hemoglobin Genotype (Hb Electrophoresis)",
+            "category": "Hematology",
+            "description": "Screening for sickle cell trait and disease",
+            "price": 40,
+            "insurancePrice": null,
+            "sampleType": "Blood",
+            "resultFields": [
+                {
+                    "name": "Genotype",
+                    "type": "text",
+                    "required": true
+                },
+                {
+                    "name": "Interpretation",
+                    "type": "text",
+                    "required": false
+                }
+            ],
+            "defaultReferenceRanges": {
+                "Genotype": {
+                    "referenceRange": "AA",
+                    "unit": ""
+                }
+            },
+            "instructions": "EDTA whole blood. Avoid transfusion within 3 months of testing.",
+            "isActive": true
+        },
+        {
+            "name": "Iron Studies (Serum Iron, TIBC, Ferritin)",
+            "category": "Hematology",
+            "description": "Iron deficiency and overload panel",
+            "price": 75,
+            "insurancePrice": null,
+            "sampleType": "Blood",
+            "resultFields": [
+                {
+                    "name": "Serum Iron",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "TIBC",
+                    "type": "number",
+                    "required": false
+                },
+                {
+                    "name": "Ferritin",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "Transferrin Saturation",
+                    "type": "number",
+                    "required": false
+                }
+            ],
+            "defaultReferenceRanges": {
+                "Serum Iron": {
+                    "referenceRange": "60-170",
+                    "unit": "µg/dL"
+                },
+                "TIBC": {
+                    "referenceRange": "240-450",
+                    "unit": "µg/dL"
+                },
+                "Ferritin": {
+                    "referenceRange": "30-400",
+                    "unit": "ng/mL"
+                },
+                "Transferrin Saturation": {
+                    "referenceRange": "20-50",
+                    "unit": "%"
+                }
+            },
+            "instructions": "Fasting morning sample; iron supplements stop 24 hours before.",
+            "isActive": true
+        },
+        {
+            "name": "Prothrombin Time / INR (PT-INR)",
+            "category": "Hematology",
+            "description": "Extrinsic coagulation pathway and warfarin monitoring",
+            "price": 45,
+            "insurancePrice": null,
+            "sampleType": "Blood",
+            "resultFields": [
+                {
+                    "name": "PT",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "INR",
+                    "type": "number",
+                    "required": true
+                }
+            ],
+            "defaultReferenceRanges": {
+                "PT": {
+                    "referenceRange": "11-13.5",
+                    "unit": "seconds"
+                },
+                "INR": {
+                    "referenceRange": "0.8-1.2",
+                    "unit": ""
+                }
+            },
+            "instructions": "For patients on warfarin, report the therapeutic range with the INR.",
+            "isActive": true
+        },
+        {
+            "name": "Vitamin B12 and Folate",
+            "category": "Hematology",
+            "description": "Anaemia and neuropathy work-up",
+            "price": 130,
+            "insurancePrice": null,
+            "sampleType": "Blood",
+            "resultFields": [
+                {
+                    "name": "Vitamin B12",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "Serum Folate",
+                    "type": "number",
+                    "required": true
+                }
+            ],
+            "defaultReferenceRanges": {
+                "Vitamin B12": {
+                    "referenceRange": "200-900",
+                    "unit": "pg/mL"
+                },
+                "Serum Folate": {
+                    "referenceRange": "3-17",
+                    "unit": "ng/mL"
+                }
+            },
+            "instructions": "Fasting sample preferred; protect from light.",
+            "isActive": true
+        },
+        {
+            "name": "Vitamin D (25-Hydroxy)",
+            "category": "Hematology",
+            "description": "Bone health and deficiency screening",
+            "price": 160,
+            "insurancePrice": null,
+            "sampleType": "Blood",
+            "resultFields": [
+                {
+                    "name": "25-OH Vitamin D",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "Interpretation",
+                    "type": "text",
+                    "required": false
+                }
+            ],
+            "defaultReferenceRanges": {
+                "25-OH Vitamin D": {
+                    "referenceRange": "30-100",
+                    "unit": "ng/mL"
+                }
+            },
+            "instructions": "No fasting required.",
+            "isActive": true
+        },
+        {
+            "name": "COVID-19 Rapid Test",
+            "category": "Infectious Disease",
+            "description": "Rapid antigen test for COVID-19",
+            "price": 40,
+            "insurancePrice": 25,
+            "sampleType": "Nasal Swab",
+            "resultFields": [
+                {
+                    "name": "Result",
+                    "type": "text",
+                    "required": true
+                },
+                {
+                    "name": "Test Method",
+                    "type": "text",
+                    "required": false
+                }
+            ],
+            "defaultReferenceRanges": {
+                "Result": {
+                    "referenceRange": "Negative/Positive",
+                    "unit": ""
+                }
+            },
+            "instructions": "Collect nasal swab sample. Test according to manufacturer instructions.",
+            "isActive": true
+        },
+        {
+            "name": "Dengue NS1 Antigen and IgM/IgG",
+            "category": "Infectious Disease",
+            "description": "Acute dengue fever testing",
+            "price": 120,
+            "insurancePrice": null,
+            "sampleType": "Blood",
+            "resultFields": [
+                {
+                    "name": "NS1 Antigen",
+                    "type": "text",
+                    "required": true
+                },
+                {
+                    "name": "IgM",
+                    "type": "text",
+                    "required": false
+                },
+                {
+                    "name": "IgG",
+                    "type": "text",
+                    "required": false
+                }
+            ],
+            "defaultReferenceRanges": {},
+            "instructions": "NS1 is most useful within the first 5 days of fever.",
+            "isActive": true
+        },
+        {
+            "name": "Helicobacter pylori Stool Antigen",
+            "category": "Infectious Disease",
+            "description": "Active H. pylori infection without endoscopy",
+            "price": 85,
+            "insurancePrice": null,
+            "sampleType": "Stool",
+            "resultFields": [
+                {
+                    "name": "Result",
+                    "type": "text",
+                    "required": true
+                }
+            ],
+            "defaultReferenceRanges": {
+                "Result": {
+                    "referenceRange": "Negative",
+                    "unit": ""
+                }
+            },
+            "instructions": "Stop proton pump inhibitors 2 weeks and antibiotics 4 weeks before.",
+            "isActive": true
+        },
+        {
+            "name": "Hepatitis B Surface Antigen (HBsAg)",
+            "category": "Infectious Disease",
+            "description": "Active hepatitis B infection screening",
+            "price": 40,
+            "insurancePrice": null,
+            "sampleType": "Blood",
+            "resultFields": [
+                {
+                    "name": "Result",
+                    "type": "text",
+                    "required": true
+                }
+            ],
+            "defaultReferenceRanges": {
+                "Result": {
+                    "referenceRange": "Negative",
+                    "unit": ""
+                }
+            },
+            "instructions": "No fasting required.",
+            "isActive": true
+        },
+        {
+            "name": "Hepatitis C Antibody (Anti-HCV)",
+            "category": "Infectious Disease",
+            "description": "Hepatitis C exposure screening",
+            "price": 55,
+            "insurancePrice": null,
+            "sampleType": "Blood",
+            "resultFields": [
+                {
+                    "name": "Result",
+                    "type": "text",
+                    "required": true
+                },
+                {
+                    "name": "Confirmatory RNA",
+                    "type": "text",
+                    "required": false
+                }
+            ],
+            "defaultReferenceRanges": {
+                "Result": {
+                    "referenceRange": "Non-reactive",
+                    "unit": ""
+                }
+            },
+            "instructions": "A reactive screen needs confirmatory HCV RNA testing.",
+            "isActive": true
+        },
+        {
+            "name": "HIV 1/2 Screening",
+            "category": "Infectious Disease",
+            "description": "Rapid fourth-generation antibody/antigen test",
+            "price": 45,
+            "insurancePrice": null,
+            "sampleType": "Blood",
+            "resultFields": [
+                {
+                    "name": "Result",
+                    "type": "text",
+                    "required": true
+                },
+                {
+                    "name": "Confirmatory Test",
+                    "type": "text",
+                    "required": false
+                }
+            ],
+            "defaultReferenceRanges": {
+                "Result": {
+                    "referenceRange": "Non-reactive",
+                    "unit": ""
+                }
+            },
+            "instructions": "Counselling and consent required before sampling.",
+            "isActive": true
         },
         {
             "name": "Malaria Test",
             "category": "Infectious Disease",
             "description": "Rapid diagnostic test for malaria",
-            "price": 25.00,
+            "price": 25,
+            "insurancePrice": 15,
             "sampleType": "Blood",
             "resultFields": [
                 {
@@ -91,15 +506,108 @@
                 }
             ],
             "defaultReferenceRanges": {
-                "Result": "Negative/Positive"
+                "Result": {
+                    "referenceRange": "Negative/Positive",
+                    "unit": ""
+                }
             },
-            "instructions": "Collect capillary blood. Test within 24 hours of collection."
+            "instructions": "Collect capillary blood. Test within 24 hours of collection.",
+            "isActive": true
+        },
+        {
+            "name": "Sputum AFB Microscopy (GeneXpert)",
+            "category": "Infectious Disease",
+            "description": "Tuberculosis and rifampicin resistance detection",
+            "price": 150,
+            "insurancePrice": null,
+            "sampleType": "Sputum",
+            "resultFields": [
+                {
+                    "name": "MTB Complex",
+                    "type": "text",
+                    "required": true
+                },
+                {
+                    "name": "Rifampicin Resistance",
+                    "type": "text",
+                    "required": false
+                },
+                {
+                    "name": "Band Scaled Result",
+                    "type": "text",
+                    "required": false
+                }
+            ],
+            "defaultReferenceRanges": {},
+            "instructions": "Early morning deep-cough sputum; two samples increase sensitivity.",
+            "isActive": true
+        },
+        {
+            "name": "Syphilis Serology (RPR/VDRL)",
+            "category": "Infectious Disease",
+            "description": "Treponema screening with titre",
+            "price": 50,
+            "insurancePrice": null,
+            "sampleType": "Blood",
+            "resultFields": [
+                {
+                    "name": "Result",
+                    "type": "text",
+                    "required": true
+                },
+                {
+                    "name": "Titre",
+                    "type": "text",
+                    "required": false
+                }
+            ],
+            "defaultReferenceRanges": {},
+            "instructions": "A reactive screen needs confirmatory TPHA/TP-PA.",
+            "isActive": true
+        },
+        {
+            "name": "Typhoid Test (Widal)",
+            "category": "Infectious Disease",
+            "description": "Salmonella typhi O and H antibodies",
+            "price": 35,
+            "insurancePrice": null,
+            "sampleType": "Blood",
+            "resultFields": [
+                {
+                    "name": "TO Titre",
+                    "type": "number",
+                    "required": false
+                },
+                {
+                    "name": "TH Titre",
+                    "type": "number",
+                    "required": false
+                },
+                {
+                    "name": "Result",
+                    "type": "text",
+                    "required": true
+                }
+            ],
+            "defaultReferenceRanges": {
+                "TO Titre": {
+                    "referenceRange": "0-80",
+                    "unit": ""
+                },
+                "TH Titre": {
+                    "referenceRange": "0-80",
+                    "unit": ""
+                }
+            },
+            "instructions": "Blood culture is more reliable after the first week of fever.",
+            "isActive": true
         },
         {
             "name": "Blood Glucose",
             "category": "Biochemistry",
             "description": "Fasting or random blood glucose test",
-            "price": 15.00,
+            "price": 15,
+            "insurancePrice": 10,
             "sampleType": "Blood",
             "resultFields": [
                 {
@@ -114,15 +622,534 @@
                 }
             ],
             "defaultReferenceRanges": {
-                "Glucose Level": "70-100 mg/dL (fasting)"
+                "Glucose Level": {
+                    "referenceRange": "70-100",
+                    "unit": "mg/dL (fasting)"
+                }
             },
-            "instructions": "For fasting blood sugar, patient should fast for 8-12 hours."
+            "instructions": "For fasting blood sugar, patient should fast for 8-12 hours.",
+            "isActive": true
+        },
+        {
+            "name": "C-Reactive Protein (CRP)",
+            "category": "Biochemistry",
+            "description": "Acute inflammation and infection marker",
+            "price": 45,
+            "insurancePrice": null,
+            "sampleType": "Blood",
+            "resultFields": [
+                {
+                    "name": "CRP",
+                    "type": "number",
+                    "required": true
+                }
+            ],
+            "defaultReferenceRanges": {
+                "CRP": {
+                    "referenceRange": "0-5",
+                    "unit": "mg/L"
+                }
+            },
+            "instructions": "No fasting required.",
+            "isActive": true
+        },
+        {
+            "name": "Cardiac Markers (Troponin I and CK-MB)",
+            "category": "Biochemistry",
+            "description": "Chest pain and myocardial injury panel",
+            "price": 180,
+            "insurancePrice": null,
+            "sampleType": "Blood",
+            "resultFields": [
+                {
+                    "name": "Troponin I",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "CK-MB",
+                    "type": "number",
+                    "required": false
+                }
+            ],
+            "defaultReferenceRanges": {
+                "Troponin I": {
+                    "referenceRange": "0-0.04",
+                    "unit": "ng/mL"
+                },
+                "CK-MB": {
+                    "referenceRange": "0-7",
+                    "unit": "ng/mL"
+                }
+            },
+            "instructions": "Emergency sample: send to the laboratory immediately after collection.",
+            "isActive": true
+        },
+        {
+            "name": "Glycated Hemoglobin (HbA1c)",
+            "category": "Biochemistry",
+            "description": "Three-month average blood glucose for diabetes control",
+            "price": 60,
+            "insurancePrice": null,
+            "sampleType": "Blood",
+            "resultFields": [
+                {
+                    "name": "HbA1c",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "Estimated Average Glucose",
+                    "type": "text",
+                    "required": false
+                }
+            ],
+            "defaultReferenceRanges": {
+                "HbA1c": {
+                    "referenceRange": "4.0-5.6",
+                    "unit": "%"
+                }
+            },
+            "instructions": "No fasting required. Values above 6.5% suggest diabetes.",
+            "isActive": true
+        },
+        {
+            "name": "Lipid Profile",
+            "category": "Biochemistry",
+            "description": "Complete lipid panel",
+            "price": 60,
+            "insurancePrice": 40,
+            "sampleType": "Blood",
+            "resultFields": [
+                {
+                    "name": "Total Cholesterol",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "LDL Cholesterol",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "HDL Cholesterol",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "Triglycerides",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "VLDL Cholesterol",
+                    "type": "number",
+                    "required": false
+                }
+            ],
+            "defaultReferenceRanges": {
+                "Total Cholesterol": {
+                    "referenceRange": "<200 mg/dL",
+                    "unit": ""
+                },
+                "LDL Cholesterol": {
+                    "referenceRange": "<130 mg/dL",
+                    "unit": ""
+                },
+                "HDL Cholesterol": {
+                    "referenceRange": ">40 mg/dL",
+                    "unit": ""
+                },
+                "Triglycerides": {
+                    "referenceRange": "<150 mg/dL",
+                    "unit": ""
+                }
+            },
+            "instructions": "Patient must fast for 12 hours before sample collection.",
+            "isActive": true
+        },
+        {
+            "name": "Liver Function Test (LFT)",
+            "category": "Biochemistry",
+            "description": "Complete liver function panel",
+            "price": 55,
+            "insurancePrice": 40,
+            "sampleType": "Blood",
+            "resultFields": [
+                {
+                    "name": "ALT",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "AST",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "ALP",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "GGT",
+                    "type": "number",
+                    "required": false
+                },
+                {
+                    "name": "Total Bilirubin",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "Direct Bilirubin",
+                    "type": "number",
+                    "required": false
+                },
+                {
+                    "name": "Albumin",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "Total Protein",
+                    "type": "number",
+                    "required": true
+                }
+            ],
+            "defaultReferenceRanges": {
+                "ALT": {
+                    "referenceRange": "10-40",
+                    "unit": "U/L"
+                },
+                "AST": {
+                    "referenceRange": "10-34",
+                    "unit": "U/L"
+                },
+                "ALP": {
+                    "referenceRange": "44-147",
+                    "unit": "U/L"
+                },
+                "Total Bilirubin": {
+                    "referenceRange": "0.3-1.0",
+                    "unit": "mg/dL"
+                },
+                "Albumin": {
+                    "referenceRange": "3.4-5.4",
+                    "unit": "g/dL"
+                },
+                "Total Protein": {
+                    "referenceRange": "6.0-8.0",
+                    "unit": "g/dL"
+                }
+            },
+            "instructions": "Collect fasting sample. Avoid alcohol for 24 hours before test.",
+            "isActive": true
+        },
+        {
+            "name": "Microalbuminuria (Urine Albumin-Creatinine Ratio)",
+            "category": "Biochemistry",
+            "description": "Early kidney damage in diabetes and hypertension",
+            "price": 55,
+            "insurancePrice": null,
+            "sampleType": "Urine",
+            "resultFields": [
+                {
+                    "name": "Albumin-Creatinine Ratio",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "Category",
+                    "type": "text",
+                    "required": false
+                }
+            ],
+            "defaultReferenceRanges": {
+                "Albumin-Creatinine Ratio": {
+                    "referenceRange": "0-30",
+                    "unit": "mg/g"
+                }
+            },
+            "instructions": "First morning mid-stream urine.",
+            "isActive": true
+        },
+        {
+            "name": "Pancreatic Enzymes (Amylase and Lipase)",
+            "category": "Biochemistry",
+            "description": "Acute pancreatitis and abdominal pain work-up",
+            "price": 70,
+            "insurancePrice": null,
+            "sampleType": "Blood",
+            "resultFields": [
+                {
+                    "name": "Amylase",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "Lipase",
+                    "type": "number",
+                    "required": true
+                }
+            ],
+            "defaultReferenceRanges": {
+                "Amylase": {
+                    "referenceRange": "30-110",
+                    "unit": "U/L"
+                },
+                "Lipase": {
+                    "referenceRange": "0-160",
+                    "unit": "U/L"
+                }
+            },
+            "instructions": "Fasting sample; alcohol avoided for 24 hours.",
+            "isActive": true
+        },
+        {
+            "name": "Renal Function Test",
+            "category": "Biochemistry",
+            "description": "Kidney function panel",
+            "price": 50,
+            "insurancePrice": 35,
+            "sampleType": "Blood",
+            "resultFields": [
+                {
+                    "name": "Creatinine",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "BUN",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "BUN/Creatinine Ratio",
+                    "type": "number",
+                    "required": false
+                },
+                {
+                    "name": "Uric Acid",
+                    "type": "number",
+                    "required": false
+                },
+                {
+                    "name": "Sodium",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "Potassium",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "Chloride",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "Bicarbonate",
+                    "type": "number",
+                    "required": true
+                }
+            ],
+            "defaultReferenceRanges": {
+                "Creatinine": {
+                    "referenceRange": "0.7-1.3",
+                    "unit": "mg/dL"
+                },
+                "BUN": {
+                    "referenceRange": "7-20",
+                    "unit": "mg/dL"
+                },
+                "Sodium": {
+                    "referenceRange": "136-145",
+                    "unit": "mmol/L"
+                },
+                "Potassium": {
+                    "referenceRange": "3.5-5.0",
+                    "unit": "mmol/L"
+                },
+                "Chloride": {
+                    "referenceRange": "96-106",
+                    "unit": "mmol/L"
+                },
+                "Bicarbonate": {
+                    "referenceRange": "22-28",
+                    "unit": "mmol/L"
+                }
+            },
+            "instructions": "Patient should be well hydrated before sample collection.",
+            "isActive": true
+        },
+        {
+            "name": "Serum Calcium and Phosphate",
+            "category": "Biochemistry",
+            "description": "Bone, parathyroid and kidney mineral panel",
+            "price": 45,
+            "insurancePrice": null,
+            "sampleType": "Blood",
+            "resultFields": [
+                {
+                    "name": "Calcium",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "Phosphate",
+                    "type": "number",
+                    "required": false
+                },
+                {
+                    "name": "Magnesium",
+                    "type": "number",
+                    "required": false
+                }
+            ],
+            "defaultReferenceRanges": {
+                "Calcium": {
+                    "referenceRange": "8.5-10.5",
+                    "unit": "mg/dL"
+                },
+                "Phosphate": {
+                    "referenceRange": "2.5-4.5",
+                    "unit": "mg/dL"
+                },
+                "Magnesium": {
+                    "referenceRange": "1.7-2.2",
+                    "unit": "mg/dL"
+                }
+            },
+            "instructions": "Fasting morning sample.",
+            "isActive": true
+        },
+        {
+            "name": "Serum Electrolytes (Na, K, Cl, CO2)",
+            "category": "Biochemistry",
+            "description": "Sodium, potassium, chloride and bicarbonate",
+            "price": 45,
+            "insurancePrice": null,
+            "sampleType": "Blood",
+            "resultFields": [
+                {
+                    "name": "Sodium",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "Potassium",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "Chloride",
+                    "type": "number",
+                    "required": false
+                },
+                {
+                    "name": "Bicarbonate (CO2)",
+                    "type": "number",
+                    "required": false
+                }
+            ],
+            "defaultReferenceRanges": {
+                "Sodium": {
+                    "referenceRange": "135-145",
+                    "unit": "mmol/L"
+                },
+                "Potassium": {
+                    "referenceRange": "3.5-5.1",
+                    "unit": "mmol/L"
+                },
+                "Chloride": {
+                    "referenceRange": "96-106",
+                    "unit": "mmol/L"
+                },
+                "Bicarbonate (CO2)": {
+                    "referenceRange": "22-29",
+                    "unit": "mmol/L"
+                }
+            },
+            "instructions": "Avoid tourniquet stasis; separate serum within 1 hour.",
+            "isActive": true
+        },
+        {
+            "name": "Serum Uric Acid",
+            "category": "Biochemistry",
+            "description": "Gout and tumour lysis monitoring",
+            "price": 35,
+            "insurancePrice": null,
+            "sampleType": "Blood",
+            "resultFields": [
+                {
+                    "name": "Uric Acid",
+                    "type": "number",
+                    "required": true
+                }
+            ],
+            "defaultReferenceRanges": {
+                "Uric Acid": {
+                    "referenceRange": "3.5-7.2",
+                    "unit": "mg/dL"
+                }
+            },
+            "instructions": "Fasting sample; alcohol and diuretics raise the result.",
+            "isActive": true
+        },
+        {
+            "name": "Total Protein, Albumin and Globulin",
+            "category": "Biochemistry",
+            "description": "Nutritional, liver and kidney protein panel",
+            "price": 40,
+            "insurancePrice": null,
+            "sampleType": "Blood",
+            "resultFields": [
+                {
+                    "name": "Total Protein",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "Albumin",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "Globulin",
+                    "type": "number",
+                    "required": false
+                },
+                {
+                    "name": "A/G Ratio",
+                    "type": "number",
+                    "required": false
+                }
+            ],
+            "defaultReferenceRanges": {
+                "Total Protein": {
+                    "referenceRange": "60-83",
+                    "unit": "g/L"
+                },
+                "Albumin": {
+                    "referenceRange": "35-50",
+                    "unit": "g/L"
+                },
+                "A/G Ratio": {
+                    "referenceRange": "1.0-2.5",
+                    "unit": ""
+                }
+            },
+            "instructions": "No fasting required.",
+            "isActive": true
         },
         {
             "name": "Urinalysis",
             "category": "Urine",
             "description": "Complete urine analysis",
-            "price": 30.00,
+            "price": 30,
+            "insurancePrice": 20,
             "sampleType": "Urine",
             "resultFields": [
                 {
@@ -177,198 +1204,106 @@
                 }
             ],
             "defaultReferenceRanges": {
-                "pH": "4.5-8.0",
-                "Specific Gravity": "1.005-1.030",
-                "Protein": "Negative",
-                "Glucose": "Negative"
-            },
-            "instructions": "Collect midstream urine sample in sterile container."
-        },
-        {
-            "name": "COVID-19 Rapid Test",
-            "category": "Infectious Disease",
-            "description": "Rapid antigen test for COVID-19",
-            "price": 40.00,
-            "sampleType": "Nasal Swab",
-            "resultFields": [
-                {
-                    "name": "Result",
-                    "type": "text",
-                    "required": true
+                "pH": {
+                    "referenceRange": "4.5-8.0",
+                    "unit": ""
                 },
-                {
-                    "name": "Test Method",
-                    "type": "text",
-                    "required": false
+                "Specific Gravity": {
+                    "referenceRange": "1.005-1.030",
+                    "unit": ""
+                },
+                "Protein": {
+                    "referenceRange": "Negative",
+                    "unit": ""
+                },
+                "Glucose": {
+                    "referenceRange": "Negative",
+                    "unit": ""
                 }
-            ],
-            "defaultReferenceRanges": {
-                "Result": "Negative/Positive"
             },
-            "instructions": "Collect nasal swab sample. Test according to manufacturer instructions."
+            "instructions": "Collect midstream urine sample in sterile container.",
+            "isActive": true
         },
         {
-            "name": "Lipid Profile",
-            "category": "Biochemistry",
-            "description": "Complete lipid panel",
-            "price": 60.00,
+            "name": "8am Cortisol",
+            "category": "Endocrinology",
+            "description": "Adrenal function, Cushing and Addison screening",
+            "price": 130,
+            "insurancePrice": null,
             "sampleType": "Blood",
             "resultFields": [
                 {
-                    "name": "Total Cholesterol",
+                    "name": "Cortisol",
                     "type": "number",
                     "required": true
-                },
-                {
-                    "name": "LDL Cholesterol",
-                    "type": "number",
-                    "required": true
-                },
-                {
-                    "name": "HDL Cholesterol",
-                    "type": "number",
-                    "required": true
-                },
-                {
-                    "name": "Triglycerides",
-                    "type": "number",
-                    "required": true
-                },
-                {
-                    "name": "VLDL Cholesterol",
-                    "type": "number",
-                    "required": false
                 }
             ],
             "defaultReferenceRanges": {
-                "Total Cholesterol": "<200 mg/dL",
-                "LDL Cholesterol": "<130 mg/dL",
-                "HDL Cholesterol": ">40 mg/dL",
-                "Triglycerides": "<150 mg/dL"
+                "Cortisol": {
+                    "referenceRange": "6-23",
+                    "unit": "µg/dL"
+                }
             },
-            "instructions": "Patient must fast for 12 hours before sample collection."
+            "instructions": "Collect before 9 am; stress raises the result.",
+            "isActive": true
         },
         {
-            "name": "Liver Function Test (LFT)",
-            "category": "Biochemistry",
-            "description": "Complete liver function panel",
-            "price": 55.00,
+            "name": "Prostate Specific Antigen (PSA)",
+            "category": "Endocrinology",
+            "description": "Prostate cancer screening and monitoring",
+            "price": 110,
+            "insurancePrice": null,
             "sampleType": "Blood",
             "resultFields": [
                 {
-                    "name": "ALT",
+                    "name": "Total PSA",
                     "type": "number",
                     "required": true
                 },
                 {
-                    "name": "AST",
-                    "type": "number",
-                    "required": true
-                },
-                {
-                    "name": "ALP",
-                    "type": "number",
-                    "required": true
-                },
-                {
-                    "name": "GGT",
+                    "name": "Free PSA",
                     "type": "number",
                     "required": false
-                },
-                {
-                    "name": "Total Bilirubin",
-                    "type": "number",
-                    "required": true
-                },
-                {
-                    "name": "Direct Bilirubin",
-                    "type": "number",
-                    "required": false
-                },
-                {
-                    "name": "Albumin",
-                    "type": "number",
-                    "required": true
-                },
-                {
-                    "name": "Total Protein",
-                    "type": "number",
-                    "required": true
                 }
             ],
             "defaultReferenceRanges": {
-                "ALT": "10-40 U/L",
-                "AST": "10-34 U/L",
-                "ALP": "44-147 U/L",
-                "Total Bilirubin": "0.3-1.0 mg/dL",
-                "Albumin": "3.4-5.4 g/dL",
-                "Total Protein": "6.0-8.0 g/dL"
+                "Total PSA": {
+                    "referenceRange": "0-4",
+                    "unit": "ng/mL"
+                }
             },
-            "instructions": "Collect fasting sample. Avoid alcohol for 24 hours before test."
+            "instructions": "No ejaculation or prostate exam for 48 hours before testing.",
+            "isActive": true
         },
         {
-            "name": "Renal Function Test",
-            "category": "Biochemistry",
-            "description": "Kidney function panel",
-            "price": 50.00,
+            "name": "Serum Testosterone (Total)",
+            "category": "Endocrinology",
+            "description": "Hypogonadism and fertility evaluation",
+            "price": 120,
+            "insurancePrice": null,
             "sampleType": "Blood",
             "resultFields": [
                 {
-                    "name": "Creatinine",
-                    "type": "number",
-                    "required": true
-                },
-                {
-                    "name": "BUN",
-                    "type": "number",
-                    "required": true
-                },
-                {
-                    "name": "BUN/Creatinine Ratio",
-                    "type": "number",
-                    "required": false
-                },
-                {
-                    "name": "Uric Acid",
-                    "type": "number",
-                    "required": false
-                },
-                {
-                    "name": "Sodium",
-                    "type": "number",
-                    "required": true
-                },
-                {
-                    "name": "Potassium",
-                    "type": "number",
-                    "required": true
-                },
-                {
-                    "name": "Chloride",
-                    "type": "number",
-                    "required": true
-                },
-                {
-                    "name": "Bicarbonate",
+                    "name": "Total Testosterone",
                     "type": "number",
                     "required": true
                 }
             ],
             "defaultReferenceRanges": {
-                "Creatinine": "0.7-1.3 mg/dL",
-                "BUN": "7-20 mg/dL",
-                "Sodium": "136-145 mmol/L",
-                "Potassium": "3.5-5.0 mmol/L",
-                "Chloride": "96-106 mmol/L",
-                "Bicarbonate": "22-28 mmol/L"
+                "Total Testosterone": {
+                    "referenceRange": "300-1000",
+                    "unit": "ng/dL"
+                }
             },
-            "instructions": "Patient should be well hydrated before sample collection."
+            "instructions": "Morning sample between 7 and 10 am.",
+            "isActive": true
         },
         {
             "name": "Thyroid Function Test (TFT)",
             "category": "Endocrinology",
             "description": "Complete thyroid panel",
-            "price": 65.00,
+            "price": 65,
+            "insurancePrice": 45,
             "sampleType": "Blood",
             "resultFields": [
                 {
@@ -398,17 +1333,61 @@
                 }
             ],
             "defaultReferenceRanges": {
-                "TSH": "0.4-4.0 mIU/L",
-                "Free T3": "2.3-4.2 pg/mL",
-                "Free T4": "0.8-1.8 ng/dL"
+                "TSH": {
+                    "referenceRange": "0.4-4.0",
+                    "unit": "mIU/L"
+                },
+                "Free T3": {
+                    "referenceRange": "2.3-4.2",
+                    "unit": "pg/mL"
+                },
+                "Free T4": {
+                    "referenceRange": "0.8-1.8",
+                    "unit": "ng/dL"
+                }
             },
-            "instructions": "No special preparation required. Inform patient of any interfering medications."
+            "instructions": "No special preparation required. Inform patient of any interfering medications.",
+            "isActive": true
+        },
+        {
+            "name": "Pap Smear (Cervical Cytology)",
+            "category": "Reproductive Health",
+            "description": "Cervical cancer screening with Bethesda reporting",
+            "price": 120,
+            "insurancePrice": null,
+            "sampleType": "Swab",
+            "resultFields": [
+                {
+                    "name": "Adequacy",
+                    "type": "text",
+                    "required": true
+                },
+                {
+                    "name": "Bethesda Category",
+                    "type": "text",
+                    "required": true
+                },
+                {
+                    "name": "Findings",
+                    "type": "text",
+                    "required": false
+                }
+            ],
+            "defaultReferenceRanges": {
+                "Bethesda Category": {
+                    "referenceRange": "NILM",
+                    "unit": ""
+                }
+            },
+            "instructions": "Avoid intercourse, douching and vaginal medications for 48 hours; not during menstruation.",
+            "isActive": true
         },
         {
             "name": "Pregnancy Test",
             "category": "Reproductive Health",
             "description": "HCG pregnancy test",
-            "price": 20.00,
+            "price": 20,
+            "insurancePrice": 12,
             "sampleType": "Urine/Blood",
             "resultFields": [
                 {
@@ -423,9 +1402,1084 @@
                 }
             ],
             "defaultReferenceRanges": {
-                "Result": "Negative/Positive"
+                "Result": {
+                    "referenceRange": "Negative/Positive",
+                    "unit": ""
+                }
             },
-            "instructions": "Collect first morning urine sample for best results."
+            "instructions": "Collect first morning urine sample for best results.",
+            "isActive": true
+        },
+        {
+            "name": "Semen Analysis",
+            "category": "Reproductive Health",
+            "description": "Male fertility assessment",
+            "price": 90,
+            "insurancePrice": null,
+            "sampleType": "Semen",
+            "resultFields": [
+                {
+                    "name": "Volume",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "Count",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "Motility",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "Normal Morphology",
+                    "type": "number",
+                    "required": false
+                },
+                {
+                    "name": "pH",
+                    "type": "number",
+                    "required": false
+                },
+                {
+                    "name": "Agglutination",
+                    "type": "text",
+                    "required": false
+                }
+            ],
+            "defaultReferenceRanges": {
+                "Volume": {
+                    "referenceRange": "1.5-6.0",
+                    "unit": "mL"
+                },
+                "Count": {
+                    "referenceRange": "15-200",
+                    "unit": "million/mL"
+                },
+                "Motility": {
+                    "referenceRange": "40-100",
+                    "unit": "%"
+                },
+                "Normal Morphology": {
+                    "referenceRange": "4-100",
+                    "unit": "%"
+                },
+                "pH": {
+                    "referenceRange": "7.2-8.0",
+                    "unit": ""
+                }
+            },
+            "instructions": "2-5 days abstinence before collection; keep the sample warm and deliver within 1 hour.",
+            "isActive": true
+        },
+        {
+            "name": "Serum β-hCG Quantitative",
+            "category": "Reproductive Health",
+            "description": "Pregnancy dating, ectopic and tumour marker",
+            "price": 110,
+            "insurancePrice": null,
+            "sampleType": "Blood",
+            "resultFields": [
+                {
+                    "name": "β-hCG",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "Interpretation",
+                    "type": "text",
+                    "required": false
+                }
+            ],
+            "defaultReferenceRanges": {
+                "β-hCG": {
+                    "referenceRange": "0-5",
+                    "unit": "mIU/mL"
+                }
+            },
+            "instructions": "Repeat sampling 48 hours apart is used to assess viability.",
+            "isActive": true
+        },
+        {
+            "name": "Urine Pregnancy Test (β-hCG)",
+            "category": "Reproductive Health",
+            "description": "Qualitative urinary hCG",
+            "price": 25,
+            "insurancePrice": null,
+            "sampleType": "Urine",
+            "resultFields": [
+                {
+                    "name": "Result",
+                    "type": "text",
+                    "required": true
+                }
+            ],
+            "defaultReferenceRanges": {
+                "Result": {
+                    "referenceRange": "Negative",
+                    "unit": ""
+                }
+            },
+            "instructions": "First morning urine gives the most concentrated sample.",
+            "isActive": true
+        },
+        {
+            "name": "Blood Culture and Sensitivity",
+            "category": "Microbiology",
+            "description": "Septicaemia and fever of unknown origin work-up",
+            "price": 130,
+            "insurancePrice": null,
+            "sampleType": "Blood",
+            "resultFields": [
+                {
+                    "name": "Organism Isolated",
+                    "type": "text",
+                    "required": true
+                },
+                {
+                    "name": "Sensitivity Pattern",
+                    "type": "text",
+                    "required": false
+                }
+            ],
+            "defaultReferenceRanges": {},
+            "instructions": "Two sets from separate sites before antibiotics.",
+            "isActive": true
+        },
+        {
+            "name": "High Vaginal Swab (HVS) Culture",
+            "category": "Microbiology",
+            "description": "Vaginal and cervical infection screening",
+            "price": 85,
+            "insurancePrice": null,
+            "sampleType": "Swab",
+            "resultFields": [
+                {
+                    "name": "Organism Isolated",
+                    "type": "text",
+                    "required": true
+                },
+                {
+                    "name": "Sensitivity Pattern",
+                    "type": "text",
+                    "required": false
+                },
+                {
+                    "name": "Pus Cells",
+                    "type": "text",
+                    "required": false
+                }
+            ],
+            "defaultReferenceRanges": {},
+            "instructions": "No intercourse or vaginal products for 24 hours before sampling.",
+            "isActive": true
+        },
+        {
+            "name": "Stool Analysis (Microscopy and Parasites)",
+            "category": "Microbiology",
+            "description": "Ova, cysts, parasites and occult blood",
+            "price": 40,
+            "insurancePrice": null,
+            "sampleType": "Stool",
+            "resultFields": [
+                {
+                    "name": "Parasites",
+                    "type": "text",
+                    "required": true
+                },
+                {
+                    "name": "Ova/Cysts",
+                    "type": "text",
+                    "required": false
+                },
+                {
+                    "name": "Pus Cells",
+                    "type": "number",
+                    "required": false
+                },
+                {
+                    "name": "Occult Blood",
+                    "type": "text",
+                    "required": false
+                }
+            ],
+            "defaultReferenceRanges": {},
+            "instructions": "Fresh sample; avoid contamination with water or urine.",
+            "isActive": true
+        },
+        {
+            "name": "Stool Culture and Sensitivity",
+            "category": "Microbiology",
+            "description": "Bacterial causes of diarrhoea",
+            "price": 95,
+            "insurancePrice": null,
+            "sampleType": "Stool",
+            "resultFields": [
+                {
+                    "name": "Organism Isolated",
+                    "type": "text",
+                    "required": true
+                },
+                {
+                    "name": "Sensitivity Pattern",
+                    "type": "text",
+                    "required": false
+                }
+            ],
+            "defaultReferenceRanges": {},
+            "instructions": "Fresh sample in a clean container; deliver within 2 hours.",
+            "isActive": true
+        },
+        {
+            "name": "Urine Culture and Sensitivity",
+            "category": "Microbiology",
+            "description": "Isolate identification with antibiotic sensitivities",
+            "price": 90,
+            "insurancePrice": null,
+            "sampleType": "Urine",
+            "resultFields": [
+                {
+                    "name": "Organism Isolated",
+                    "type": "text",
+                    "required": true
+                },
+                {
+                    "name": "Colony Count",
+                    "type": "text",
+                    "required": false
+                },
+                {
+                    "name": "Sensitivity Pattern",
+                    "type": "text",
+                    "required": false
+                }
+            ],
+            "defaultReferenceRanges": {},
+            "instructions": "Mid-stream urine before any antibiotic dose; report within 48 hours.",
+            "isActive": true
+        },
+        {
+            "name": "Ambulatory Blood Pressure Monitoring (24h ABPM)",
+            "category": "Cardiology",
+            "description": "White-coat and masked hypertension, nocturnal dipping",
+            "price": 400,
+            "insurancePrice": 280,
+            "sampleType": null,
+            "resultFields": [
+                {
+                    "name": "24h Mean Systolic",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "24h Mean Diastolic",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "Nocturnal Dipping",
+                    "type": "number",
+                    "required": false
+                },
+                {
+                    "name": "Impression",
+                    "type": "text",
+                    "required": true
+                }
+            ],
+            "defaultReferenceRanges": {
+                "24h Mean Systolic": {
+                    "referenceRange": "0-125",
+                    "unit": "mmHg"
+                },
+                "24h Mean Diastolic": {
+                    "referenceRange": "0-75",
+                    "unit": "mmHg"
+                }
+            },
+            "instructions": "Keep the cuff still and lower the arm when the machine inflates; note activities in the diary.",
+            "isActive": true
+        },
+        {
+            "name": "Echocardiography (2D with Doppler)",
+            "category": "Cardiology",
+            "description": "Cardiac structure, valve function and ejection fraction",
+            "price": 450,
+            "insurancePrice": 320,
+            "sampleType": null,
+            "resultFields": [
+                {
+                    "name": "Ejection Fraction",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "Valve Findings",
+                    "type": "text",
+                    "required": false
+                },
+                {
+                    "name": "LV Dimension",
+                    "type": "number",
+                    "required": false
+                },
+                {
+                    "name": "Pericardium",
+                    "type": "text",
+                    "required": false
+                },
+                {
+                    "name": "Impression",
+                    "type": "text",
+                    "required": true
+                }
+            ],
+            "defaultReferenceRanges": {
+                "Ejection Fraction": {
+                    "referenceRange": "55-70",
+                    "unit": "%"
+                }
+            },
+            "instructions": "No fasting; bring blood pressure readings and any previous ECG.",
+            "isActive": true
+        },
+        {
+            "name": "Electrocardiogram (ECG - Resting 12-Lead)",
+            "category": "Cardiology",
+            "description": "Heart rhythm, ischaemia and conduction defects",
+            "price": 70,
+            "insurancePrice": 45,
+            "sampleType": null,
+            "resultFields": [
+                {
+                    "name": "Heart Rate",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "Rhythm",
+                    "type": "text",
+                    "required": true
+                },
+                {
+                    "name": "Axis",
+                    "type": "text",
+                    "required": false
+                },
+                {
+                    "name": "Findings",
+                    "type": "text",
+                    "required": true
+                },
+                {
+                    "name": "Impression",
+                    "type": "text",
+                    "required": true
+                }
+            ],
+            "defaultReferenceRanges": {
+                "Heart Rate": {
+                    "referenceRange": "60-100",
+                    "unit": "bpm"
+                },
+                "Rhythm": {
+                    "referenceRange": "Sinus rhythm",
+                    "unit": ""
+                }
+            },
+            "instructions": "Avoid caffeine and heavy exercise beforehand; lie still and breathe normally.",
+            "isActive": true
+        },
+        {
+            "name": "Treadmill Exercise Stress Test (ETT)",
+            "category": "Cardiology",
+            "description": "Exertional ischaemia and exercise capacity",
+            "price": 500,
+            "insurancePrice": 350,
+            "sampleType": null,
+            "resultFields": [
+                {
+                    "name": "Maximum Heart Rate",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "METs Achieved",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "ST Changes",
+                    "type": "text",
+                    "required": false
+                },
+                {
+                    "name": "Blood Pressure Response",
+                    "type": "text",
+                    "required": false
+                },
+                {
+                    "name": "Impression",
+                    "type": "text",
+                    "required": true
+                }
+            ],
+            "defaultReferenceRanges": {},
+            "instructions": "No caffeine or heavy meal for 3 hours; wear walking shoes and comfortable clothing.",
+            "isActive": true
+        },
+        {
+            "name": "Ultrasound - Abdomen and Pelvis",
+            "category": "Imaging",
+            "description": "Liver, gall bladder, pancreas, spleen, kidneys and pelvic organs",
+            "price": 180,
+            "insurancePrice": 120,
+            "sampleType": null,
+            "resultFields": [
+                {
+                    "name": "Findings",
+                    "type": "text",
+                    "required": true
+                },
+                {
+                    "name": "Impression",
+                    "type": "text",
+                    "required": true
+                },
+                {
+                    "name": "Measurements",
+                    "type": "text",
+                    "required": false
+                }
+            ],
+            "defaultReferenceRanges": {},
+            "instructions": "Fast for 8 hours; drink water and do not empty the bladder for the pelvic view.",
+            "isActive": true
+        },
+        {
+            "name": "Ultrasound - Breast",
+            "category": "Imaging",
+            "description": "Breast lump evaluation, often with mammography",
+            "price": 190,
+            "insurancePrice": 130,
+            "sampleType": null,
+            "resultFields": [
+                {
+                    "name": "Findings",
+                    "type": "text",
+                    "required": true
+                },
+                {
+                    "name": "BI-RADS Category",
+                    "type": "text",
+                    "required": false
+                },
+                {
+                    "name": "Impression",
+                    "type": "text",
+                    "required": true
+                }
+            ],
+            "defaultReferenceRanges": {},
+            "instructions": "No lotion or deodorant on the chest wall on the day of the scan.",
+            "isActive": true
+        },
+        {
+            "name": "Ultrasound - Kidney, Ureter and Bladder (KUB)",
+            "category": "Imaging",
+            "description": "Urinary tract stones, obstruction and prostate size",
+            "price": 150,
+            "insurancePrice": 100,
+            "sampleType": null,
+            "resultFields": [
+                {
+                    "name": "Findings",
+                    "type": "text",
+                    "required": true
+                },
+                {
+                    "name": "Post-Void Residual",
+                    "type": "number",
+                    "required": false
+                },
+                {
+                    "name": "Impression",
+                    "type": "text",
+                    "required": true
+                }
+            ],
+            "defaultReferenceRanges": {
+                "Post-Void Residual": {
+                    "referenceRange": "0-50",
+                    "unit": "mL"
+                }
+            },
+            "instructions": "Full bladder required; do not urinate before the scan.",
+            "isActive": true
+        },
+        {
+            "name": "Ultrasound - Obstetric (Dating and Anomaly)",
+            "category": "Imaging",
+            "description": "Fetal viability, dating, growth and anatomy survey",
+            "price": 200,
+            "insurancePrice": 140,
+            "sampleType": null,
+            "resultFields": [
+                {
+                    "name": "Gestational Age",
+                    "type": "text",
+                    "required": true
+                },
+                {
+                    "name": "Fetal Heart Rate",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "Presentation",
+                    "type": "text",
+                    "required": false
+                },
+                {
+                    "name": "Estimated Fetal Weight",
+                    "type": "number",
+                    "required": false
+                },
+                {
+                    "name": "Amniotic Fluid",
+                    "type": "text",
+                    "required": false
+                },
+                {
+                    "name": "Placenta",
+                    "type": "text",
+                    "required": false
+                },
+                {
+                    "name": "Impression",
+                    "type": "text",
+                    "required": true
+                }
+            ],
+            "defaultReferenceRanges": {
+                "Fetal Heart Rate": {
+                    "referenceRange": "110-160",
+                    "unit": "bpm"
+                },
+                "Amniotic Fluid": {
+                    "referenceRange": "5-24",
+                    "unit": "cm"
+                }
+            },
+            "instructions": "Bring the antenatal card; a full bladder is needed before 20 weeks.",
+            "isActive": true
+        },
+        {
+            "name": "Ultrasound - Thyroid and Neck",
+            "category": "Imaging",
+            "description": "Thyroid, parathyroid and cervical lymph nodes",
+            "price": 170,
+            "insurancePrice": 120,
+            "sampleType": null,
+            "resultFields": [
+                {
+                    "name": "Findings",
+                    "type": "text",
+                    "required": true
+                },
+                {
+                    "name": "Nodule Size",
+                    "type": "number",
+                    "required": false
+                },
+                {
+                    "name": "TI-RADS Category",
+                    "type": "text",
+                    "required": false
+                },
+                {
+                    "name": "Impression",
+                    "type": "text",
+                    "required": true
+                }
+            ],
+            "defaultReferenceRanges": {},
+            "instructions": "No preparation needed; bring previous reports or biopsies.",
+            "isActive": true
+        },
+        {
+            "name": "Ultrasound - Transvaginal",
+            "category": "Imaging",
+            "description": "Uterus, endometrium and ovaries",
+            "price": 220,
+            "insurancePrice": 150,
+            "sampleType": null,
+            "resultFields": [
+                {
+                    "name": "Findings",
+                    "type": "text",
+                    "required": true
+                },
+                {
+                    "name": "Impression",
+                    "type": "text",
+                    "required": true
+                },
+                {
+                    "name": "Endometrial Thickness",
+                    "type": "number",
+                    "required": false
+                }
+            ],
+            "defaultReferenceRanges": {
+                "Endometrial Thickness": {
+                    "referenceRange": "1-16",
+                    "unit": "mm"
+                }
+            },
+            "instructions": "Empty the bladder before the scan. Cycle day noted for fertility scans.",
+            "isActive": true
+        },
+        {
+            "name": "Bone Mineral Densitometry (DEXA Scan)",
+            "category": "Radiology",
+            "description": "Osteoporosis screening with hip and spine T-scores",
+            "price": 600,
+            "insurancePrice": 420,
+            "sampleType": null,
+            "resultFields": [
+                {
+                    "name": "Lumbar T-Score",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "Femoral T-Score",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "Bone Mineral Density",
+                    "type": "number",
+                    "required": false
+                },
+                {
+                    "name": "Impression",
+                    "type": "text",
+                    "required": true
+                }
+            ],
+            "defaultReferenceRanges": {
+                "Lumbar T-Score": {
+                    "referenceRange": "-1.0-2.5",
+                    "unit": ""
+                },
+                "Femoral T-Score": {
+                    "referenceRange": "-1.0-2.5",
+                    "unit": ""
+                }
+            },
+            "instructions": "Avoid calcium supplements for 24 hours and wear clothing without metal.",
+            "isActive": true
+        },
+        {
+            "name": "CT Scan - Chest, Abdomen and Pelvis (Contrast)",
+            "category": "Radiology",
+            "description": "Staging, masses and complex abdominal disease",
+            "price": 1400,
+            "insurancePrice": 1000,
+            "sampleType": null,
+            "resultFields": [
+                {
+                    "name": "Findings",
+                    "type": "text",
+                    "required": true
+                },
+                {
+                    "name": "Impression",
+                    "type": "text",
+                    "required": true
+                },
+                {
+                    "name": "Contrast Reaction",
+                    "type": "text",
+                    "required": false
+                }
+            ],
+            "defaultReferenceRanges": {},
+            "instructions": "Fast 4 hours before; bring recent creatinine result and report iodine allergies.",
+            "isActive": true
+        },
+        {
+            "name": "CT Scan - Head (Non-Contrast)",
+            "category": "Radiology",
+            "description": "Stroke, head injury and intracranial bleeding",
+            "price": 900,
+            "insurancePrice": 650,
+            "sampleType": null,
+            "resultFields": [
+                {
+                    "name": "Findings",
+                    "type": "text",
+                    "required": true
+                },
+                {
+                    "name": "Impression",
+                    "type": "text",
+                    "required": true
+                },
+                {
+                    "name": "Contrast Used",
+                    "type": "text",
+                    "required": false
+                }
+            ],
+            "defaultReferenceRanges": {},
+            "instructions": "Remove metal objects. Renal function needed before contrast studies.",
+            "isActive": true
+        },
+        {
+            "name": "Mammography (Bilateral)",
+            "category": "Radiology",
+            "description": "Breast cancer screening with BI-RADS reporting",
+            "price": 350,
+            "insurancePrice": 250,
+            "sampleType": null,
+            "resultFields": [
+                {
+                    "name": "Findings",
+                    "type": "text",
+                    "required": true
+                },
+                {
+                    "name": "BI-RADS Category",
+                    "type": "text",
+                    "required": true
+                },
+                {
+                    "name": "Impression",
+                    "type": "text",
+                    "required": true
+                }
+            ],
+            "defaultReferenceRanges": {},
+            "instructions": "Best performed 7-14 days after the start of the last period; no deodorant or powder.",
+            "isActive": true
+        },
+        {
+            "name": "MRI - Brain",
+            "category": "Radiology",
+            "description": "Demyelination, tumours, epilepsy and stroke work-up",
+            "price": 1800,
+            "insurancePrice": 1300,
+            "sampleType": null,
+            "resultFields": [
+                {
+                    "name": "Findings",
+                    "type": "text",
+                    "required": true
+                },
+                {
+                    "name": "Impression",
+                    "type": "text",
+                    "required": true
+                },
+                {
+                    "name": "Sequences Used",
+                    "type": "text",
+                    "required": false
+                }
+            ],
+            "defaultReferenceRanges": {},
+            "instructions": "Metal implants, pacemakers and cochlear devices must be declared before scanning.",
+            "isActive": true
+        },
+        {
+            "name": "MRI - Lumbar Spine",
+            "category": "Radiology",
+            "description": "Disc herniation, cord and nerve root compression",
+            "price": 1900,
+            "insurancePrice": 1400,
+            "sampleType": null,
+            "resultFields": [
+                {
+                    "name": "Findings",
+                    "type": "text",
+                    "required": true
+                },
+                {
+                    "name": "Impression",
+                    "type": "text",
+                    "required": true
+                }
+            ],
+            "defaultReferenceRanges": {},
+            "instructions": "Declare any metal implant or aneurysm clip; remove all metal items.",
+            "isActive": true
+        },
+        {
+            "name": "X-Ray - Abdomen (Erect and Supine)",
+            "category": "Radiology",
+            "description": "Bowel obstruction, free air and urinary calculi",
+            "price": 100,
+            "insurancePrice": 70,
+            "sampleType": null,
+            "resultFields": [
+                {
+                    "name": "Findings",
+                    "type": "text",
+                    "required": true
+                },
+                {
+                    "name": "Impression",
+                    "type": "text",
+                    "required": true
+                }
+            ],
+            "defaultReferenceRanges": {},
+            "instructions": "Inform the staff if pregnant or possibly pregnant.",
+            "isActive": true
+        },
+        {
+            "name": "X-Ray - Chest (PA View)",
+            "category": "Radiology",
+            "description": "Lungs, heart size, mediastinum and ribs",
+            "price": 90,
+            "insurancePrice": 60,
+            "sampleType": null,
+            "resultFields": [
+                {
+                    "name": "Findings",
+                    "type": "text",
+                    "required": true
+                },
+                {
+                    "name": "Impression",
+                    "type": "text",
+                    "required": true
+                },
+                {
+                    "name": "Cardiothoracic Ratio",
+                    "type": "text",
+                    "required": false
+                }
+            ],
+            "defaultReferenceRanges": {
+                "Cardiothoracic Ratio": {
+                    "referenceRange": "0-0.5",
+                    "unit": ""
+                }
+            },
+            "instructions": "Remove necklaces and metal clothing; inform the staff if pregnant.",
+            "isActive": true
+        },
+        {
+            "name": "X-Ray - Extremity (Hand, Wrist, Foot or Ankle)",
+            "category": "Radiology",
+            "description": "Fracture, dislocation and joint assessment",
+            "price": 95,
+            "insurancePrice": 65,
+            "sampleType": null,
+            "resultFields": [
+                {
+                    "name": "Bone / Joint",
+                    "type": "text",
+                    "required": true
+                },
+                {
+                    "name": "Findings",
+                    "type": "text",
+                    "required": true
+                },
+                {
+                    "name": "Impression",
+                    "type": "text",
+                    "required": true
+                }
+            ],
+            "defaultReferenceRanges": {},
+            "instructions": "Jewellery and dressings removed from the part being imaged.",
+            "isActive": true
+        },
+        {
+            "name": "X-Ray - Lumbar Spine",
+            "category": "Radiology",
+            "description": "Back pain, disc space and vertebody alignment",
+            "price": 120,
+            "insurancePrice": 80,
+            "sampleType": null,
+            "resultFields": [
+                {
+                    "name": "Findings",
+                    "type": "text",
+                    "required": true
+                },
+                {
+                    "name": "Impression",
+                    "type": "text",
+                    "required": true
+                }
+            ],
+            "defaultReferenceRanges": {},
+            "instructions": "Two views (AP and lateral); metal clothing removed.",
+            "isActive": true
+        },
+        {
+            "name": "Electroencephalogram (EEG)",
+            "category": "Neurophysiology",
+            "description": "Seizure disorders and encephalopathy",
+            "price": 450,
+            "insurancePrice": 320,
+            "sampleType": null,
+            "resultFields": [
+                {
+                    "name": "Background Activity",
+                    "type": "text",
+                    "required": true
+                },
+                {
+                    "name": "Epileptiform Activity",
+                    "type": "text",
+                    "required": false
+                },
+                {
+                    "name": "Impression",
+                    "type": "text",
+                    "required": true
+                }
+            ],
+            "defaultReferenceRanges": {},
+            "instructions": "Clean, dry hair with no oil or extensions; sleep-deprived study if requested.",
+            "isActive": true
+        },
+        {
+            "name": "Nerve Conduction Velocity and EMG (NCV/EMG)",
+            "category": "Neurophysiology",
+            "description": "Neuropathy, carpal tunnel and radiculopathy",
+            "price": 550,
+            "insurancePrice": 400,
+            "sampleType": null,
+            "resultFields": [
+                {
+                    "name": "Motor NCV",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "Sensory NCV",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "F-Wave Latency",
+                    "type": "text",
+                    "required": false
+                },
+                {
+                    "name": "Needle EMG Findings",
+                    "type": "text",
+                    "required": false
+                },
+                {
+                    "name": "Impression",
+                    "type": "text",
+                    "required": true
+                }
+            ],
+            "defaultReferenceRanges": {
+                "Motor NCV": {
+                    "referenceRange": "50-70",
+                    "unit": "m/s"
+                },
+                "Sensory NCV": {
+                    "referenceRange": "45-70",
+                    "unit": "m/s"
+                }
+            },
+            "instructions": "No lotion on the limbs; inform the staff of blood thinners before needle EMG.",
+            "isActive": true
+        },
+        {
+            "name": "Spirometry (Pulmonary Function Test)",
+            "category": "Neurophysiology",
+            "description": "Asthma and COPD obstruction/restriction testing",
+            "price": 250,
+            "insurancePrice": 180,
+            "sampleType": null,
+            "resultFields": [
+                {
+                    "name": "FEV1",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "FVC",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "FEV1/FVC Ratio",
+                    "type": "number",
+                    "required": true
+                },
+                {
+                    "name": "Peak Expiratory Flow",
+                    "type": "number",
+                    "required": false
+                },
+                {
+                    "name": "Impression",
+                    "type": "text",
+                    "required": true
+                }
+            ],
+            "defaultReferenceRanges": {
+                "FEV1/FVC Ratio": {
+                    "referenceRange": "70-100",
+                    "unit": "%"
+                },
+                "Peak Expiratory Flow": {
+                    "referenceRange": "300-700",
+                    "unit": "L/min"
+                }
+            },
+            "instructions": "No smoking or vigorous exercise for an hour; bring inhalers to the appointment.",
+            "isActive": true
+        },
+        {
+            "name": "Histopathology (Biopsy Report)",
+            "category": "Histopathology",
+            "description": "Microscopic examination of excised tissue",
+            "price": 350,
+            "insurancePrice": 250,
+            "sampleType": "Tissue",
+            "resultFields": [
+                {
+                    "name": "Specimen Site",
+                    "type": "text",
+                    "required": true
+                },
+                {
+                    "name": "Microscopic Description",
+                    "type": "text",
+                    "required": true
+                },
+                {
+                    "name": "Diagnosis",
+                    "type": "text",
+                    "required": true
+                },
+                {
+                    "name": "Grading / Staging",
+                    "type": "text",
+                    "required": false
+                }
+            ],
+            "defaultReferenceRanges": {},
+            "instructions": "Biopsy must be placed in 10% formalin immediately and labelled with the site.",
+            "isActive": true
         }
     ]
 }

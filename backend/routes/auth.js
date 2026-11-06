@@ -5,6 +5,9 @@ const { auth } = require('../middleware/auth');
 const { rateLimit } = require('../middleware/rateLimit');
 
 const router = express.Router();
+const { numericIdParams } = require('../utils/numericIdParams');
+
+numericIdParams(router);
 
 // Strict limiter for login: 10 attempts per 15 min per IP to slow brute force.
 const loginLimiter = rateLimit({
@@ -28,6 +31,11 @@ router.post('/login', loginLimiter, async (req, res) => {
 
     const valid = await user.comparePassword(password);
     if (!valid) return res.status(400).json({ msg: 'Invalid credentials' });
+
+    // A blocked account must not obtain a token at all, even for read-only access.
+    if (user.status !== 'active') {
+      return res.status(403).json({ msg: 'Account is blocked. Contact an administrator.' });
+    }
 
     const token = jwt.sign(
       { userId: user.id, role: user.role, email: user.email },

@@ -54,6 +54,31 @@ const LabTransaction = sequelize.define('LabTransaction', {
         type: DataTypes.STRING,
         allowNull: true
     },
+    // Insurer share, derived server-side from the provider record — never taken
+    // from the request body. copayAmount is NULL when the patient is not insured,
+    // which is what the pay route bills instead of totalAmount.
+    insuranceProviderId: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        references: { model: 'insurance_providers', key: 'id' }
+    },
+    insuranceProviderName: {
+        type: DataTypes.STRING,
+        allowNull: true
+    },
+    policyNumber: {
+        type: DataTypes.STRING,
+        allowNull: true
+    },
+    insuranceCoverage: {
+        type: DataTypes.DECIMAL(10, 2),
+        allowNull: false,
+        defaultValue: 0
+    },
+    copayAmount: {
+        type: DataTypes.DECIMAL(10, 2),
+        allowNull: true
+    },
     paymentStatus: {
         type: DataTypes.ENUM('pending', 'paid', 'partial', 'refunded'),
         allowNull: false,

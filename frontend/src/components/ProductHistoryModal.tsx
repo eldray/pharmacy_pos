@@ -1,10 +1,11 @@
 // src/components/ProductHistoryModal.tsx
-import React, { useMemo, useState } from 'react';
-import { X, History, Clock, DollarSign, Receipt, User, ShoppingCart, Calendar, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { X, History, Clock, DollarSign, Receipt, Eye, User, ShoppingCart, Calendar, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
 import { useAppStore } from '../store';
 import { Product } from '../types';
 import { Card } from './ui/Card';
-import { ReceiptModal } from './ReceiptModal';
+import { DocumentDetailsModal } from './DocumentDetailsModal';
+import { safeNumber } from '../utils/number';
 
 interface ProductHistoryModalProps {
     product: Product;
@@ -17,7 +18,17 @@ export const ProductHistoryModal: React.FC<ProductHistoryModalProps> = ({
 }) => {
     const { transactions } = useAppStore();
     const [selectedTransaction, setSelectedTransaction] = useState<any>(null);
-    const [showReceipt, setShowReceipt] = useState(false);
+    const [showDetails, setShowDetails] = useState(false);
+
+    // Every other dialog in the app closes on Escape; this one hand-rolls its
+    // shell, so it has to opt in to the same behaviour.
+    useEffect(() => {
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape' && !showDetails) onClose();
+        };
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown);
+    }, [onClose, showDetails]);
 
     // Get all transactions related to this product
     const productTransactions = useMemo(() => {
@@ -77,11 +88,6 @@ export const ProductHistoryModal: React.FC<ProductHistoryModalProps> = ({
         }
     };
 
-    const safeNumber = (value: any): number => {
-        const num = Number(value);
-        return isNaN(num) ? 0 : num;
-    };
-
     const getStatusBadge = (status: string) => {
         const config: Record<string, { cls: string; label: string }> = {
             completed: { cls: 'badge-success', label: 'Completed' },
@@ -94,16 +100,9 @@ export const ProductHistoryModal: React.FC<ProductHistoryModalProps> = ({
         return <span className={`badge ${cls} text-sm px-3 py-1.5`}>{label}</span>;
     };
 
-    const handleViewReceipt = (tx: any) => {
-        // Build receipt transaction object
-        const receiptTransaction = {
-            ...tx,
-            items: tx.items || [],
-            customerName: tx.customerName,
-            customerPhone: tx.customerPhone,
-        };
-        setSelectedTransaction(receiptTransaction);
-        setShowReceipt(true);
+    const handleViewTransaction = (tx: any) => {
+        setSelectedTransaction(tx);
+        setShowDetails(true);
     };
 
     return (
@@ -118,6 +117,9 @@ export const ProductHistoryModal: React.FC<ProductHistoryModalProps> = ({
             >
                 <div
                     className="rounded-[12px] overflow-hidden"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label="Product history"
                     style={{
                         background: 'var(--color-bg-elevated)',
                         border: '1px solid var(--color-border)',
@@ -162,6 +164,7 @@ export const ProductHistoryModal: React.FC<ProductHistoryModalProps> = ({
                         </div>
                         <button
                             onClick={onClose}
+                            aria-label="Close dialog"
                             className="flex items-center justify-center flex-shrink-0 transition-colors duration-100 cursor-pointer"
                             style={{
                                 width: 32,
@@ -292,7 +295,7 @@ export const ProductHistoryModal: React.FC<ProductHistoryModalProps> = ({
                                                     </td>
                                                     <td className="px-4 py-3 text-center">
                                                         <button
-                                                            onClick={() => handleViewReceipt(tx)}
+                                                            onClick={() => handleViewTransaction(tx)}
                                                             className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg transition-colors"
                                                             style={{
                                                                 background: 'var(--color-accent)',
@@ -307,8 +310,8 @@ export const ProductHistoryModal: React.FC<ProductHistoryModalProps> = ({
                                                                 (e.currentTarget as HTMLElement).style.background = 'var(--color-accent)';
                                                             }}
                                                         >
-                                                            <Receipt className="h-4 w-4" />
-                                                            View Receipt
+                                                            <Eye className="h-4 w-4" />
+                                                            View
                                                         </button>
                                                     </td>
                                                 </tr>
@@ -343,17 +346,14 @@ export const ProductHistoryModal: React.FC<ProductHistoryModalProps> = ({
                 </div>
             </div>
 
-            {/* Receipt Modal */}
-            {showReceipt && selectedTransaction && (
-                <ReceiptModal
-                    transaction={selectedTransaction}
-                    customerName={selectedTransaction.customerName}
-                    customerPhone={selectedTransaction.customerPhone}
+            {/* Transaction details */}
+            {showDetails && selectedTransaction && (
+                <DocumentDetailsModal
+                    doc={selectedTransaction}
                     onClose={() => {
-                        setShowReceipt(false);
+                        setShowDetails(false);
                         setSelectedTransaction(null);
                     }}
-                    onPrint={() => window.print()}
                 />
             )}
         </>

@@ -5,6 +5,9 @@ const { auth, adminAuth } = require('../middleware/auth');
 const { recordAudit } = require('../utils/audit');
 
 const router = express.Router();
+const { numericIdParams } = require('../utils/numericIdParams');
+
+numericIdParams(router);
 
 /**
  * Tables to export. Order matters for restore (parents before children)
@@ -44,6 +47,21 @@ const TABLES = [
     // Audit
     'audit_logs',
 ];
+
+/**
+ * Real column names for a table, from the catalogue rather than from the
+ * request. Restore interpolates identifiers into SQL, so anything not in this
+ * set is dropped — that is what makes a crafted key like `x"); DROP ...` inert.
+ */
+async function columnsOf(table, transaction) {
+    const rows = await sequelize.query(
+        `SELECT column_name FROM information_schema.columns
+          WHERE table_name = ?
+            AND table_schema = current_schema()`,
+        { replacements: [table], type: sequelize.QueryTypes.SELECT, transaction }
+    );
+    return new Set(rows.map((r) => r.column_name));
+}
 
 // GET /api/backup/export  → JSON download
 router.get('/export', auth, adminAuth, async (req, res) => {
@@ -109,6 +127,11 @@ router.post('/restore', auth, adminAuth, async (req, res) => {
         const qi = sequelize.getQueryInterface();
         const existingTables = await qi.showAllTables();
         const existingSet = new Set(existingTables.map((t) => (typeof t === 'string' ? t : t.tableName)));
+        // Identifier allow-list, resolved once per restore.
+        const allowedColumns = new Map();
+        for (const table of TABLES) {
+            if (existingSet.has(table)) allowedColumns.set(table, await columnsOf(table, t));
+        }
 
         // Disable FK checks while we swap data.
         await sequelize.query('SET session_replication_role = replica;', { transaction: t });
@@ -125,9 +148,14 @@ router.post('/restore', auth, adminAuth, async (req, res) => {
             const rows = tables[table];
             if (!Array.isArray(rows) || rows.length === 0) continue;
 
-            // Build a parameterised bulk insert. Column list from the first row's keys.
-            const columns = Object.keys(rows[0]);
-            if (columns.length === 0) continue;
+            // Build a parameterised bulk insert. Column list is intersected with
+            // the real schema — unknown/injected keys are ignored.
+            const known = allowedColumns.get(table) || new Set();
+            const columns = Object.keys(rows[0]).filter((c) => known.has(c));
+            if (columns.length === 0) {
+                console.warn(`Backup restore: no usable columns for ${table}, skipped`);
+                continue;
+            }
             const columnList = columns.map((c) => `"${c}"`).join(', ');
             const placeholders = columns.map(() => '?').join(', ');
 
@@ -175,7 +203,7 @@ router.post('/restore', auth, adminAuth, async (req, res) => {
     } catch (err) {
         await t.rollback();
         console.error('Backup restore error:', err);
-        res.status(500).json({ success: false, message: err.message || 'Restore failed' });
+        res.status(500).json({ success: false, message: 'Restore failed' });
     }
 });
 

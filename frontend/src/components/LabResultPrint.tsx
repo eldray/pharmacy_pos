@@ -39,13 +39,17 @@ const fmt = (d: string) => {
   } catch { return 'Invalid Date'; }
 };
 
-/* ─── Shared print styles ────────────────────────────────────────────────── */
+/* ─── Shared print styles ──────────────────────────────────────────────────
+   Width is in mm, not px: the printable box of an A4 sheet with the engine's
+   12mm margin is 186mm, so the report fills the paper instead of printing as a
+   narrow column of whatever the modal happened to be. */
 const BASE: React.CSSProperties = {
   fontFamily: "'Segoe UI', Arial, sans-serif",
   fontSize:   11,
   lineHeight: 1.5,
   color:      '#1E293B',
-  maxWidth:   680,
+  width:      '100%',
+  maxWidth:   '186mm',
   margin:     '0 auto',
   background: '#FFFFFF',
 };
@@ -92,17 +96,24 @@ const LabResultPrint: React.FC<LabResultPrintProps> = ({ transaction }) => {
   const { company } = useAppStore();
 
   // ─── Get real data from the transaction ──────────────────────────────
-  const completedTests =
-    transaction?.labTests?.filter((t: any) => t.status === 'completed') ?? [];
+  const allTests = transaction?.labTests ?? [];
+  const completedTests = allTests.filter((t: any) => t.status === 'completed');
+
+  // A test goes on the report as soon as it has values, even if its status never
+  // reached "completed". Filtering on status alone printed a blank report for a
+  // result that had been entered but not signed off.
+  const reportedTests = allTests.filter(
+    (t: any) => t.status === 'completed' || Object.keys(t.results || {}).length > 0,
+  );
 
   // ─── Calculate real stats from the data ──────────────────────────────
-  const totalTests = transaction?.labTests?.length || 0;
+  const totalTests = allTests.length;
   const completedCount = completedTests.length;
   const pendingCount = totalTests - completedCount;
-  
+
   // Count abnormal results
   let abnormalCount = 0;
-  completedTests.forEach((test: any) => {
+  reportedTests.forEach((test: any) => {
     if (test.referenceRanges) {
       Object.values(test.referenceRanges).forEach((r: any) => {
         if (r.flag && r.flag !== 'normal') abnormalCount++;
@@ -119,7 +130,7 @@ const LabResultPrint: React.FC<LabResultPrintProps> = ({ transaction }) => {
     );
   }
 
-  if (completedTests.length === 0) {
+  if (reportedTests.length === 0) {
     return (
       <div style={{ ...BASE, padding: 40 }}>
         <Header company={company} completedCount={0} pendingCount={pendingCount} />
@@ -148,7 +159,7 @@ const LabResultPrint: React.FC<LabResultPrintProps> = ({ transaction }) => {
   const hasAbnormal = abnormalCount > 0;
 
   return (
-    <div id="lab-result-print" style={{ ...BASE, padding: '32px 40px' }}>
+    <div id="lab-result-print" style={BASE}>
 
       {/* ── HEADER ──────────────────────────────────────────────────── */}
       <Header 
@@ -208,10 +219,10 @@ const LabResultPrint: React.FC<LabResultPrintProps> = ({ transaction }) => {
 
       {/* ── TEST RESULTS ─────────────────────────────────────────────── */}
       <SectionHeading icon="🔬">
-        Laboratory Results — {completedTests.length} Test{completedTests.length > 1 ? 's' : ''} Completed
+        Laboratory Results — {reportedTests.length} Test{reportedTests.length > 1 ? 's' : ''} Reported
       </SectionHeading>
 
-      {completedTests.map((test: any, index: number) => {
+      {reportedTests.map((test: any, index: number) => {
         const hasResults  = test.results && Object.keys(test.results).length > 0;
         const resultCount = hasResults ? Object.keys(test.results).length : 0;
         const testAbnormalCount = hasResults
@@ -221,7 +232,7 @@ const LabResultPrint: React.FC<LabResultPrintProps> = ({ transaction }) => {
           : 0;
 
         return (
-          <div key={test.id || index} style={{ marginBottom: 20 }}>
+          <div key={test.id || index} style={{ marginBottom: 20, breakInside: 'avoid', pageBreakInside: 'avoid' as any }}>
 
             {/* Test banner */}
             <div style={{
@@ -269,10 +280,14 @@ const LabResultPrint: React.FC<LabResultPrintProps> = ({ transaction }) => {
                 )}
                 <span style={{
                   fontSize: 9, fontWeight: 700, padding: '2px 8px',
-                  background: '#DCFCE7', color: '#166534',
-                  border: '1px solid #86EFAC', borderRadius: 99,
+                  background: test.status === 'completed' ? '#DCFCE7' : '#FEF3C7',
+                  color: test.status === 'completed' ? '#166534' : '#92400E',
+                  border: `1px solid ${test.status === 'completed' ? '#86EFAC' : '#FCD34D'}`,
+                  borderRadius: 99,
                 }}>
-                  ✓ COMPLETED
+                  {test.status === 'completed'
+                    ? '✓ COMPLETED'
+                    : `⏳ ${String(test.status || 'PENDING').toUpperCase()}`}
                 </span>
               </div>
             </div>
@@ -325,6 +340,11 @@ const LabResultPrint: React.FC<LabResultPrintProps> = ({ transaction }) => {
                           fontWeight: abnormal ? 700 : 500,
                           color:      abnormal ? fs.color : '#0F172A',
                           fontSize:   abnormal ? 11 : 10,
+                          // Free-text findings ("Liver, spleen, kidneys…") are the
+                          // result for that parameter, so they must wrap and stay
+                          // readable rather than being clipped to one line.
+                          whiteSpace: 'pre-wrap',
+                          wordBreak:  'break-word',
                         }}>
                           {String(value ?? 'N/A')}
                         </td>
@@ -417,7 +437,7 @@ const LabResultPrint: React.FC<LabResultPrintProps> = ({ transaction }) => {
             )}
 
             {/* Test divider */}
-            {index < completedTests.length - 1 && (
+            {index < reportedTests.length - 1 && (
               <Divider dashed />
             )}
           </div>

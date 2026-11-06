@@ -4,6 +4,9 @@ const { auth, adminAuth } = require('../middleware/auth');
 const { recordAudit } = require('../utils/audit');
 
 const router = express.Router();
+const { numericIdParams } = require('../utils/numericIdParams');
+
+numericIdParams(router);
 
 router.get('/', auth, async (req, res) => {
   try {
@@ -18,12 +21,11 @@ router.get('/', auth, async (req, res) => {
 router.put('/', auth, adminAuth, async (req, res) => {
   try {
     const updates = Company.flattenInput(req.body);
-    let company = await Company.findOne();
-    if (!company) {
-      company = await Company.create(updates);
-    } else {
-      await company.update(updates);
-    }
+    // getCompany() is the single place that decides which row is "the" company.
+    // This route used to do its own unordered findOne, so the row it wrote was
+    // not necessarily the row GET /company had just read.
+    const company = await Company.getCompany();
+    await company.update(updates);
     await recordAudit(req, { action: 'update', entity: 'Company', entityId: company.id, changes: { updated: updates } });
     res.json(company.toClient());
   } catch (err) {

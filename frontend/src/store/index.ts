@@ -15,12 +15,17 @@ import {
   LabTransaction,
 } from '../types';
 import api, { getErrorMessage } from '../api/api';
+import { safeNumber } from '../utils/number';
 
 // ==================== INTERFACE ====================
 interface AppStore {
   // Auth
   currentUser: User | null;
   setCurrentUser: (user: User | null) => void;
+  // Data that failed to load during initStore, whichever path ran it (App on a
+  // token restore, Login after a sign-in). App.tsx renders this as one banner.
+  initErrors: string[];
+  setInitErrors: (errors: string[]) => void;
   logout: () => void;
   loginUser: (email: string, password: string) => Promise<{ user: User; token: string } | null>;
 
@@ -55,7 +60,11 @@ interface AppStore {
   // Transactions
   transactions: Transaction[];
   fetchTransactions: (startDate?: string, endDate?: string) => Promise<void>;
-  addTransaction: (transaction: Partial<Transaction>) => Promise<Transaction | null>;
+  // Centralised invalidation for a stock-mutating sale: force-refresh products
+  // (fetchProducts has a 30s freshness guard, so it MUST be forced) alongside
+  // the transactions slice, so the Products page / low-stock alerts never stay
+  // stale and the UI can't oversell.
+  refreshStockAndTransactions: () => Promise<void>;
 
   // Inventory Logs
   inventoryLogs: InventoryLog[];
@@ -92,7 +101,7 @@ interface AppStore {
   addLabTransaction: (data: any) => Promise<LabTransaction | null>;
   updateLabTransaction: (id: string, updates: any) => Promise<LabTransaction | null>;
   payLabTransaction: (id: string, payload: { paymentMethod: string; paymentReference?: string }) => Promise<any>;
-  cancelLabTransaction: (id: string) => Promise<void>;
+  cancelLabTransaction: (id: string) => Promise<boolean>;
   updateLabTest: (testId: string, updates: any) => Promise<LabTest | null>;
   addLabTestResults: (testId: string, results: any) => Promise<LabTest | null>;
   reprintLabReceipt: (id: string) => Promise<any>;
@@ -104,16 +113,23 @@ interface AppStore {
 }
 
 // ==================== HELPERS ====================
-const safeNumber = (value: any): number => {
-  const num = Number(value);
-  return isNaN(num) ? 0 : num;
-};
-
 // Lightweight staleness guard.
 const FRESH_MS = 30_000;
 const _fetchedAt: Record<string, number> = {};
 const isFresh = (key: string) => Date.now() - (_fetchedAt[key] || 0) < FRESH_MS;
 const markFetched = (key: string) => { _fetchedAt[key] = Date.now(); };
+
+// ── init-time failure collection ──────────────────────────────────────────
+// The GET fetchers swallow their own errors on purpose, so a background poll
+// or a transient blip never crashes a page. That means a total backend outage
+// looked like a healthy-but-empty store: initStore's `.catch(...)` handlers
+// could never fire. initStore temporarily installs a sink here and every
+// swallow-catch fetcher reports into it via noteFailure(), so failures become
+// real, collectable signals that App.tsx can surface to the user.
+let initFailureSink: ((label: string, err: unknown) => void) | null = null;
+const noteFailure = (label: string, err: unknown) => {
+  if (initFailureSink) initFailureSink(label, err);
+};
 
 const normalizeProduct = (p: any): Product => ({
   ...p,
@@ -153,8 +169,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
   // ==================== AUTH ====================
   currentUser: null,
   setCurrentUser: (user) => set({ currentUser: user }),
+  initErrors: [],
+  setInitErrors: (errors) => set({ initErrors: errors }),
   logout: () => {
-    set({ currentUser: null, cartItems: [] });
+    set({ currentUser: null, cartItems: [], initErrors: [] });
     localStorage.removeItem('auth_token');
   },
   loginUser: async (email, password) => {
@@ -183,6 +201,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       set({ company: response.data });
     } catch (err) {
       console.error('Failed to fetch company');
+      noteFailure('Company', err);
     }
   },
   updateCompany: async (updates) => {
@@ -207,6 +226,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       set({ users: response.data });
     } catch (err) {
       console.error('Failed to fetch users');
+      noteFailure('Users', err);
     }
   },
   addUser: async (user) => {
@@ -248,6 +268,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       markFetched('products');
     } catch (err) {
       console.error('Failed to fetch products', err);
+      noteFailure('Products', err);
     }
   },
   addProduct: async (product) => {
@@ -387,41 +408,18 @@ export const useAppStore = create<AppStore>((set, get) => ({
       });
     } catch (err) {
       console.error('Failed to fetch transactions');
+      noteFailure('Transactions', err);
     }
   },
-  addTransaction: async (transaction) => {
-    try {
-      const formattedItems = (transaction.items || []).map((item: any) => ({
-        productId: item.productId || item.product?.id,
-        productName: item.product?.name || item.productName,
-        productSku: item.product?.sku || item.productSku,
-        productCategory: item.product?.category || item.productCategory,
-        quantity: safeNumber(item.quantity),
-        unitPrice: safeNumber(item.unitPrice),
-        total: safeNumber(item.total),
-        discount: safeNumber(item.discount),
-      }));
-
-      const payload = {
-        ...transaction,
-        items: formattedItems,
-        subtotal: safeNumber(transaction.subtotal),
-        tax: safeNumber(transaction.tax),
-        total: safeNumber(transaction.total),
-        discount: safeNumber(transaction.discount),
-      };
-
-      const response = await api.post('/transactions', payload);
-      const savedTxn = response.data;
-      set((state) => ({
-        transactions: [savedTxn, ...state.transactions],
-        cartItems: [],
-      }));
-      return savedTxn;
-    } catch (err: any) {
-      console.error('addTransaction error:', err.response?.data || err);
-      return null;
-    }
+  // Centralised invalidation after a stock-mutating sale. Products MUST be
+  // force-refreshed (fetchProducts has a 30s freshness guard) so the catalogue
+  // and low-stock alerts reflect the decrement instead of overselling stale
+  // stock; the transactions slice refresh makes the sale show up in history.
+  refreshStockAndTransactions: async () => {
+    await Promise.all([
+      get().fetchProducts(true),
+      get().fetchTransactions(),
+    ]);
   },
 
   // ==================== INVENTORY LOGS ====================
@@ -432,6 +430,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       set({ inventoryLogs: response.data });
     } catch (err) {
       console.error('Failed to fetch inventory logs');
+      noteFailure('Inventory Logs', err);
     }
   },
   addInventoryLog: async (log) => {
@@ -458,6 +457,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       markFetched('suppliers');
     } catch (err) {
       console.error('Failed to fetch suppliers');
+      noteFailure('Suppliers', err);
     }
   },
   addSupplier: async (supplier) => {
@@ -509,6 +509,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       });
     } catch (err) {
       console.error('Failed to fetch purchase orders');
+      noteFailure('Purchase Orders', err);
     }
   },
   addPurchaseOrder: async (po) => {
@@ -587,6 +588,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       return normalized;
     } catch (err: any) {
       console.error('Failed to fetch lab test templates:', err.response?.data || err);
+      noteFailure('Lab Templates', err);
       throw err;
     }
   },
@@ -610,6 +612,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       set({ labTransactions: (response.data || []).map(normalizeLabTransaction) });
     } catch (err: any) {
       console.error('Failed to fetch lab transactions:', err.response?.data || err);
+      noteFailure('Lab Transactions', err);
       throw err;
     }
   },
@@ -629,10 +632,15 @@ export const useAppStore = create<AppStore>((set, get) => ({
    * The cashier pays it later via payLabTransaction().
    */
   addLabTransaction: async (data) => {
-    const response = await api.post('/lab-transactions', data);
-    const tx = normalizeLabTransaction(response.data);
-    set((state) => ({ labTransactions: [tx, ...state.labTransactions] }));
-    return tx;
+    try {
+      const response = await api.post('/lab-transactions', data);
+      const tx = normalizeLabTransaction(response.data);
+      set((state) => ({ labTransactions: [tx, ...state.labTransactions] }));
+      return tx;
+    } catch (err: any) {
+      console.error('Add lab transaction error:', err.response?.data || err);
+      return null;
+    }
   },
 
   updateLabTransaction: async (id, updates) => {
@@ -651,21 +659,32 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   /** Cashier action: mark a pending lab transaction as paid. */
   payLabTransaction: async (id, payload: { paymentMethod: string; paymentReference?: string }) => {
-    const response = await api.post(`/lab-transactions/${id}/pay`, payload);
-    const updated = normalizeLabTransaction(response.data.transaction || response.data);
-    set((state) => ({
-      labTransactions: state.labTransactions.map((t) => (t.id === id ? updated : t)),
-    }));
-    return response.data;
+    try {
+      const response = await api.post(`/lab-transactions/${id}/pay`, payload);
+      const updated = normalizeLabTransaction(response.data.transaction || response.data);
+      set((state) => ({
+        labTransactions: state.labTransactions.map((t) => (t.id === id ? updated : t)),
+      }));
+      return response.data;
+    } catch (err: any) {
+      console.error('Pay lab transaction error:', err.response?.data || err);
+      return null;
+    }
   },
 
   cancelLabTransaction: async (id) => {
-    await api.post(`/lab-transactions/${id}/cancel`);
-    set((state) => ({
-      labTransactions: state.labTransactions.map((t) =>
-        t.id === id ? { ...t, status: 'cancelled' } : t
-      ),
-    }));
+    try {
+      await api.post(`/lab-transactions/${id}/cancel`);
+      set((state) => ({
+        labTransactions: state.labTransactions.map((t) =>
+          t.id === id ? { ...t, status: 'cancelled' } : t
+        ),
+      }));
+      return true;
+    } catch (err: any) {
+      console.error('Cancel lab transaction error:', err.response?.data || err);
+      return false;
+    }
   },
 
   updateLabTest: async (testId, updates) => {
@@ -768,6 +787,15 @@ export const initStore = async (userRole: string) => {
   const store = useAppStore.getState();
   const errors: string[] = [];
 
+  // Install the failure sink for the duration of init. The read fetchers
+  // swallow their own errors (so a page never crashes on a background poll),
+  // but every swallow-catch fetcher reports here via noteFailure() — so a
+  // backend outage now produces real, collectable failures instead of a
+  // healthy-looking-but-empty store.
+  initFailureSink = (label, err) => {
+    errors.push(`${label}: ${getErrorMessage(err)}`);
+  };
+
   console.log(`🚀 Initializing store for role: ${userRole}`);
 
   const isAdmin = userRole === 'admin';
@@ -779,39 +807,42 @@ export const initStore = async (userRole: string) => {
   try {
     // BASE DATA (all roles)
     await Promise.all([
-      store.fetchCompany().catch((e) => errors.push('Company: ' + e.message)),
-      store.fetchProducts().catch((e) => errors.push('Products: ' + e.message)),
+      store.fetchCompany(),
+      store.fetchProducts(),
     ]);
 
     // SUPPLIERS (admin, manager, pharmacist_sales)
     if (isAdmin || isManager || isPharmacist) {
-      await store.fetchSuppliers().catch((e) => errors.push('Suppliers: ' + e.message));
+      await store.fetchSuppliers();
     }
 
     // TRANSACTIONS (admin, manager, pharmacist_sales, cashier)
     if (isAdmin || isManager || isPharmacist || isCashier) {
-      await store.fetchTransactions().catch((e) => errors.push('Transactions: ' + e.message));
+      await store.fetchTransactions();
     }
 
     // PURCHASE ORDERS + INVENTORY LOGS (admin, manager, pharmacist_sales)
     if (isAdmin || isManager || isPharmacist) {
       await Promise.all([
-        store.fetchPurchaseOrders().catch((e) => errors.push('Purchase Orders: ' + e.message)),
-        store.fetchInventoryLogs().catch((e) => errors.push('Inventory Logs: ' + e.message)),
+        store.fetchPurchaseOrders(),
+        store.fetchInventoryLogs(),
       ]);
     }
 
-    // LAB DATA (admin, manager, pharmacist_sales, lab_tech)
+    // LAB DATA (admin, manager, pharmacist_sales, lab_tech). These two throw on
+    // failure (page callers rely on that); noteFailure() has already recorded
+    // the message, so swallow here to keep init from aborting on a partial
+    // outage.
     if (isAdmin || isManager || isPharmacist || isLab) {
       await Promise.all([
-        store.fetchLabTransactions().catch((e) => errors.push('Lab Transactions: ' + e.message)),
-        store.fetchLabTestTemplates().catch((e) => errors.push('Lab Templates: ' + e.message)),
+        store.fetchLabTransactions().catch(() => { }),
+        store.fetchLabTestTemplates().catch(() => { }),
       ]);
     }
 
     // USERS (admin, manager)
     if (isAdmin || isManager) {
-      await store.fetchUsers().catch((e) => errors.push('Users: ' + e.message));
+      await store.fetchUsers();
     }
 
     const state = useAppStore.getState();
@@ -824,9 +855,16 @@ export const initStore = async (userRole: string) => {
       console.warn('⚠️ Some data failed to load:', errors);
     }
 
-    return { success: true, errors };
+    // Held in the store, not in App.tsx's local state, so a sign-in from Login
+    // surfaces the same banner as a token restore.
+    useAppStore.setState({ initErrors: errors });
+    return { success: errors.length === 0, errors };
   } catch (error: any) {
     console.error('❌ Store initialization failed:', error);
-    return { success: false, errors: [error.message] };
+    const all = [...errors, getErrorMessage(error)];
+    useAppStore.setState({ initErrors: all });
+    return { success: false, errors: all };
+  } finally {
+    initFailureSink = null;
   }
 };

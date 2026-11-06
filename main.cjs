@@ -1,4 +1,15 @@
-// main.cjs - PostgreSQL Electron Main Process
+// main.cjs - PharmacyPOS Electron main process
+//
+// Packaged layout (Windows):
+//   <install dir>\PharmacyPOS.exe
+//   <install dir>\resources\app.asar            <- this file, preload.js
+//   <install dir>\resources\backend\            <- Express API + node_modules
+//   <install dir>\resources\frontend\dist\      <- built React app (served by the backend)
+//
+// The backend is started with Electron's own runtime (ELECTRON_RUN_AS_NODE), so the
+// target PC does NOT need Node.js installed. It does need PostgreSQL.
+// Database settings live in %APPDATA%\<app>\.env so they survive reinstalls/upgrades.
+
 const { app, BrowserWindow, ipcMain, dialog, Menu, shell } = require('electron');
 const path = require('path');
 const { spawn } = require('child_process');
@@ -7,8 +18,62 @@ const http = require('http');
 const os = require('os');
 const crypto = require('crypto');
 
+const BACKEND_HOST = '127.0.0.1';
+const BACKEND_PORT = 5000;
+const BACKEND_URL = `http://${BACKEND_HOST}:${BACKEND_PORT}`;
+// First launch runs every migration + seed, so allow plenty of time.
+const BACKEND_START_TIMEOUT_MS = 90 * 1000;
+const MAX_LOG_BYTES = 5 * 1024 * 1024;
+
+const DEFAULT_ENV = `# PharmacyPOS settings
+# Edit this file, save it, then use File > Restart Backend (or restart the app).
+
+DB_HOST=127.0.0.1
+DB_PORT=5432
+DB_NAME=pharmacy_pos
+DB_USER=postgres
+DB_PASSWORD=postgres
+
+# Alternatively, use a single connection string (overrides the DB_* values above):
+# DATABASE_URL=postgres://user:password@host:5432/pharmacy_pos
+# DB_SSL=true
+`;
+
 let mainWindow = null;
 let serverProcess = null;
+let backendOutput = [];
+let launching = false;
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// ==================== LOGGING ====================
+function getLogFilePath() {
+  return path.join(app.getPath('logs'), 'pharmacy-pos.log');
+}
+
+function log(...args) {
+  const line = args
+    .map((a) => (typeof a === 'string' ? a : (a && a.stack) || JSON.stringify(a)))
+    .join(' ');
+  console.log(line);
+  try {
+    fs.mkdirSync(app.getPath('logs'), { recursive: true });
+    fs.appendFileSync(getLogFilePath(), `${new Date().toISOString()} ${line}\n`);
+  } catch (e) {
+    // Logging must never crash the app.
+  }
+}
+
+function rotateLogIfLarge() {
+  try {
+    const file = getLogFilePath();
+    if (fs.existsSync(file) && fs.statSync(file).size > MAX_LOG_BYTES) {
+      fs.renameSync(file, file.replace(/\.log$/, '.old.log'));
+    }
+  } catch (e) {
+    // ignore
+  }
+}
 
 // ==================== JWT SECRET (Persistent) ====================
 function getOrCreateJwtSecret() {
@@ -27,9 +92,132 @@ function getOrCreateJwtSecret() {
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(secretPath, secret, { mode: 0o600 });
   } catch (e) {
-    console.error('Could not persist JWT secret:', e.message);
+    log('Could not persist JWT secret:', e.message);
   }
   return secret;
+}
+
+// ==================== PATHS ====================
+function getIconPath() {
+  // Only Windows uses an .ico for the window icon; other platforms use the default.
+  if (process.platform === 'win32') return path.join(__dirname, 'build-resources', 'icon.ico');
+  return undefined;
+}
+
+function getBackendPath() {
+  if (app.isPackaged) {
+    return path.join(process.resourcesPath, 'backend');
+  }
+  return path.join(__dirname, 'backend');
+}
+
+// Packaged: settings in the user's app-data folder (survives upgrades).
+// Development: the backend's own .env, which is what `npm run dev:backend` reads.
+function getEnvPath() {
+  if (app.isPackaged) return path.join(app.getPath('userData'), '.env');
+  return path.join(getBackendPath(), '.env');
+}
+
+// ==================== ENV FILE ====================
+function parseEnv(text) {
+  const out = {};
+  // Windows Notepad may save a UTF-8 BOM and CRLF line endings.
+  for (const rawLine of text.replace(/^﻿/, '').split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith('#')) continue;
+    const eq = line.indexOf('=');
+    if (eq < 1) continue;
+    const key = line.slice(0, eq).trim();
+    let value = line.slice(eq + 1).trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    out[key] = value;
+  }
+  return out;
+}
+
+function readEnv() {
+  try {
+    return parseEnv(fs.readFileSync(getEnvPath(), 'utf8'));
+  } catch (e) {
+    return {};
+  }
+}
+
+function ensureUserEnv() {
+  const envPath = getEnvPath();
+  if (fs.existsSync(envPath)) return;
+  try {
+    fs.mkdirSync(path.dirname(envPath), { recursive: true });
+    fs.writeFileSync(envPath, DEFAULT_ENV, 'utf8');
+    log('Created default settings file at', envPath);
+  } catch (e) {
+    log('Could not create settings file:', e.message);
+  }
+}
+
+function openInEditor(filePath) {
+  if (process.platform === 'win32') {
+    // ".env" has no file association on Windows, so open it in Notepad explicitly.
+    try {
+      spawn('notepad.exe', [filePath], { detached: true, stdio: 'ignore' }).unref();
+      return;
+    } catch (e) {
+      // fall through to shell.openPath
+    }
+  }
+  shell.openPath(filePath);
+}
+
+function openSettingsFile() {
+  ensureUserEnv();
+  if (!fs.existsSync(getEnvPath())) {
+    dialog.showErrorBox('Settings file not found', `No settings file at:\n${getEnvPath()}`);
+    return;
+  }
+  openInEditor(getEnvPath());
+}
+
+function getDatabaseInfo() {
+  const defaults = {
+    host: '127.0.0.1',
+    port: '5432',
+    database: 'pharmacy_pos',
+    user: 'postgres',
+    status: 'Not configured'
+  };
+
+  const envPath = getEnvPath();
+  if (!fs.existsSync(envPath)) return { ...defaults, status: `Settings file not found (${envPath})` };
+
+  const env = readEnv();
+
+  if (env.DATABASE_URL) {
+    try {
+      const u = new URL(env.DATABASE_URL);
+      return {
+        host: u.hostname,
+        port: u.port || '5432',
+        database: u.pathname.replace(/^\//, ''),
+        user: decodeURIComponent(u.username),
+        status: `Using DATABASE_URL (${envPath})`
+      };
+    } catch (e) {
+      return { ...defaults, status: `DATABASE_URL is not a valid URL (${envPath})` };
+    }
+  }
+
+  return {
+    host: env.DB_HOST || defaults.host,
+    port: env.DB_PORT || defaults.port,
+    database: env.DB_NAME || defaults.database,
+    user: env.DB_USER || defaults.user,
+    status: `Settings file: ${envPath}`
+  };
 }
 
 // ==================== APPLICATION MENU ====================
@@ -46,10 +234,14 @@ function createMenu() {
               type: 'info',
               title: 'Database Connection',
               message: 'PostgreSQL Connection',
-              detail: `Host: ${dbInfo.host}\nPort: ${dbInfo.port}\nDatabase: ${dbInfo.database}\nUser: ${dbInfo.user}\n\nStatus: ${dbInfo.status}`,
+              detail: `Host: ${dbInfo.host}\nPort: ${dbInfo.port}\nDatabase: ${dbInfo.database}\nUser: ${dbInfo.user}\n\n${dbInfo.status}`,
               buttons: ['OK']
             });
           }
+        },
+        {
+          label: 'Edit Database Settings...',
+          click: () => openSettingsFile()
         },
         { type: 'separator' },
         {
@@ -114,9 +306,9 @@ function createMenu() {
         {
           label: 'View Logs',
           click: () => {
-            const logPath = path.join(app.getPath('logs'), 'pharmacy-pos.log');
+            const logPath = getLogFilePath();
             if (fs.existsSync(logPath)) {
-              shell.openPath(logPath);
+              openInEditor(logPath);
             } else {
               shell.openPath(app.getPath('logs'));
             }
@@ -133,254 +325,209 @@ function createMenu() {
     }
   ];
 
-  const menu = Menu.buildFromTemplate(template);
-  Menu.setApplicationMenu(menu);
-}
-
-// ==================== DATABASE INFO ====================
-function getDatabaseInfo() {
-  const envPath = getEnvPath();
-  const defaults = {
-    host: 'localhost',
-    port: '5432',
-    database: 'pharmacy_pos',
-    user: 'postgres',
-    status: 'Not configured'
-  };
-
-  if (!fs.existsSync(envPath)) return { ...defaults, status: '.env file not found' };
-
-  try {
-    const envContent = fs.readFileSync(envPath, 'utf8');
-    const getVal = (key) => {
-      const match = envContent.match(new RegExp(`^${key}= (.+)$`, 'm'));
-      return match ? match[1].trim().replace(/^["']|["']$/g, '') : null;
-    };
-
-    return {
-      host: getVal('DB_HOST') || defaults.host,
-      port: getVal('DB_PORT') || defaults.port,
-      database: getVal('DB_NAME') || defaults.database,
-      user: getVal('DB_USER') || defaults.user,
-      status: 'Configured (verify connection in app)'
-    };
-  } catch (e) {
-    return { ...defaults, status: `Error reading .env: ${e.message}` };
-  }
-}
-
-// ==================== PATHS ====================
-function getIconPath() {
-  const iconBase = 'build/icon';
-  if (process.platform === 'win32') return path.join(__dirname, `${iconBase}.ico`);
-  if (process.platform === 'darwin') return path.join(__dirname, `${iconBase}.icns`);
-  return path.join(__dirname, `${iconBase}.png`);
-}
-
-function getBackendPath() {
-  if (app.isPackaged) {
-    return path.join(process.resourcesPath, 'backend');
-  }
-  return path.join(__dirname, 'backend');
-}
-
-function getEnvPath() {
-  return path.join(getBackendPath(), '.env');
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
 // ==================== BACKEND SERVER ====================
-function startBackendServer() {
-  return new Promise((resolve, reject) => {
-    let resolved = false;
-    const markResolved = (fn, ...args) => {
-      if (!resolved) {
-        resolved = true;
-        fn(...args);
-      }
-    };
+// Turn the backend's raw output into something a pharmacy admin can act on:
+// a plain-language hint for the common failures, then the key technical lines.
+function backendFailureSummary() {
+  const text = backendOutput.join('\n');
+  const rules = [
+    [/password authentication failed/i,
+      'PostgreSQL rejected the user name or password. Correct DB_USER / DB_PASSWORD in the settings file.'],
+    [/ECONNREFUSED/i,
+      'Could not connect to PostgreSQL. Make sure the PostgreSQL service is running and that DB_HOST / DB_PORT are correct.'],
+    [/ENOTFOUND|getaddrinfo/i,
+      'The database host name could not be found. Check DB_HOST in the settings file.'],
+    [/EADDRINUSE/i,
+      `Port ${BACKEND_PORT} is already in use by another program. Close it and try again.`],
+    [/permission denied to create database/i,
+      'The database user is not allowed to create the database. Create "pharmacy_pos" manually, or use a user with CREATEDB rights.']
+  ];
+  const hint = (rules.find(([re]) => re.test(text)) || [])[1];
 
-    // ✅ Capture all stderr output
-    let stderrOutput = '';
+  const keyLines = [...new Set(
+    backendOutput
+      .filter((l) => /\berror:/i.test(l))
+      .map((l) => l.replace(/^\s*(parent|original):\s*/i, '').trim())
+  )].slice(-3);
+  const details = (keyLines.length ? keyLines : backendOutput.slice(-8)).join('\n') || 'No output captured';
 
-    try {
-      console.log('=== Starting Backend Server (PostgreSQL) ===');
-
-      const backendPath = getBackendPath();
-      console.log('Backend path:', backendPath);
-
-      if (!fs.existsSync(backendPath)) {
-        markResolved(reject, new Error(`Backend directory not found at: ${backendPath}`));
-        return;
-      }
-
-      const serverJsPath = path.join(backendPath, 'server.js');
-      if (!fs.existsSync(serverJsPath)) {
-        markResolved(reject, new Error(`server.js not found at: ${serverJsPath}`));
-        return;
-      }
-
-      const envPath = getEnvPath();
-      console.log('Env path:', envPath);
-      console.log('Env exists:', fs.existsSync(envPath));
-
-      const env = {
-        ...process.env,
-        NODE_ENV: 'production',
-        PORT: '5000',
-        HOST: '127.0.0.1',
-        ELECTRON: 'true',
-        JWT_SECRET: getOrCreateJwtSecret()
-      };
-
-      console.log('Starting backend with env:', {
-        PORT: env.PORT,
-        NODE_ENV: env.NODE_ENV,
-        ELECTRON: env.ELECTRON
-      });
-
-      serverProcess = spawn('node', [serverJsPath], {
-        cwd: backendPath,
-        env: env,
-        stdio: ['pipe', 'pipe', 'pipe']
-      });
-
-      serverProcess.stdout.on('data', (data) => {
-        const message = data.toString().trim();
-        console.log(`[Backend]: ${message}`);
-
-        if (!resolved && (
-          message.includes('Server running') ||
-          message.includes('Listening') ||
-          message.includes('port 5000') ||
-          message.includes('listening on')
-        )) {
-          console.log('✅ Backend server started successfully');
-          setTimeout(() => markResolved(resolve, true), 500);
-        }
-      });
-
-      serverProcess.stderr.on('data', (data) => {
-        const error = data.toString().trim();
-        console.error(`[Backend Error]: ${error}`);
-        stderrOutput += error + '\n';
-      });
-
-      serverProcess.on('error', (error) => {
-        console.error('Failed to spawn backend process:', error);
-        markResolved(reject, error);
-      });
-
-      serverProcess.on('close', (code) => {
-        console.log(`Backend process exited with code ${code}`);
-        console.log('Stderr captured:', stderrOutput);
-        serverProcess = null;
-
-        if (!resolved && code !== null && code !== 0) {
-          // ✅ Include the ACTUAL error in the rejection
-          const realError = stderrOutput.trim()
-            ? stderrOutput.trim().split('\n').slice(-10).join('\n')
-            : 'No error output captured';
-
-          markResolved(reject, new Error(
-            `Exit code ${code}\n\n` +
-            `--- Backend Error Output ---\n${realError}\n` +
-            `--- End Error Output ---`
-          ));
-        }
-      });
-
-      setTimeout(() => {
-        if (!resolved) {
-          console.log('No startup message detected, testing HTTP connection...');
-          testBackendConnection()
-            .then(() => {
-              console.log('✅ Backend confirmed running via HTTP check');
-              markResolved(resolve, true);
-            })
-            .catch((err) => {
-              // ✅ Also include stderr in timeout errors
-              const stderrInfo = stderrOutput.trim()
-                ? `\n\n--- Backend Output ---\n${stderrOutput.trim().split('\n').slice(-10).join('\n')}`
-                : '';
-
-              markResolved(reject, new Error(
-                `Backend did not start within timeout.\n` +
-                `HTTP check: ${err.message}${stderrInfo}`
-              ));
-            });
-        }
-      }, 8000);
-
-    } catch (error) {
-      console.error('Error starting backend:', error);
-      markResolved(reject, error);
-    }
-  });
+  return `${hint ? `${hint}\n\n` : ''}Technical details:\n${details}`;
 }
 
-function testBackendConnection() {
-  return new Promise((resolve, reject) => {
-    const req = http.request({
-      hostname: '127.0.0.1',
-      port: 5000,
-      path: '/api/health',
-      method: 'GET',
-      timeout: 10000
-    }, (res) => {
-      let body = '';
-      res.on('data', chunk => body += chunk);
-      res.on('end', () => {
-        console.log(`Backend health check: ${res.statusCode}`, body);
-        if (res.statusCode >= 200 && res.statusCode < 400) {
-          resolve(true);
-        } else {
-          reject(new Error(`HTTP ${res.statusCode}: ${body}`));
-        }
-      });
-    });
-
-    req.on('error', (err) => {
-      console.error('Backend connection failed:', err.message);
-      reject(err);
-    });
-
+// Resolves true only if our PharmacyPOS backend answers /api/health.
+function isBackendHealthy() {
+  return new Promise((resolve) => {
+    const req = http.request(
+      { hostname: BACKEND_HOST, port: BACKEND_PORT, path: '/api/health', method: 'GET', timeout: 2000 },
+      (res) => {
+        let body = '';
+        res.on('data', (chunk) => (body += chunk));
+        res.on('end', () => {
+          if (res.statusCode !== 200) return resolve(false);
+          try {
+            resolve(JSON.parse(body).service === 'pharmacy-pos-backend');
+          } catch (e) {
+            resolve(false);
+          }
+        });
+      }
+    );
+    req.on('error', () => resolve(false));
     req.on('timeout', () => {
-      console.error('Backend connection timeout');
       req.destroy();
-      reject(new Error('Connection timeout - server not responding'));
+      resolve(false);
     });
-
     req.end();
   });
 }
 
-function restartBackend() {
-  if (serverProcess) {
-    console.log('Stopping backend server...');
-    serverProcess.kill('SIGTERM');
+async function startBackendServer() {
+  if (serverProcess) return;
 
-    setTimeout(() => {
-      console.log('Restarting backend server...');
-      startBackendServer().then(() => {
-        if (mainWindow) {
-          mainWindow.webContents.send('backend-restarted');
-        }
-        dialog.showMessageBox(mainWindow, {
-          type: 'info',
-          message: 'Backend Restarted',
-          detail: 'The backend server has been restarted successfully.'
-        });
-      }).catch(error => {
-        dialog.showErrorBox('Backend Restart Failed', error.message);
-      });
-    }, 2000);
+  // A previous session may have been force-killed (Task Manager, crash) and left its
+  // backend running. Reuse it rather than failing with "address already in use".
+  if (await isBackendHealthy()) {
+    log(`A PharmacyPOS backend is already running on port ${BACKEND_PORT} - reusing it`);
+    return;
   }
+
+  const backendPath = getBackendPath();
+  log('Starting backend. Path:', backendPath);
+
+  const serverJsPath = path.join(backendPath, 'server.js');
+  if (!fs.existsSync(serverJsPath)) {
+    throw new Error(`Backend not found at: ${serverJsPath}`);
+  }
+
+  ensureUserEnv();
+
+  const env = {
+    ...process.env,
+    ...readEnv(),
+    NODE_ENV: 'production',
+    PORT: String(BACKEND_PORT),
+    HOST: BACKEND_HOST,
+    ELECTRON: 'true',
+    // Run the backend on Electron's bundled Node runtime. A bare `node` command
+    // would fail on any PC that doesn't have Node.js installed.
+    ELECTRON_RUN_AS_NODE: '1',
+    JWT_SECRET: getOrCreateJwtSecret()
+  };
+
+  backendOutput = [];
+  let spawnError = null;
+  let exited = null;
+
+  const child = spawn(process.execPath, [serverJsPath], {
+    cwd: backendPath,
+    env,
+    stdio: ['ignore', 'pipe', 'pipe'],
+    windowsHide: true
+  });
+  serverProcess = child;
+
+  const onData = (data) => {
+    for (const line of data.toString().split(/\r?\n/)) {
+      if (!line.trim()) continue;
+      backendOutput.push(line);
+      if (backendOutput.length > 80) backendOutput.shift();
+      log('[backend]', line);
+    }
+  };
+  child.stdout.on('data', onData);
+  child.stderr.on('data', onData);
+  child.on('error', (err) => {
+    spawnError = err;
+    log('Failed to spawn backend:', err);
+  });
+  child.on('close', (code, signal) => {
+    exited = { code, signal };
+    log(`Backend process exited (code ${code}, signal ${signal})`);
+    if (serverProcess === child) serverProcess = null;
+  });
+
+  const deadline = Date.now() + BACKEND_START_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    if (spawnError) throw spawnError;
+    if (exited) {
+      throw new Error(`The backend stopped during startup (exit code ${exited.code}).\n\n${backendFailureSummary()}`);
+    }
+    if (await isBackendHealthy()) {
+      if (exited) {
+        throw new Error(`The backend stopped during startup (exit code ${exited.code}).\n\n${backendFailureSummary()}`);
+      }
+      log('Backend is up');
+      return;
+    }
+    await sleep(500);
+  }
+
+  await stopBackend();
+  throw new Error(
+    `The backend did not start within ${BACKEND_START_TIMEOUT_MS / 1000} seconds.\n\n${backendFailureSummary()}`
+  );
+}
+
+function stopBackend() {
+  return new Promise((resolve) => {
+    const child = serverProcess;
+    if (!child) return resolve();
+    log('Stopping backend...');
+    const force = setTimeout(() => {
+      try { child.kill('SIGKILL'); } catch (e) { /* already gone */ }
+    }, 3000);
+    child.once('close', () => {
+      clearTimeout(force);
+      resolve();
+    });
+    try {
+      child.kill();
+    } catch (e) {
+      clearTimeout(force);
+      resolve();
+    }
+  });
+}
+
+// Packaged mode: show a loading page, start the backend, then load the UI from it.
+async function launchApp() {
+  if (launching) return false;
+  launching = true;
+  try {
+    showLoadingPage();
+    await startBackendServer();
+    if (!mainWindow) return false;
+    await mainWindow.loadURL(BACKEND_URL);
+    log('UI loaded');
+    mainWindow.webContents.send('backend-ready');
+    return true;
+  } catch (error) {
+    log('Launch failed:', error);
+    showErrorPage(`Could not start PharmacyPOS.\n\n${error.message}`);
+    return false;
+  } finally {
+    launching = false;
+  }
+}
+
+async function restartBackend() {
+  if (!app.isPackaged) {
+    dialog.showMessageBox({
+      type: 'info',
+      message: 'Development mode',
+      detail: 'In development the backend is run by npm (npm run dev). Restart it from your terminal.'
+    });
+    return false;
+  }
+  await stopBackend();
+  return launchApp();
 }
 
 // ==================== WINDOW ====================
 function createWindow() {
-  const icon = getIconPath();
-
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -394,7 +541,7 @@ function createWindow() {
       devTools: !app.isPackaged,
       allowRunningInsecureContent: false
     },
-    icon: icon,
+    icon: getIconPath(),
     show: false,
     backgroundColor: '#f5f5f5',
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
@@ -403,7 +550,6 @@ function createWindow() {
   });
 
   createMenu();
-  loadFrontend();
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith('http://') || url.startsWith('https://')) {
@@ -423,109 +569,103 @@ function createWindow() {
   });
 }
 
-// ==================== LOAD FRONTEND ====================
-function loadFrontend() {
-  if (app.isPackaged) {
-    // ✅ FIXED: Load from the backend server (http://) instead of file://
-    // This avoids Electron's strict file:// security blocks on Vite JS modules
-    console.log('Production mode: Loading UI from http://127.0.0.1:5000');
-    mainWindow.loadURL('http://127.0.0.1:5000')
-      .then(() => console.log('✅ Frontend loaded successfully'))
-      .catch(err => {
-        console.error('Failed to load frontend from backend:', err);
-        showErrorPage(`Failed to load UI from backend server: ${err.message}`);
-      });
-  } else {
-    // Development mode: Load from Vite dev server
-    console.log('Development mode: Loading from http://localhost:3000');
-    mainWindow.loadURL('http://localhost:3000')
-      .catch(err => {
-        console.error('Failed to load dev server:', err);
-        showErrorPage('Development server not running.\n\nPlease start with: npm run dev');
-      });
-  }
+// ==================== STATUS PAGES ====================
+function escapeHtml(text) {
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
-// ==================== ERROR PAGE ====================
+function showPage(html) {
+  if (!mainWindow) return;
+  mainWindow
+    .loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`)
+    .catch(() => { /* superseded by a newer navigation */ });
+}
+
+const PAGE_STYLE = `
+  body {
+    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+    margin: 0; padding: 40px; min-height: 100vh; box-sizing: border-box;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white; display: flex; align-items: center; justify-content: center;
+  }
+  .container {
+    background: rgba(255,255,255,0.12); padding: 40px; border-radius: 15px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.3); max-width: 640px; width: 90%;
+    text-align: center; border: 1px solid rgba(255,255,255,0.2);
+  }
+  h1 { margin-top: 0; font-size: 24px; }
+  .error {
+    background: rgba(0,0,0,0.25); padding: 20px; border-radius: 10px; margin: 20px 0;
+    text-align: left; border-left: 4px solid #ff6b6b; word-break: break-word;
+    white-space: pre-wrap; font-size: 13px; max-height: 260px; overflow: auto;
+  }
+  .hint {
+    background: rgba(255,200,0,0.2); border-left: 4px solid #ffc107;
+    padding: 15px; border-radius: 8px; margin: 15px 0; text-align: left; font-size: 14px;
+  }
+  button {
+    padding: 12px 24px; background: rgba(255,255,255,0.3); color: white;
+    border: 1px solid rgba(255,255,255,0.3); border-radius: 8px; cursor: pointer;
+    margin: 6px; font-weight: 500; font-size: 14px;
+  }
+  button.primary { background: #4CAF50; border-color: #4CAF50; }
+  button:hover { filter: brightness(1.1); }
+  .info { color: rgba(255,255,255,0.8); margin-top: 24px; font-size: 12px; }
+  .spinner {
+    width: 40px; height: 40px; margin: 20px auto; border-radius: 50%;
+    border: 4px solid rgba(255,255,255,0.3); border-top-color: white;
+    animation: spin 1s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+`;
+
+function showLoadingPage() {
+  showPage(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>PharmacyPOS</title>
+    <style>${PAGE_STYLE}</style></head><body><div class="container">
+      <h1>PharmacyPOS</h1>
+      <div class="spinner"></div>
+      <div>Starting up, please wait...</div>
+      <div class="info">The first launch can take a little longer while the database is set up.</div>
+    </div></body></html>`);
+}
+
 function showErrorPage(message) {
-  const errorHTML = `
-    <!DOCTYPE html>
-    <html>
-      <head>
-        <meta charset="UTF-8">
-        <title>PharmacyPOS - Error</title>
-        <style>
-          body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            margin: 0; padding: 40px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white; min-height: 100vh;
-            display: flex; align-items: center; justify-content: center;
-          }
-          .container {
-            background: rgba(255,255,255,0.1); backdrop-filter: blur(10px);
-            padding: 40px; border-radius: 15px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
-            max-width: 600px; width: 90%; text-align: center;
-            border: 1px solid rgba(255,255,255,0.2);
-          }
-          h1 { color: white; margin-top: 0; font-size: 24px; }
-          .error {
-            background: rgba(255,255,255,0.2); color: white;
-            padding: 20px; border-radius: 10px; margin: 20px 0;
-            text-align: left; border-left: 4px solid #ff6b6b;
-            word-break: break-word; white-space: pre-line;
-          }
-          .button {
-            display: inline-block; padding: 12px 24px;
-            background: rgba(255,255,255,0.3); color: white;
-            border: none; border-radius: 8px; cursor: pointer;
-            margin: 10px; text-decoration: none; font-weight: 500;
-            transition: all 0.3s ease;
-            border: 1px solid rgba(255,255,255,0.3);
-          }
-          .button:hover { background: rgba(255,255,255,0.4); transform: translateY(-2px); }
-          .button-primary { background: #4CAF50; border-color: #4CAF50; }
-          .button-primary:hover { background: #45a049; }
-          .info { color: rgba(255,255,255,0.8); margin-top: 30px; font-size: 14px; }
-          .logo { font-size: 32px; font-weight: bold; margin-bottom: 20px; }
-          .pg-hint {
-            background: rgba(255,200,0,0.2); border-left: 4px solid #ffc107;
-            padding: 15px; border-radius: 8px; margin: 15px 0;
-            text-align: left; font-size: 14px;
-          }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="logo">💊 PharmacyPOS</div>
-          <h1>⚠️ Application Error</h1>
-          <div class="error">${message}</div>
-          <div class="pg-hint">
-            <strong>📡 PostgreSQL Requirements:</strong><br>
-            • PostgreSQL server must be running<br>
-            • Database <code>pharmacy_pos</code> must exist<br>
-            • Connection settings are in <code>backend/.env</code>
-          </div>
-          <div>
-            <button class="button button-primary" onclick="location.reload()">🔄 Retry</button>
-          </div>
-          <div class="info">
-            <strong>Debug:</strong><br>
-            Version: ${app.getVersion()} | Platform: ${process.platform} ${os.release()}<br>
-            Electron: ${process.versions.electron} | ${app.isPackaged ? 'Production' : 'Development'} Mode
-          </div>
-        </div>
-      </body>
-    </html>
-  `;
-
-  if (mainWindow) {
-    mainWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(errorHTML)}`);
-  }
+  showPage(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>PharmacyPOS - Error</title>
+    <style>${PAGE_STYLE}</style></head><body><div class="container">
+      <h1>PharmacyPOS could not start</h1>
+      <div class="error">${escapeHtml(message)}</div>
+      <div class="hint">
+        <strong>Please check:</strong><br>
+        1. PostgreSQL is installed and running (Windows Services: "postgresql-x64-NN")<br>
+        2. The database user and password in the settings file are correct<br>
+        3. Nothing else is using port ${BACKEND_PORT}<br><br>
+        Settings file: <code>${escapeHtml(getEnvPath())}</code>
+      </div>
+      <div>
+        <button class="primary" onclick="window.electronAPI && window.electronAPI.restartBackend()">Retry</button>
+        <button onclick="window.electronAPI && window.electronAPI.openSettings()">Edit Database Settings</button>
+      </div>
+      <div class="info">
+        Version ${escapeHtml(app.getVersion())} | ${escapeHtml(process.platform)} ${escapeHtml(os.release())} |
+        Electron ${escapeHtml(process.versions.electron)}
+      </div>
+    </div></body></html>`);
 }
 
-// ==================== SINGLE INSTANCE ====================
+// ==================== LOAD FRONTEND (DEV) ====================
+function loadDevFrontend() {
+  log('Development mode: loading http://localhost:3000');
+  mainWindow.loadURL('http://localhost:3000').catch((err) => {
+    log('Failed to load dev server:', err);
+    showErrorPage('Development server not running.\n\nStart it with: npm run dev');
+  });
+}
+
+// ==================== APP STARTUP ====================
 const gotTheLock = app.requestSingleInstanceLock();
 
 if (!gotTheLock) {
@@ -537,127 +677,196 @@ if (!gotTheLock) {
       mainWindow.focus();
     }
   });
+
+  app.whenReady().then(async () => {
+    rotateLogIfLarge();
+    log('=== PharmacyPOS starting ===');
+    log('Version:', app.getVersion(), '| packaged:', app.isPackaged);
+    log('Platform:', process.platform, os.release());
+    log('Resources:', process.resourcesPath || 'N/A (dev)');
+    log('User data:', app.getPath('userData'));
+    log('Backend:', getBackendPath());
+    log('Settings file:', getEnvPath());
+
+    createWindow();
+
+    if (app.isPackaged) {
+      await launchApp();
+    } else {
+      loadDevFrontend();
+    }
+  });
 }
 
-// ==================== APP STARTUP ====================
-app.whenReady().then(async () => {
-  console.log('=== PharmacyPOS Starting ===');
-  console.log('Version:', app.getVersion());
-  console.log('App path:', app.getAppPath());
-  console.log('Resources path:', process.resourcesPath || 'N/A (dev mode)');
-  console.log('Is packaged:', app.isPackaged);
-  console.log('Platform:', process.platform, os.release());
-  console.log('User data:', app.getPath('userData'));
-  console.log('Backend path:', getBackendPath());
-  console.log('Env path:', getEnvPath());
-
-  createWindow();
-
-  if (app.isPackaged) {
-    try {
-      console.log('Starting backend server...');
-      await startBackendServer();
-      console.log('✅ Backend initialization complete');
-
-      if (mainWindow) {
-        mainWindow.webContents.send('backend-ready');
-      }
-    } catch (error) {
-      console.error('❌ Failed to start backend:', error.message);
-
-      // Show error but don't crash - let user see the error page
-      setTimeout(() => {
-        if (mainWindow) {
-          showErrorPage(
-            `Backend Server Failed to Start\n\n${error.message}\n\n` +
-            `Make sure:\n` +
-            `1. PostgreSQL is installed and running\n` +
-            `2. The database 'pharmacy_pos' has been created\n` +
-            `3. The .env file in the backend folder has correct credentials\n\n` +
-            `To check PostgreSQL on Windows:\n` +
-            `  • Open Services → look for "postgresql-x64-XX"\n` +
-            `  • Or run: net start postgresql-x64-XX\n\n` +
-            `To create the database:\n` +
-            `  • Open pgAdmin or psql\n` +
-            `  • Run: CREATE DATABASE pharmacy_pos;`
-          );
-        }
-      }, 500);
-    }
-  } else {
-    console.log('Development mode: Backend should be running on localhost:5000');
-  }
-});
-
 // ==================== CLEANUP ====================
-app.on('window-all-closed', () => {
-  if (serverProcess) {
-    console.log('Stopping backend server...');
-    try {
-      serverProcess.kill('SIGTERM');
-    } catch (e) {
-      try { serverProcess.kill(); } catch (e2) { }
-    }
+function killBackendNow() {
+  if (!serverProcess) return;
+  try {
+    serverProcess.kill();
+  } catch (e) {
+    // already gone
   }
+}
+
+app.on('window-all-closed', () => {
+  killBackendNow();
   if (process.platform !== 'darwin') {
     app.quit();
   }
 });
 
-app.on('before-quit', () => {
-  if (serverProcess) {
-    console.log('Stopping backend server (before-quit)...');
-    try {
-      serverProcess.kill('SIGTERM');
-    } catch (e) {
-      try { serverProcess.kill(); } catch (e2) { }
-    }
+app.on('before-quit', killBackendNow);
+
+app.on('activate', () => {
+  if (mainWindow === null && app.isReady()) {
+    createWindow();
+    if (app.isPackaged) launchApp();
+    else loadDevFrontend();
   }
 });
 
-app.on('activate', () => {
-  if (mainWindow === null) {
-    createWindow();
+// ==================== PRINTING ====================
+// The renderer builds a self-contained print document (see
+// frontend/src/utils/printEngine.ts) and hands it here. Printing from the main
+// process is what lets a till fire a slip at the receipt printer with no dialog
+// in the way; the browser has no such API, so outside Electron the same document
+// still goes through the print preview.
+const PRINT_WAIT_MS = 200;
+
+async function withHiddenPrintWindow(html, run) {
+  const win = new BrowserWindow({
+    show: false,
+    width: 900,
+    height: 1200,
+    webPreferences: {
+      sandbox: true,
+      contextIsolation: true,
+      nodeIntegration: false
+    }
+  });
+  try {
+    await win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+    // One paint, so fonts and the @page box are settled before the job is taken.
+    await sleep(PRINT_WAIT_MS);
+    return await run(win);
+  } finally {
+    if (!win.isDestroyed()) win.destroy();
+  }
+}
+
+function toMargins(marginType) {
+  return { marginType: marginType === 'none' ? 'none' : 'default' };
+}
+
+ipcMain.handle('print-html', async (event, payload) => {
+  const { html = '', silent = false, deviceName = '', marginType = 'default' } = payload || {};
+  if (!html.trim()) return { success: false, error: 'Nothing to print' };
+
+  const options = {
+    silent,
+    printBackground: true,
+    margins: toMargins(marginType)
+  };
+  // An empty name means "whatever Windows has set as default"; passing
+  // deviceName: '' outright makes Chromium fail the job.
+  if (deviceName) options.deviceName = deviceName;
+
+  try {
+    const result = await withHiddenPrintWindow(html, (win) =>
+      new Promise((resolve) => {
+        win.webContents.print(options, (success, failureType) => resolve({ success, failureType }));
+      })
+    );
+    if (result.success) return { success: true, printer: deviceName || 'default printer' };
+
+    log(`Print job failed (${result.failureType}) for printer "${deviceName || 'default'}"`);
+    return {
+      success: false,
+      error:
+        result.failureType === 'printer-invalid'
+          ? `"${deviceName}" is not available on this machine. Pick a printer in Preferences.`
+          : 'The print job was rejected by Windows.'
+    };
+  } catch (error) {
+    log('Print error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('save-pdf', async (event, payload) => {
+  const { html = '', fileName = 'document.pdf', marginType = 'default' } = payload || {};
+  if (!html.trim()) return { success: false, error: 'Nothing to save' };
+
+  const target = await dialog.showSaveDialog({
+    title: 'Save as PDF',
+    defaultPath: fileName,
+    filters: [{ name: 'PDF document', extensions: ['pdf'] }]
+  });
+  if (target.canceled || !target.filePath) return { success: false, cancelled: true };
+
+  try {
+    const data = await withHiddenPrintWindow(html, (win) =>
+      win.webContents.printToPDF({
+        printBackground: true,
+        preferCSSPageSize: true,
+        margins: toMargins(marginType)
+      })
+    );
+    fs.writeFileSync(target.filePath, data);
+    return { success: true, path: target.filePath };
+  } catch (error) {
+    log('PDF error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('get-printers', async () => {
+  const win = new BrowserWindow({ show: false });
+  try {
+    const printers = await win.webContents.getPrintersAsync();
+    return printers.map((p) => ({
+      name: p.name,
+      displayName: p.displayName || p.name,
+      isDefault: p.isDefault,
+      status: p.status
+    }));
+  } catch (error) {
+    log('Could not list printers:', error);
+    return [];
+  } finally {
+    win.destroy();
   }
 });
 
 // ==================== IPC HANDLERS ====================
-ipcMain.handle('get-backend-status', () => {
-  return serverProcess ? 'running' : 'stopped';
-});
+ipcMain.handle('get-app-version', () => app.getVersion());
+
+ipcMain.handle('get-backend-status', () => (serverProcess ? 'running' : 'stopped'));
 
 ipcMain.handle('restart-backend', async () => {
   try {
-    await restartBackend();
-    return { success: true };
+    const ok = await restartBackend();
+    return { success: ok };
   } catch (error) {
     return { success: false, error: error.message };
   }
 });
 
-ipcMain.handle('get-db-info', () => {
-  return getDatabaseInfo();
+ipcMain.handle('open-settings', () => {
+  openSettingsFile();
+  return true;
 });
+
+ipcMain.handle('get-db-info', () => getDatabaseInfo());
 
 // ==================== ERROR HANDLERS ====================
 process.on('uncaughtException', (error) => {
-  console.error('Uncaught Exception:', error);
-  const logDir = path.join(app.getPath('logs'));
-  if (!fs.existsSync(logDir)) {
-    try { fs.mkdirSync(logDir, { recursive: true }); } catch (e) { }
-  }
-  try {
-    fs.appendFileSync(
-      path.join(logDir, 'pharmacy-pos.log'),
-      `${new Date().toISOString()} - Uncaught Exception: ${error.stack}\n`
-    );
-  } catch (e) { }
-
+  log('Uncaught Exception:', error);
   if (app.isPackaged && mainWindow) {
     dialog.showErrorBox('Application Error', error.toString());
   }
 });
 
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+process.on('unhandledRejection', (reason) => {
+  log('Unhandled Rejection:', reason);
 });

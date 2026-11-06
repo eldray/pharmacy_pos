@@ -2,15 +2,22 @@ const express = require('express');
 const { Op } = require('sequelize');
 const { sequelize } = require('../config/database');
 const Transaction = require('../models/Transaction');
-const Product = require('../models/Product');
 const InventoryLog = require('../models/InventoryLog');
 const User = require('../models/User');
 const Company = require('../models/Company');
 const { auth, adminAuth } = require('../middleware/auth');
 const { recordAudit } = require('../utils/audit');
 const { createdAtRange } = require('../utils/dateRange');
+const { priceCartItems } = require('../utils/pricing');
+const { deductStock, addStock } = require('../utils/stock');
+const { normalizePaymentMethod } = require('../utils/validators');
+const { nextReference } = require('../utils/references');
+const { AppError } = require('../utils/errors');
 
 const router = express.Router();
+const { numericIdParams } = require('../utils/numericIdParams');
+
+numericIdParams(router);
 
 // GET all transactions with filters
 router.get('/', auth, async (req, res) => {
@@ -22,7 +29,9 @@ router.get('/', auth, async (req, res) => {
       where.createdAt = createdAtRange(startDate, endDate);
     }
     if (cashierId) where.cashierId = cashierId;
-    if (paymentMethod) where.paymentMethod = paymentMethod;
+    // Rows are stored normalised, so the filter has to be too or a client that
+    // asks for 'Cash' silently gets nothing.
+    if (paymentMethod) where.paymentMethod = normalizePaymentMethod(paymentMethod);
 
     const include = [{ model: User, as: 'cashier', attributes: ['id', 'name', 'email'] }];
     const order = [['createdAt', 'DESC']];
@@ -57,24 +66,38 @@ router.get('/summary', auth, async (req, res) => {
     tomorrow.setDate(tomorrow.getDate() + 1);
     const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
 
-    const [todayTx, monthlyTx] = await Promise.all([
-      Transaction.findAll({ where: { createdAt: { [Op.gte]: today, [Op.lt]: tomorrow } } }),
-      Transaction.findAll({ where: { createdAt: { [Op.gte]: startOfMonth, [Op.lt]: tomorrow } } })
+    const todayWhere = { createdAt: { [Op.gte]: today, [Op.lt]: tomorrow } };
+
+    // Sum in SQL instead of loading every row of the month into JS and
+    // parseFloat-ing them together.
+    const [todayTotal, monthlyTotal, todayCount, monthlyCount, methodRows, recentTransactions] = await Promise.all([
+      Transaction.sum('total', { where: todayWhere }),
+      Transaction.sum('total', { where: { createdAt: { [Op.gte]: startOfMonth, [Op.lt]: tomorrow } } }),
+      Transaction.count({ where: todayWhere }),
+      Transaction.count({ where: { createdAt: { [Op.gte]: startOfMonth, [Op.lt]: tomorrow } } }),
+      Transaction.findAll({
+        where: todayWhere,
+        attributes: ['paymentMethod', [sequelize.fn('COUNT', sequelize.col('id')), 'count']],
+        group: ['paymentMethod']
+      }),
+      Transaction.findAll({ where: todayWhere, order: [['createdAt', 'DESC']], limit: 10 })
     ]);
 
-    const todayTotal = todayTx.reduce((s, t) => s + parseFloat(t.total), 0);
-    const monthlyTotal = monthlyTx.reduce((s, t) => s + parseFloat(t.total), 0);
-
     const paymentMethods = {};
-    todayTx.forEach(t => {
-      paymentMethods[t.paymentMethod] = (paymentMethods[t.paymentMethod] || 0) + 1;
+    methodRows.forEach(row => {
+      if (row.paymentMethod) paymentMethods[row.paymentMethod] = Number(row.get('count'));
     });
 
+    const todayRevenue = Number(todayTotal) || 0;
     res.json({
-      today: { total: todayTotal, count: todayTx.length, average: todayTx.length ? todayTotal / todayTx.length : 0 },
-      month: { total: monthlyTotal, count: monthlyTx.length },
+      today: {
+        total: todayRevenue,
+        count: todayCount,
+        average: todayCount ? todayRevenue / todayCount : 0
+      },
+      month: { total: Number(monthlyTotal) || 0, count: monthlyCount },
       paymentMethods,
-      recentTransactions: todayTx.slice(0, 10)
+      recentTransactions
     });
   } catch (err) {
     console.error('Summary error:', err);
@@ -148,8 +171,10 @@ router.get('/reports/profit', auth, async (req, res) => {
 
     const transactions = await Transaction.findAll({ where, order: [['createdAt', 'DESC']] });
 
-    // Aggregate totals + a per-product breakdown.
-    let revenue = 0, cogs = 0;
+    // Aggregate totals + a per-product breakdown, in whole pesewas so repeated
+    // float additions don't drift onto a regulatory-facing report.
+    const cents = (value) => Math.round((Number(value) || 0) * 100);
+    let revenueCents = 0, cogsCents = 0;
     const byProduct = {};
 
     for (const tx of transactions) {
@@ -157,25 +182,34 @@ router.get('/reports/profit', auth, async (req, res) => {
       if (Number(tx.total) < 0) continue;
       for (const item of tx.items || []) {
         const qty = Number(item.quantity) || 0;
-        const lineRevenue = Number(item.total) || 0;
-        const lineCogs = (Number(item.cost) || 0) * qty;
-        revenue += lineRevenue;
-        cogs += lineCogs;
+        const lineRevenue = cents(item.total);
+        const lineCogs = cents((Number(item.cost) || 0) * qty);
+        revenueCents += lineRevenue;
+        cogsCents += lineCogs;
 
         const key = item.product?.name || item.productName || 'Unknown';
-        if (!byProduct[key]) byProduct[key] = { productName: key, quantity: 0, revenue: 0, cogs: 0, profit: 0 };
+        if (!byProduct[key]) byProduct[key] = { productName: key, quantity: 0, revenueCents: 0, cogsCents: 0, profitCents: 0 };
         byProduct[key].quantity += qty;
-        byProduct[key].revenue += lineRevenue;
-        byProduct[key].cogs += lineCogs;
-        byProduct[key].profit += lineRevenue - lineCogs;
+        byProduct[key].revenueCents += lineRevenue;
+        byProduct[key].cogsCents += lineCogs;
+        byProduct[key].profitCents += lineRevenue - lineCogs;
       }
     }
 
-    const profit = revenue - cogs;
-    const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
+    const revenue = revenueCents / 100;
+    const cogs = cogsCents / 100;
+    const profit = (revenueCents - cogsCents) / 100;
+    const margin = revenueCents > 0 ? (profit / revenue) * 100 : 0;
 
     const products = Object.values(byProduct)
-      .map((p) => ({ ...p, margin: p.revenue > 0 ? (p.profit / p.revenue) * 100 : 0 }))
+      .map((p) => ({
+        productName: p.productName,
+        quantity: p.quantity,
+        revenue: p.revenueCents / 100,
+        cogs: p.cogsCents / 100,
+        profit: p.profitCents / 100,
+        margin: p.revenueCents > 0 ? ((p.profitCents / p.revenueCents) * 100) : 0
+      }))
       .sort((a, b) => b.profit - a.profit);
 
     res.json({
@@ -232,9 +266,9 @@ router.post('/', auth, async (req, res) => {
 
   try {
     const {
-      items, subtotal, tax, total,
+      items, discount = 0,
       paymentMethod, paymentReference,
-      discount = 0, customerName, customerPhone, notes
+      customerName, customerPhone, notes
     } = req.body;
 
     if (!items?.length) {
@@ -242,72 +276,39 @@ router.post('/', auth, async (req, res) => {
       return res.status(400).json({ msg: 'No items in cart' });
     }
 
-    const user = await User.findByPk(req.user.userId);
+    const user = await User.findByPk(req.user.userId, { transaction: t });
     if (!user) {
       await t.rollback();
       return res.status(404).json({ msg: 'Cashier not found' });
     }
 
-    const transactionNumber = `TXN-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-
-    const cleanItems = items.map(item => ({
-      productId: item.productId,
-      product: {
-        name: item.product?.name || item.productName || 'Unknown',
-        sku: item.product?.sku || item.productSku || '',
-        category: item.product?.category || item.productCategory || 'Other'
-      },
-      quantity: item.quantity,
-      unitPrice: item.unitPrice,
-      total: item.total,
-      discount: item.discount || 0
-    }));
-
-    // Capture the schedule AND cost price at time of sale (authoritative from
-    // the DB, not the client) so the dispensing + profit reports stay accurate
-    // even if a product's schedule or cost changes later.
-    const productIds = [...new Set(cleanItems.map(i => i.productId).filter(Boolean))];
-    if (productIds.length) {
-      const dbProducts = await Product.findAll({
-        where: { id: productIds }, attributes: ['id', 'schedule', 'cost'], transaction: t
-      });
-      const byId = {};
-      dbProducts.forEach(p => { byId[String(p.id)] = p; });
-      cleanItems.forEach(i => {
-        const p = byId[String(i.productId)];
-        i.schedule = p?.schedule || 'none';
-        i.cost = p ? Number(p.cost) : 0; // unit cost snapshot for COGS
-      });
-    }
+    // Catalogue-priced totals + per-item cost/schedule snapshots. The client's
+    // own subtotal/tax/total are ignored on purpose.
+    const priced = await priceCartItems(items, { transaction: t, cartDiscount: discount });
+    const transactionNumber = await nextReference('MED', { transaction: t });
 
     const txRecord = await Transaction.create({
       transactionNumber,
       cashierId: req.user.userId,
       cashierName: user.name,
-      items: cleanItems,   // JSONB — stored natively
-      subtotal, tax, total,
-      paymentMethod, paymentReference,
-      discount,
+      items: priced.lines,   // JSONB — stored natively
+      subtotal: priced.subtotal,
+      tax: priced.tax,
+      total: priced.total,
+      paymentMethod: normalizePaymentMethod(paymentMethod) || 'cash',
+      paymentReference: paymentReference || null,
+      discount: priced.discount,
       customerName: customerName || null,
       customerPhone: customerPhone || null,
       notes: notes || null
     }, { transaction: t });
 
-    for (const item of cleanItems) {
-      const product = await Product.findByPk(item.productId, { transaction: t });
+    for (const item of priced.lines) {
+      const product = await deductStock(item.productId, item.quantity, { transaction: t, allowMissing: true });
       if (!product) {
         console.warn(`Product not found: ${item.productId}`);
         continue;
       }
-
-      if (product.quantity < item.quantity) {
-        await t.rollback();
-        return res.status(400).json({
-          msg: `Not enough stock for ${product.name}. Available: ${product.quantity}`
-        });
-      }
-
-      await product.update({ quantity: product.quantity - item.quantity }, { transaction: t });
 
       await InventoryLog.create({
         productId: item.productId,
@@ -326,7 +327,10 @@ router.post('/', auth, async (req, res) => {
 
     await recordAudit(req, {
       action: 'create', entity: 'Transaction', entityId: txRecord.id,
-      changes: { transactionNumber, total, paymentMethod, itemCount: cleanItems.length }
+      changes: {
+        transactionNumber, total: priced.total,
+        paymentMethod: txRecord.paymentMethod, itemCount: priced.lines.length
+      }
     });
 
     res.status(201).json({
@@ -337,6 +341,10 @@ router.post('/', auth, async (req, res) => {
     });
   } catch (err) {
     await t.rollback();
+    if (err instanceof AppError) {
+      console.warn('Payment rejected:', err.message);
+      return res.status(err.status).json({ msg: err.message });
+    }
     console.error('Payment failed:', err.message);
     res.status(500).json({
       msg: 'Payment failed. Please try again.',
@@ -350,14 +358,27 @@ router.post('/:id/refund', auth, adminAuth, async (req, res) => {
   const t = await sequelize.transaction();
 
   try {
-    const tx = await Transaction.findByPk(req.params.id);
+    const tx = await Transaction.findByPk(req.params.id, { transaction: t, lock: t.LOCK.UPDATE });
     if (!tx) {
       await t.rollback();
       return res.status(404).json({ msg: 'Transaction not found' });
     }
 
-    const user = await User.findByPk(req.user.userId);
+    const user = await User.findByPk(req.user.userId, { transaction: t });
     const refundNumber = `REF-${tx.transactionNumber}`;
+
+    // A refund must itself not be refundable, and one sale may only be refunded
+    // once — otherwise REF- rows flip revenue back positive and restock twice.
+    if (normalizePaymentMethod(tx.paymentMethod) === 'refund') {
+      await t.rollback();
+      return res.status(400).json({ msg: 'A refund cannot be refunded' });
+    }
+
+    const existingRefund = await Transaction.findOne({ where: { transactionNumber: refundNumber }, transaction: t });
+    if (existingRefund) {
+      await t.rollback();
+      return res.status(400).json({ msg: `Already refunded as ${refundNumber}` });
+    }
 
     const refundTx = await Transaction.create({
       transactionNumber: refundNumber,
@@ -373,10 +394,10 @@ router.post('/:id/refund', auth, adminAuth, async (req, res) => {
     }, { transaction: t });
 
     for (const item of tx.items) {
-      const product = await Product.findByPk(item.productId, { transaction: t });
+      const product = await addStock(item.productId, Number(item.quantity), {
+        transaction: t, allowMissing: true
+      });
       if (!product) continue;
-
-      await product.update({ quantity: product.quantity + item.quantity }, { transaction: t });
 
       await InventoryLog.create({
         productId: item.productId,
@@ -403,6 +424,9 @@ router.post('/:id/refund', auth, adminAuth, async (req, res) => {
     });
   } catch (err) {
     await t.rollback();
+    if (err instanceof AppError) {
+      return res.status(err.status).json({ msg: err.message });
+    }
     console.error('Refund error:', err);
     res.status(500).json({ msg: 'Refund failed' });
   }

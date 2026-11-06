@@ -2,19 +2,42 @@
 
 ## Prerequisites
 1. Install PostgreSQL from: https://www.postgresql.org/download/windows/
-2. Remember the password you set during installation
+2. Remember the password you set for the "postgres" user during installation
+   (Node.js is NOT required - it is bundled with the app)
+
+## Installing
+1. Run PharmacyPOS-Setup-<version>-x64.exe
+   (Windows SmartScreen may warn about an unknown publisher because the
+   installer is not code-signed: click "More info" > "Run anyway")
+2. Choose an install folder (no administrator rights needed) and finish the wizard.
+3. Launch PharmacyPOS from the Desktop or Start Menu shortcut.
 
 ## Configuration
-1. Edit `backend/.env` file:
-   - Change `DB_PASSWORD` to your PostgreSQL password
-   - Change `JWT_SECRET` to a unique secret key
+The first launch creates a settings file at:
+    %APPDATA%\pharmacy-pos\.env
 
-2. Run PharmacyPOS.exe
-   - The database will be created automatically
-   - Initial admin user: admin@pharmacy.com / admin123
+If your PostgreSQL password is not "postgres" (or PostgreSQL is on another
+machine), edit it from inside the app:
+    File > Edit Database Settings...
+then change DB_PASSWORD (and DB_HOST / DB_PORT if needed), save, and use
+    File > Restart Backend
+
+The settings file is kept when you upgrade or reinstall the app.
+The database "pharmacy_pos" is created automatically on first launch.
+
+Logs: Help > View Logs
 
 ## Default Users
 - Admin: admin@pharmacy.com / admin123
+- Manager: manager@pharmacy.com / manager123
 - Cashier: cashier@pharmacy.com / cashier123
-- Officer: officer@pharmacy.com / officer123
+- Pharmacist: pharmacist@pharmacy.com / pharmacist123
 - Lab: lab@pharmacy.com / lab123
+(Change these passwords after the first login.)
+
+## Building the installer (developers)
+    npm run install:all
+    npm run build:win          # -> release/PharmacyPOS-Setup-<version>-x64.exe
+
+Build on Windows, or push a tag like v1.0.1 / run the "Build and Release
+PharmacyPOS" GitHub Action to get the installer as a build artifact.

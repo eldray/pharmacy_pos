@@ -1,0 +1,114 @@
+name: CI
+
+# build.yml is the release job (tag-triggered, ships the Windows exe).
+# This one runs on every push and PR: unit tests, a from-scratch migration on a
+# real Postgres, the schema-drift guard, and the frontend lint + build.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  backend:
+    name: Backend tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+  schema:
+    name: Migrations on a clean database
+    runs-on: ubuntu-latest
+    needs: backend
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: pharmacy_pos_ci
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d pharmacy_pos_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/pharmacy_pos_ci
+      # Throwaway value: the server refuses the repository placeholder and boots with
+      # a random one, which would bury the real failure in a warning.
+      JWT_SECRET: ci-only-secret-0123456789abcdef0123456789abcdef
+      APP_VERSION: 0.0.0-ci
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --omit=dev
+
+      - name: Apply every migration from scratch
+        run: npm run migrate
+
+      - name: Fail if the models and the database disagree
+        run: npm run check:schema
+
+      - name: Boot check (server starts, authenticates, and passes the drift guard)
+        run: |
+          node server.js > server.log 2>&1 &
+          SERVER_PID=$!
+          for attempt in $(seq 1 30); do
+            if grep -q "Schema matches models" server.log; then exit 0; fi
+            if ! kill -0 $SERVER_PID 2>/dev/null; then cat server.log; exit 1; fi
+            sleep 2
+          done
+          cat server.log
+          kill $SERVER_PID 2>/dev/null
+          exit 1
+
+  frontend:
+    name: Frontend lint and build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build

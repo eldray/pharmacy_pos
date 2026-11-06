@@ -46,6 +46,10 @@ async function revertMigration(filename) {
   const migration = require(filePath);
   const queryInterface = sequelize.getQueryInterface();
 
+  if (typeof migration.down !== 'function') {
+    throw new Error(`${filename} has no down() — it cannot be reverted. Remove its ${META_TABLE} row by hand only if you know the schema is otherwise unaffected.`);
+  }
+
   console.log(`⏪ Reverting: ${filename}`);
   await sequelize.transaction(async (t) => {
     await migration.down(queryInterface, sequelize.Sequelize, t);
@@ -83,3 +87,34 @@ async function migrate(direction = 'up') {
 }
 
 module.exports = { migrate };
+
+// `npm run migrate` / `migrate:status` previously loaded this file and exited
+// without doing anything, because only `migrate()` was exported and never called.
+if (require.main === module) {
+  const direction = process.argv[2] || 'up';
+
+  (async () => {
+    if (direction === 'status') {
+      await ensureMetaTable();
+      const files = fs.readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith('.js')).sort();
+      const applied = await getApplied();
+      const pending = files.filter((f) => !applied.includes(f));
+      console.log(`Applied: ${applied.length}/${files.length}`);
+      for (const name of applied) console.log(`  ✅ ${name}`);
+      for (const name of pending) console.log(`  ⏳ ${name}`);
+      if (pending.length) console.log(`\n${pending.length} migration(s) pending — run \`npm run migrate\`.`);
+      await sequelize.close();
+      return;
+    }
+
+    const result = await migrate(direction);
+    console.log(direction === 'down'
+      ? `⏪ Reverted ${result.reverted} migration(s)`
+      : `✅ Applied ${result.applied} migration(s)`);
+    await sequelize.close();
+  })().catch(async (err) => {
+    console.error('❌ Migration failed:', err.message);
+    await sequelize.close().catch(() => {});
+    process.exit(1);
+  });
+}

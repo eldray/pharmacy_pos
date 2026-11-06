@@ -7,6 +7,7 @@ import {
 import { useAppStore } from '../store';
 import { LabTestTemplate, Customer, InsuranceProvider, LabTransaction } from '../types';
 import api, { getErrorMessage } from '../api/api';
+import { safeNumber } from '../utils/number';
 
 interface LabRequestModalProps {
     isOpen: boolean;
@@ -121,6 +122,9 @@ const LabCustomerModal: React.FC<{
         >
             <div
                 onClick={(e) => e.stopPropagation()}
+                role="dialog"
+                aria-modal="true"
+                aria-label="Add new patient"
                 style={{
                     background: 'var(--color-bg-elevated)', borderRadius: 14, padding: 20,
                     border: '1px solid var(--color-border)', boxShadow: 'var(--shadow-xl)',
@@ -253,11 +257,6 @@ export const LabRequestModal: React.FC<LabRequestModalProps> = ({
 
     const dropdownRef = useRef<HTMLDivElement>(null);
     const customerDropRef = useRef<HTMLDivElement>(null);
-
-    const safeNumber = (v: any): number => {
-        const n = Number(v);
-        return isNaN(n) ? 0 : n;
-    };
 
     const computeAge = (dob?: string) => {
         if (!dob) return null;
@@ -416,7 +415,7 @@ export const LabRequestModal: React.FC<LabRequestModalProps> = ({
         applyCustomer(c);
     };
 
-    /* Submit — creates a LAB SERVICE ORDER (not a LabTransaction) */
+    /* Submit — creates a LabTransaction (+ its LabTest rows) the cashier pays later */
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!customerId) { alert('Please select or create a patient first'); return; }
@@ -450,7 +449,9 @@ export const LabRequestModal: React.FC<LabRequestModalProps> = ({
                 tests: selectedTests.map((st) => ({
                     testType: st.template.name,
                     testCategory: st.template.category,
-                    testPrice: safeNumber(st.template.price) * st.quantity,
+                    // Unit price: the server re-prices from the template and
+                    // multiplies by this quantity itself.
+                    testPrice: safeNumber(st.template.price),
                     quantity: st.quantity,
                     sampleType: st.template.sampleType || null,
                     priority: 'normal',
@@ -499,6 +500,9 @@ export const LabRequestModal: React.FC<LabRequestModalProps> = ({
         >
             <div
                 className="rounded-[12px] overflow-hidden"
+                role="dialog"
+                aria-modal="true"
+                aria-label="Request lab tests"
                 style={{
                     background: 'var(--color-bg-elevated)',
                     border: '1px solid var(--color-border)',
@@ -523,6 +527,7 @@ export const LabRequestModal: React.FC<LabRequestModalProps> = ({
                     </div>
                     <button
                         onClick={onClose}
+                        aria-label="Close dialog"
                         className="flex items-center justify-center flex-shrink-0 cursor-pointer"
                         style={{ width: 28, height: 28, borderRadius: 6, background: 'transparent', border: 'none', color: 'var(--color-text-muted)' }}
                         onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.background = 'var(--color-bg-subtle)')}

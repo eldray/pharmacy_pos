@@ -1,32 +1,40 @@
-# .render.yaml (in project root)
+# Render blueprint for the standalone PharmacyPOS API.
+#
+# The desktop app does not need this file: Electron ships its own backend, talks to
+# a local Postgres and serves the built UI from frontend/dist. Use this only when
+# you want a network-reachable API.
+#
+# Notes for that case:
+#   - backend/server.js serves the SPA from ../frontend/dist, which does not exist
+#     under this service (rootDir: backend). Deploying here exposes the JSON API
+#     only; the browser UI stays in the packaged desktop app.
+#   - server.js refuses to boot with the repository's placeholder JWT_SECRET, so it
+#     is generated per install. Rotating that secret invalidates live tokens.
+#   - Render injects PORT; do not pin it here.
 services:
-  # Backend Service
   - type: web
     name: pharmacy-pos-backend
     env: node
     rootDir: backend
-    buildCommand: npm install
+    region: singapore
+    plan: starter
+    buildCommand: npm ci
     startCommand: node server.js
+    healthCheckPath: /api/health
+    autoDeploy: true
     envVars:
       - key: NODE_ENV
         value: production
-      - key: PORT
-        value: 10000
-      - key: MONGODB_URI
+      - key: DATABASE_URL
+        fromDatabase:
+          name: pharmacy-pos-db
+          property: connectionString
+      - key: JWT_SECRET
         generateValue: true
-    
-  # Frontend Service
-  - type: web
-    name: pharmacy-pos-frontend
-    env: node
-    buildCommand: |
-      npm install
-      cd frontend && npm install && npm run build
-    startCommand: node web-server.js
-    envVars:
-      - key: NODE_ENV
-        value: production
-      - key: PORT
-        value: 10000
-      - key: BACKEND_URL
-        value: https://pharmacy-pos-backend.onrender.com
+      - key: APP_VERSION
+        sync: false
+
+databases:
+  - name: pharmacy-pos-db
+    databaseName: pharmacy_pos
+    plan: starter

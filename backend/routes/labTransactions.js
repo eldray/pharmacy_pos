@@ -8,8 +8,16 @@ const Company = require('../models/Company');
 const Customer = require('../models/Customer');
 const { auth, adminAuth, labAuth } = require('../middleware/auth');
 const { createdAtRange } = require('../utils/dateRange');
+const { priceLabTests, resolveInsurance } = require('../utils/pricing');
+const { nextReference } = require('../utils/references');
+const { normalizePaymentMethod, pick } = require('../utils/validators');
+const { isClientError, clientMessage } = require('../utils/errors');
+const { LAB_TRANSACTION_FIELDS, labTestFieldsFor } = require('../utils/editableFields');
 
 const router = express.Router();
+const { numericIdParams } = require('../utils/numericIdParams');
+
+numericIdParams(router);
 
 // Get all lab transactions
 router.get('/', auth, async (req, res) => {
@@ -46,7 +54,7 @@ router.get('/', auth, async (req, res) => {
         if (q && q.trim()) {
             where[Op.or] = [
                 { transactionNumber: { [Op.iLike]: `%${q}%` } },
-                { orderNumber: { [Op.iLike]: `%${q}%` } },
+                { receiptNumber: { [Op.iLike]: `%${q}%` } },
                 { patientName: { [Op.iLike]: `%${q}%` } },
                 { patientPhone: { [Op.iLike]: `%${q}%` } },
             ];
@@ -141,13 +149,13 @@ router.post('/', auth, async (req, res) => {
             patientEmail,
             patientAge,
             patientGender,
-            totalAmount,
-            paidAmount,
             paymentMethod,
             paymentReference,
             paymentStatus,
             notes,
-            tests
+            tests,
+            insuranceProviderId,
+            policyNumber
         } = req.body;
 
         if (!tests || tests.length === 0) {
@@ -183,8 +191,16 @@ router.post('/', auth, async (req, res) => {
             return res.status(400).json({ msg: 'Patient name is required' });
         }
 
-        const transactionNumber = `LAB-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-        const receiptNumber = `REC-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+        // Test prices come from the templates, so a tampered client cannot set
+        // its own lab bill.
+        const priced = await priceLabTests(tests, { transaction: t });
+
+        // Same dual co-pay split as a POS order, derived from the provider row.
+        // The patient owes the copay; the rest is the insurer's claim on the lab.
+        const insurance = await resolveInsurance(insuranceProviderId, priced, { transaction: t });
+
+        const transactionNumber = await nextReference('LAB', { transaction: t });
+        const receiptNumber = await nextReference('REC', { transaction: t });
 
         const transaction = await LabTransaction.create({
             transactionNumber,
@@ -194,9 +210,19 @@ router.post('/', auth, async (req, res) => {
             patientEmail: resolvedEmail,
             patientAge: resolvedAge,
             patientGender: resolvedGender,
-            totalAmount: parseFloat(totalAmount) || 0,
-            paidAmount: parseFloat(paidAmount) || 0,
-            paymentMethod,
+            totalAmount: priced.total,
+            // The cashier collects the patient's share at /pay, so a pending
+            // request is unpaid.
+            paidAmount: paymentStatus === 'paid' ? insurance.copayAmount : 0,
+            insuranceProviderId: insurance.insuranceProviderId,
+            insuranceProviderName: insurance.insuranceProviderName,
+            // Kept only when an insurer is actually on the request.
+            policyNumber: insurance.insuranceProviderId ? (policyNumber || null) : null,
+            insuranceCoverage: insurance.insuranceCoverage,
+            // NULL = walk-in/full self-pay, so it is never confused with an
+            // insurer covering 100%.
+            copayAmount: insurance.insuranceProviderId ? insurance.copayAmount : null,
+            paymentMethod: normalizePaymentMethod(paymentMethod),
             paymentReference,
             paymentStatus: paymentStatus || 'pending',
             status: 'pending',
@@ -208,14 +234,15 @@ router.post('/', auth, async (req, res) => {
         }, { transaction: t });
 
         const labTests = [];
-        for (const testData of tests) {
-            const testNumber = `TEST-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+        for (const testData of priced.lines) {
             const test = await LabTest.create({
-                testNumber,
+                testNumber: await nextReference('LAB', { transaction: t }),
                 labTransactionId: transaction.id,
                 testType: testData.testType,
                 testCategory: testData.testCategory || 'General',
-                testPrice: parseFloat(testData.testPrice) || 0,
+                // testPrice is the UNIT price; quantity is stored alongside it.
+                testPrice: testData.testPrice,
+                quantity: testData.quantity,
                 priority: testData.priority || 'normal',
                 sampleType: testData.sampleType || null,
                 status: 'pending',
@@ -245,8 +272,11 @@ router.post('/', auth, async (req, res) => {
 
     } catch (err) {
         await t.rollback();
+        if (isClientError(err)) {
+            return res.status(err.status || 400).json({ msg: clientMessage(err) });
+        }
         console.error('Create lab transaction error:', err);
-        res.status(400).json({ msg: 'Invalid data', error: err.message });
+        res.status(500).json({ msg: 'Server error' });
     }
 });
 
@@ -258,7 +288,9 @@ router.put('/:id', auth, async (req, res) => {
             return res.status(404).json({ msg: 'Lab transaction not found' });
         }
 
-        const updates = { ...req.body };
+        // Only workflow/patient columns — money columns (paidAmount,
+        // paymentStatus, paymentMethod) belong to the /pay route.
+        const updates = pick(req.body, LAB_TRANSACTION_FIELDS);
 
         if (updates.status === 'completed' && !transaction.completedAt) {
             updates.completedAt = new Date();
@@ -297,12 +329,16 @@ router.put('/tests/:testId', auth, async (req, res) => {
             return res.status(404).json({ msg: 'Lab test not found' });
         }
 
-        const updates = { ...req.body };
+        const user = await User.findByPk(req.user.userId);
+        const allowedFields = labTestFieldsFor(user.role);
+        if (!allowedFields.length) {
+            return res.status(403).json({ msg: 'Lab staff only' });
+        }
+        const updates = pick(req.body, allowedFields);
 
         if (updates.status === 'completed') {
             updates.completedAt = new Date();
             updates.performedBy = req.user.userId;
-            const user = await User.findByPk(req.user.userId);
             updates.performedByName = user.name;
             updates.resultDate = new Date();
         }
@@ -371,18 +407,52 @@ router.post('/tests/:testId/results', auth, async (req, res) => {
 // Get statistics
 router.get('/stats/summary', auth, async (req, res) => {
     try {
-        const [total, pending, inProgress, completed, cancelled] = await Promise.all([
-            LabTransaction.count(),
-            LabTransaction.count({ where: { status: 'pending' } }),
-            LabTransaction.count({ where: { status: 'in_progress' } }),
-            LabTransaction.count({ where: { status: 'completed' } }),
-            LabTransaction.count({ where: { status: 'cancelled' } })
+        const { startDate, endDate, status, paymentStatus } = req.query;
+
+        // Every tile on the lab screen sits under the same date + status controls
+        // as the list, so the counts have to answer to them too.
+        const scopedWhere = {};
+        if (status) scopedWhere.status = status;
+        if (paymentStatus) scopedWhere.paymentStatus = paymentStatus;
+        if (startDate && endDate) {
+            scopedWhere.createdAt = createdAtRange(startDate, endDate);
+        }
+        const scope = Object.keys(scopedWhere).length ? { where: scopedWhere } : {};
+
+        const countWhere = (extra) => ({
+            where: { ...(scopedWhere || {}), ...extra },
+        });
+
+        const [total, pending, inProgress, completed, cancelled, paid] = await Promise.all([
+            LabTransaction.count(scope),
+            LabTransaction.count(countWhere({ status: 'pending' })),
+            LabTransaction.count(countWhere({ status: 'in_progress' })),
+            LabTransaction.count(countWhere({ status: 'completed' })),
+            LabTransaction.count(countWhere({ status: 'cancelled' })),
+            // 'paid' is paymentStatus, not workflow status: paying moves a request
+            // to 'in_progress', so counting 'completed' here would always show 0.
+            LabTransaction.count(countWhere({ paymentStatus: 'paid' })),
         ]);
 
+        const scopedTransactionIds = startDate || endDate || status || paymentStatus
+            ? (await LabTransaction.findAll({
+                where: scopedWhere,
+                attributes: ['id'],
+                raw: true,
+            })).map((r) => r.id)
+            : null;
+
+        const testScope = scopedTransactionIds
+            ? { where: { labTransactionId: { [Op.in]: scopedTransactionIds } } }
+            : {};
+        const testCountWhere = (extra) => (scopedTransactionIds
+            ? { where: { labTransactionId: { [Op.in]: scopedTransactionIds }, ...extra } }
+            : { where: extra });
+
         const [totalTests, completedTests, pendingTests] = await Promise.all([
-            LabTest.count(),
-            LabTest.count({ where: { status: 'completed' } }),
-            LabTest.count({ where: { status: 'pending' } })
+            LabTest.count(testScope),
+            LabTest.count(testCountWhere({ status: 'completed' })),
+            LabTest.count(testCountWhere({ status: 'pending' })),
         ]);
 
         const today = new Date();
@@ -400,7 +470,7 @@ router.get('/stats/summary', auth, async (req, res) => {
         const todayRevenue = todayTransactions.reduce((sum, t) => sum + parseFloat(t.totalAmount), 0);
 
         res.json({
-            total, pending, inProgress, completed, cancelled,
+            total, pending, inProgress, completed, cancelled, paid,
             totalTests, completedTests, pendingTests,
             today: { count: todayTransactions.length, revenue: todayRevenue }
         });
@@ -444,7 +514,8 @@ router.post('/:id/pay', auth, async (req, res) => {
     const t = await sequelize.transaction();
     try {
         const { paymentMethod, paymentReference } = req.body;
-        const transaction = await LabTransaction.findByPk(req.params.id, { transaction: t });
+        // Locked row: two cashiers paying one lab bill used to both succeed.
+        const transaction = await LabTransaction.findByPk(req.params.id, { transaction: t, lock: t.LOCK.UPDATE });
 
         if (!transaction) {
             await t.rollback();
@@ -461,10 +532,16 @@ router.post('/:id/pay', auth, async (req, res) => {
 
         const cashier = await User.findByPk(req.user.userId, { transaction: t });
 
+        // An insured request bills the patient their copay, not the full bill;
+        // copayAmount is NULL when no insurer is on the request.
+        const amountDue = transaction.copayAmount == null
+            ? parseFloat(transaction.totalAmount) || 0
+            : parseFloat(transaction.copayAmount) || 0;
+
         await transaction.update({
             paymentStatus: 'paid',
-            paidAmount: parseFloat(transaction.copayAmount || transaction.totalAmount) || 0,
-            paymentMethod: paymentMethod || 'cash',
+            paidAmount: amountDue,
+            paymentMethod: normalizePaymentMethod(paymentMethod) || 'cash',
             paymentReference: paymentReference || null,
             cashierId: req.user.userId,
             cashierName: cashier ? cashier.name : 'Cashier',

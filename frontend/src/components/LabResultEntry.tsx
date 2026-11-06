@@ -192,7 +192,7 @@ export const LabResultEntry: React.FC<LabResultEntryProps> = ({
             onClick={onClose}
         >
             <div
-                className="rounded-[12px] overflow-hidden flex flex-col"
+                className="rounded-[12px] overflow-hidden flex flex-col print-content"
                 style={{
                     background: 'var(--color-bg-elevated)',
                     border: '1px solid var(--color-border)',
@@ -205,7 +205,7 @@ export const LabResultEntry: React.FC<LabResultEntryProps> = ({
             >
                 {/* ── Header ──────────────────────────────────────────────── */}
                 <div
-                    className="flex items-center justify-between px-5 py-3.5 flex-shrink-0"
+                    className="flex items-center justify-between px-5 py-3.5 flex-shrink-0 no-print"
                     style={{ borderBottom: '1px solid var(--color-border)' }}
                 >
                     <div className="flex items-center gap-2.5">
@@ -636,7 +636,7 @@ export const LabResultEntry: React.FC<LabResultEntryProps> = ({
 
                             {/* ── Actions ───────────────────────────────────────── */}
                             <div
-                                className="flex gap-2.5 pt-5 mt-5"
+                                className="flex gap-2.5 pt-5 mt-5 no-print"
                                 style={{ borderTop: '1px solid var(--color-border)' }}
                             >
                                 <button

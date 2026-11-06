@@ -1,9 +1,18 @@
 const express = require('express');
-const { SalesOrder, User, Branch, InsuranceProvider, Transaction, Product, InventoryLog, Customer } = require('../models');
+const { SalesOrder, User, Transaction, InventoryLog, Customer } = require('../models');
 const { auth } = require('../middleware/auth');
 const { sequelize } = require('../config/database');
 const { createdAtRange } = require('../utils/dateRange');
+const { priceCartItems, resolveInsurance } = require('../utils/pricing');
+const { deductStock } = require('../utils/stock');
+const { nextReference } = require('../utils/references');
+const { normalizePaymentMethod } = require('../utils/validators');
+const { AppError } = require('../utils/errors');
+const { recordAudit } = require('../utils/audit');
 const router = express.Router();
+const { numericIdParams } = require('../utils/numericIdParams');
+
+numericIdParams(router);
 
 // GET today's orders (for Payment Page cashier view)
 router.get('/today', auth, async (req, res) => {
@@ -138,10 +147,10 @@ router.get('/', auth, async (req, res) => {
 router.post('/', auth, async (req, res) => {
   try {
     const {
-      items, subtotal, tax, total,
+      items, discount = 0,
       customerId, customerName, customerPhone,
-      insuranceProviderId, insuranceProviderName, policyNumber,
-      insuranceCoverage = 0, copayAmount = 0, notes, branchId
+      insuranceProviderId, policyNumber,
+      notes, branchId
     } = req.body;
 
     if (!items?.length) {
@@ -149,7 +158,13 @@ router.post('/', auth, async (req, res) => {
     }
 
     const user = await User.findByPk(req.user.userId);
-    const orderNumber = `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
+    // Prices, VAT and the insurer split are derived from the catalogue and the
+    // company settings — a tampered client cannot set its own total.
+    const priced = await priceCartItems(items, { cartDiscount: discount });
+    const insurance = await resolveInsurance(insuranceProviderId, priced);
+
+    const orderNumber = await nextReference('MED');
 
     const order = await SalesOrder.create({
       orderNumber,
@@ -159,21 +174,29 @@ router.post('/', auth, async (req, res) => {
       customerId: customerId || null,
       customerName: customerName || null,
       customerPhone: customerPhone || null,
-      items,
-      subtotal,
-      tax,
-      total,
-      insuranceProviderId: insuranceProviderId || null,
-      insuranceProviderName: insuranceProviderName || null,
+      items: priced.lines,
+      subtotal: priced.subtotal,
+      tax: priced.tax,
+      total: priced.total,
+      ...insurance,
       policyNumber: policyNumber || null,
-      insuranceCoverage,
-      copayAmount: copayAmount || total,
       status: 'pending_payment',
       notes: notes || null
     });
 
+    await recordAudit(req, {
+      action: 'create', entity: 'SalesOrder', entityId: order.id,
+      changes: {
+        orderNumber, total: priced.total, copayAmount: insurance.copayAmount,
+        insuranceProviderId: insurance.insuranceProviderId, itemCount: priced.lines.length
+      }
+    });
+
     res.status(201).json(order);
   } catch (err) {
+    if (err instanceof AppError) {
+      return res.status(err.status).json({ success: false, message: err.message });
+    }
     console.error('Create sales order error:', err);
     res.status(500).json({ success: false, message: 'Server error' });
   }
@@ -184,7 +207,10 @@ router.post('/:id/pay', auth, async (req, res) => {
   const t = await sequelize.transaction();
   try {
     const { paymentMethod, paymentReference } = req.body;
-    const order = await SalesOrder.findByPk(req.params.id, { transaction: t });
+
+    // Row lock: two tills paying the same order at once used to both pass the
+    // "already paid" check and create two transactions.
+    const order = await SalesOrder.findByPk(req.params.id, { transaction: t, lock: t.LOCK.UPDATE });
 
     if (!order) {
       await t.rollback();
@@ -202,7 +228,7 @@ router.post('/:id/pay', auth, async (req, res) => {
     }
 
     const cashier = await User.findByPk(req.user.userId, { transaction: t });
-    const transactionNumber = `TXN-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    const transactionNumber = await nextReference('MED', { transaction: t });
 
     const transactionRecord = await Transaction.create({
       transactionNumber,
@@ -213,7 +239,7 @@ router.post('/:id/pay', auth, async (req, res) => {
       subtotal: order.subtotal,
       tax: order.tax,
       total: order.copayAmount || order.total,
-      paymentMethod: paymentMethod || 'Cash',
+      paymentMethod: normalizePaymentMethod(paymentMethod) || 'cash',
       paymentReference: paymentReference || null,
       customerName: order.customerName,
       customerPhone: order.customerPhone,
@@ -221,24 +247,26 @@ router.post('/:id/pay', auth, async (req, res) => {
     }, { transaction: t });
 
     for (const item of order.items || []) {
-      const product = await Product.findByPk(item.productId, { transaction: t });
-      if (product) {
-        const previousStock = product.quantity;
-        const newStock = Math.max(0, previousStock - Number(item.quantity));
-
-        await product.update({ quantity: newStock }, { transaction: t });
-
-        await InventoryLog.create({
-          productId: product.id,
-          productName: product.name,
-          userId: req.user.userId,
-          userName: cashier ? cashier.name : 'Cashier',
-          type: 'outflow',
-          quantity: Number(item.quantity),
-          reference: transactionNumber,
-          notes: `Sales Order #${order.orderNumber}`
-        }, { transaction: t });
+      // Locked row + short-stock rejection. This used to clamp to
+      // Math.max(0, stock - qty), which hid oversells instead of refusing them.
+      const product = await deductStock(item.productId, item.quantity, {
+        transaction: t, allowMissing: true
+      });
+      if (!product) {
+        console.warn(`Product not found at payment time: ${item.productId}`);
+        continue;
       }
+
+      await InventoryLog.create({
+        productId: product.id,
+        productName: product.name,
+        userId: req.user.userId,
+        userName: cashier ? cashier.name : 'Cashier',
+        type: 'outflow',
+        quantity: Number(item.quantity),
+        reference: transactionNumber,
+        notes: `Sales Order #${order.orderNumber}`
+      }, { transaction: t });
     }
 
     order.status = 'paid';
@@ -247,9 +275,16 @@ router.post('/:id/pay', auth, async (req, res) => {
     await order.save({ transaction: t });
 
     await t.commit();
+    await recordAudit(req, {
+      action: 'pay', entity: 'SalesOrder', entityId: order.id,
+      changes: { orderNumber: order.orderNumber, transactionNumber, total: transactionRecord.total, paymentMethod }
+    });
     res.json({ success: true, transaction: transactionRecord, order });
   } catch (err) {
     await t.rollback();
+    if (err instanceof AppError) {
+      return res.status(err.status).json({ success: false, message: err.message });
+    }
     console.error('Pay sales order error:', err);
     res.status(500).json({ success: false, message: err.message || 'Server error' });
   }
@@ -257,21 +292,25 @@ router.post('/:id/pay', auth, async (req, res) => {
 
 // CANCEL sales order (only if not yet paid)
 router.post('/:id/cancel', auth, async (req, res) => {
+  const t = await sequelize.transaction();
   try {
-    const order = await SalesOrder.findByPk(req.params.id);
+    const order = await SalesOrder.findByPk(req.params.id, { transaction: t, lock: t.LOCK.UPDATE });
     if (!order) {
+      await t.rollback();
       return res.status(404).json({ success: false, message: 'Order not found' });
     }
     if (order.status === 'paid') {
+      await t.rollback();
       return res.status(400).json({ success: false, message: 'Cannot cancel a paid order — use refund instead' });
     }
     if (order.status === 'cancelled') {
+      await t.rollback();
       return res.status(400).json({ success: false, message: 'Order is already cancelled' });
     }
 
-    await order.update({ status: 'cancelled' });
+    await order.update({ status: 'cancelled' }, { transaction: t });
+    await t.commit();
 
-    const { recordAudit } = require('../utils/audit');
     await recordAudit(req, {
       action: 'cancel',
       entity: 'SalesOrder',
@@ -281,6 +320,7 @@ router.post('/:id/cancel', auth, async (req, res) => {
 
     res.json({ success: true, order });
   } catch (err) {
+    await t.rollback();
     console.error('Cancel sales order error:', err);
     res.status(500).json({ success: false, message: 'Server error' });
   }

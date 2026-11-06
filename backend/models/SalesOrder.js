@@ -77,7 +77,8 @@ const SalesOrder = sequelize.define('SalesOrder', {
   indexes: [
     { fields: ['orderNumber'] },
     { fields: ['status'] },
-    { fields: ['createdById'] }
+    { fields: ['createdById'] },
+    { fields: ['createdAt'] }
   ]
 });
 

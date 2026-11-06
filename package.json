@@ -16,29 +16,27 @@
     "dev:backend": "cd backend && npm start",
     "electron": "wait-on http://localhost:3000 && electron . --no-sandbox",
     "build:frontend": "cd frontend && npm run build",
-    "build:win": "npm run build:frontend && electron-builder --win --x64",
-    "build:win-portable": "npm run build:frontend && electron-builder --win portable --x64",
-    "build:win-installer": "npm run build:frontend && electron-builder --win nsis --x64",
-    "build:linux": "npm run build:frontend && electron-builder --linux --x64",
-    "build:linux-deb": "npm run build:frontend && electron-builder --linux deb --x64",
-    "build:linux-appimage": "npm run build:frontend && electron-builder --linux AppImage --x64",
-    "build:mac": "npm run build:frontend && electron-builder --mac",
-    "clean": "rimraf release dist frontend/dist",
+    "prepare:backend": "node scripts/prepare-backend.cjs",
+    "build:prepare": "npm run build:frontend && npm run prepare:backend",
+    "build:win": "npm run build:prepare && electron-builder --win nsis --x64",
+    "build:win-installer": "npm run build:win",
+    "build:win-portable": "npm run build:prepare && electron-builder --win portable --x64",
+    "build:win-dir": "npm run build:prepare && electron-builder --win --x64 --dir",
+    "build:linux": "npm run build:prepare && electron-builder --linux --x64",
+    "build:linux-deb": "npm run build:prepare && electron-builder --linux deb --x64",
+    "build:linux-appimage": "npm run build:prepare && electron-builder --linux AppImage --x64",
+    "build:mac": "npm run build:prepare && electron-builder --mac",
+    "clean": "rimraf release dist build-staging frontend/dist",
     "clean:modules": "rimraf node_modules backend/node_modules frontend/node_modules",
     "clean:all": "npm run clean && npm run clean:modules",
     "start": "npm run dev"
   },
-  "dependencies": {
-    "concurrently": "^9.2.1",
-    "wait-on": "^9.0.3"
-  },
   "devDependencies": {
+    "concurrently": "^9.2.1",
     "electron": "^38.7.2",
     "electron-builder": "^24.13.3",
     "electron-updater": "^6.6.2",
-    "rimraf": "^5.0.5"
-  },
-  "build": {
-    "extends": "./electron-builder.yaml"
+    "rimraf": "^5.0.5",
+    "wait-on": "^9.0.3"
   }
 }
