@@ -540,6 +540,7 @@ router.post('/:id/pay', auth, async (req, res) => {
 
         await transaction.update({
             paymentStatus: 'paid',
+            paidAt: new Date(),
             paidAmount: amountDue,
             paymentMethod: normalizePaymentMethod(paymentMethod) || 'cash',
             paymentReference: paymentReference || null,

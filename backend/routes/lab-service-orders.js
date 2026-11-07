@@ -10,6 +10,7 @@ const {
     Company,
     Customer,
     Transaction,
+    Branch,
 } = require('../models');
 const { auth, adminAuth } = require('../middleware/auth');
 const { createdAtRange } = require('../utils/dateRange');
@@ -203,7 +204,7 @@ router.post('/', auth, async (req, res) => {
 
         const order = await LabServiceOrder.create({
             orderNumber,
-            branchId: branchId || null,
+            branchId: await Branch.resolveBranchId(branchId),
             createdById: req.user.userId,
             createdByName: user.name,
             customerId: customerId || null,
@@ -268,6 +269,7 @@ router.post('/:id/pay', auth, async (req, res) => {
             paymentMethod: method,
             paymentReference: paymentReference || null,
             paymentStatus: 'paid',
+            paidAt: new Date(),
             status: 'pending',
             notes: order.notes,
             requestedBy: order.createdById,

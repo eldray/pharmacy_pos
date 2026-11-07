@@ -15,7 +15,7 @@ import {
   type PrintableDoc,
 } from '../utils/document';
 import { buildReceiptHtml, printDocument } from '../utils/receiptHtml';
-import { describePrintOutcome, savePdf } from '../utils/printEngine';
+import { describePrintOutcome, getReceiptPaper, savePdf } from '../utils/printEngine';
 
 /* ─── Types ─────────────────────────────────────────────────────────── */
 
@@ -75,7 +75,7 @@ export const ReceiptContent = forwardRef<HTMLDivElement, ReceiptContentProps>(
     /* ─── Styles ──────────────────────────────────────────────────── */
     const receiptStyles = {
       container: {
-        width: '72mm',
+        width: `${getReceiptPaper().contentMm}mm`,
         margin: '0 auto',
         padding: '3mm 2mm',
         fontFamily: "'Courier New', 'SF Mono', 'Consolas', monospace",

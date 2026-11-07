@@ -1,5 +1,5 @@
 const express = require('express');
-const { SalesOrder, User, Transaction, InventoryLog, Customer } = require('../models');
+const { SalesOrder, User, Transaction, InventoryLog, Customer, Branch } = require('../models');
 const { auth } = require('../middleware/auth');
 const { sequelize } = require('../config/database');
 const { createdAtRange } = require('../utils/dateRange');
@@ -168,7 +168,7 @@ router.post('/', auth, async (req, res) => {
 
     const order = await SalesOrder.create({
       orderNumber,
-      branchId: branchId || null,
+      branchId: await Branch.resolveBranchId(branchId),
       createdById: req.user.userId,
       createdByName: user ? user.name : 'Staff',
       customerId: customerId || null,

@@ -23,6 +23,11 @@ const { numericIdParams } = require('../utils/numericIdParams');
 
 numericIdParams(router);
 
+// Kept in step with the Branch model enums; an invalid value must be a 400 with
+// a readable message, not a Sequelize validation error surfacing as a 500.
+const BRANCH_TYPES = ['branch', 'warehouse'];
+const BRANCH_STATUSES = ['active', 'inactive'];
+
 // ═══════════════════════════════════════════════════════════════════
 // BRANCHES
 // ═══════════════════════════════════════════════════════════════════
@@ -40,19 +45,31 @@ router.get('/', auth, async (req, res) => {
 
 // CREATE a branch — admin / manager only
 router.post('/', auth, adminOrManagerAuth, async (req, res) => {
+  const t = await sequelize.transaction();
   try {
     const { name, code, type, address, phone, email, isMain } = req.body;
     if (!name || !code) {
+      await t.rollback();
       return res.status(400).json({ success: false, message: 'Branch name and code are required' });
+    }
+    if (type !== undefined && !BRANCH_TYPES.includes(type)) {
+      await t.rollback();
+      return res.status(400).json({ success: false, message: `Type must be one of: ${BRANCH_TYPES.join(', ')}` });
     }
 
     // Prevent duplicate code (nice UX message vs raw SQL error)
-    const existing = await Branch.findOne({ where: { code } });
+    const existing = await Branch.findOne({ where: { code }, transaction: t });
     if (existing) {
+      await t.rollback();
       return res.status(409).json({ success: false, message: `Branch code "${code}" is already in use` });
     }
 
-    const branch = await Branch.create({ name, code, type, address, phone, email, isMain });
+    // Exactly one main: demote the others inside this transaction, before the
+    // insert, so the partial unique index is never briefly violated.
+    if (isMain) await Branch.clearOtherMains(null, t);
+
+    const branch = await Branch.create({ name, code, type, address, phone, email, isMain }, { transaction: t });
+    await t.commit();
     await recordAudit(req, {
       action: 'create',
       entity: 'Branch',
@@ -61,6 +78,7 @@ router.post('/', auth, adminOrManagerAuth, async (req, res) => {
     });
     res.status(201).json(branch);
   } catch (err) {
+    await t.rollback();
     console.error('Create branch error:', err);
     res.status(500).json({ success: false, message: err.message || 'Server error' });
   }
@@ -68,17 +86,43 @@ router.post('/', auth, adminOrManagerAuth, async (req, res) => {
 
 // UPDATE a branch — admin / manager only
 router.put('/:id', auth, adminOrManagerAuth, async (req, res) => {
+  const t = await sequelize.transaction();
   try {
-    const branch = await Branch.findByPk(req.params.id);
-    if (!branch) return res.status(404).json({ success: false, message: 'Branch not found' });
+    const branch = await Branch.findByPk(req.params.id, { transaction: t });
+    if (!branch) {
+      await t.rollback();
+      return res.status(404).json({ success: false, message: 'Branch not found' });
+    }
 
     const { name, code, type, address, phone, email, isMain, status } = req.body;
 
+    if (type !== undefined && !BRANCH_TYPES.includes(type)) {
+      await t.rollback();
+      return res.status(400).json({ success: false, message: `Type must be one of: ${BRANCH_TYPES.join(', ')}` });
+    }
+    if (status !== undefined && !BRANCH_STATUSES.includes(status)) {
+      await t.rollback();
+      return res.status(400).json({ success: false, message: `Status must be one of: ${BRANCH_STATUSES.join(', ')}` });
+    }
+
     if (code && code !== branch.code) {
-      const clash = await Branch.findOne({ where: { code } });
+      const clash = await Branch.findOne({ where: { code }, transaction: t });
       if (clash) {
+        await t.rollback();
         return res.status(409).json({ success: false, message: `Branch code "${code}" is already in use` });
       }
+    }
+
+    if (isMain === true && !branch.isMain) {
+      await Branch.clearOtherMains(branch.id, t);
+    } else if (isMain === false && branch.isMain) {
+      // Leaving the installation with no home branch breaks stock and sales
+      // attribution; the owner has to promote a replacement instead.
+      await t.rollback();
+      return res.status(400).json({
+        success: false,
+        message: 'This is the main branch. Mark another branch as main first.'
+      });
     }
 
     await branch.update({
@@ -90,8 +134,9 @@ router.put('/:id', auth, adminOrManagerAuth, async (req, res) => {
       email: email ?? branch.email,
       isMain: isMain ?? branch.isMain,
       status: status ?? branch.status,
-    });
+    }, { transaction: t });
 
+    await t.commit();
     await recordAudit(req, {
       action: 'update',
       entity: 'Branch',
@@ -100,6 +145,7 @@ router.put('/:id', auth, adminOrManagerAuth, async (req, res) => {
     });
     res.json(branch);
   } catch (err) {
+    await t.rollback();
     console.error('Update branch error:', err);
     res.status(500).json({ success: false, message: err.message || 'Server error' });
   }
@@ -160,26 +206,46 @@ router.post('/transfers', auth, pharmacistAuth, async (req, res) => {
     if (!fromBranchId || !toBranchId) {
       return res.status(400).json({ success: false, message: 'From and To branches are required' });
     }
-    if (Number(fromBranchId) === Number(toBranchId)) {
+    const fromId = Number(fromBranchId);
+    const toId = Number(toBranchId);
+    if (!Number.isInteger(fromId) || !Number.isInteger(toId)) {
+      return res.status(400).json({ success: false, message: 'Branch ids must be numeric' });
+    }
+    if (fromId === toId) {
       return res.status(400).json({ success: false, message: 'From and To branches must be different' });
     }
     if (!items?.length) {
       return res.status(400).json({ success: false, message: 'At least one item is required' });
     }
 
-    // Validate items
+    // Existence checks turn what used to be a raw FK violation (500) into a 400.
+    const foundBranches = await Branch.findAll({ where: { id: [fromId, toId] }, attributes: ['id'] });
+    if (foundBranches.length !== 2) {
+      return res.status(400).json({ success: false, message: 'Source and destination branches must both exist' });
+    }
+
+    const productIds = [...new Set(items.map((i) => Number(i.productId)))];
+    if (productIds.some((id) => !Number.isInteger(id) || id <= 0)) {
+      return res.status(400).json({ success: false, message: 'Each transfer item must have a product' });
+    }
+    const foundProducts = await Product.findAll({ where: { id: productIds }, attributes: ['id', 'name'] });
+    const nameById = new Map(foundProducts.map((p) => [p.id, p.name]));
+    const missing = productIds.filter((id) => !nameById.has(id));
+    if (missing.length) {
+      return res.status(400).json({ success: false, message: `Unknown product id(s): ${missing.join(', ')}` });
+    }
+
+    // Validate items; product names come from the DB, never the client payload.
     const cleanedItems = [];
     for (const item of items) {
-      if (!item.productId) {
-        return res.status(400).json({ success: false, message: 'Each transfer item must have a product' });
-      }
+      const id = Number(item.productId);
       const qty = Number(item.quantity);
-      if (!qty || qty <= 0) {
-        return res.status(400).json({ success: false, message: 'Quantity must be greater than 0' });
+      if (!Number.isInteger(qty) || qty <= 0) {
+        return res.status(400).json({ success: false, message: 'Quantity must be a whole number greater than 0' });
       }
       cleanedItems.push({
-        productId: Number(item.productId),
-        productName: item.productName || null,
+        productId: id,
+        productName: nameById.get(id),
         quantity: qty,
       });
     }
@@ -187,8 +253,8 @@ router.post('/transfers', auth, pharmacistAuth, async (req, res) => {
     const transferNumber = `TRF-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     const transfer = await StockTransfer.create({
       transferNumber,
-      fromBranchId,
-      toBranchId,
+      fromBranchId: fromId,
+      toBranchId: toId,
       requestedById: req.user.userId,
       status: 'pending',
       items: cleanedItems,

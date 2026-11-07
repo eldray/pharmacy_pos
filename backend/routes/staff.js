@@ -63,17 +63,20 @@ router.post('/', auth, adminOrManagerAuth, async (req, res) => {
     }
 
     let profile = await StaffProfile.findOne({ where: { userId } });
+    // An omitted branch keeps the current assignment; a new profile with none
+    // belongs to the home branch rather than to no branch at all.
+    const resolvedBranchId = branchId ?? profile?.branchId ?? await Branch.resolveBranchId(null);
     let action;
     if (profile) {
       await profile.update({
-        branchId, employeeId, department, designation,
+        branchId: resolvedBranchId, employeeId, department, designation,
         phoneNumber, address, dob, gender, hireDate,
         employmentType, salary, emergencyContactName, emergencyContactPhone, status,
       });
       action = 'update';
     } else {
       profile = await StaffProfile.create({
-        userId, branchId, employeeId, department, designation,
+        userId, branchId: resolvedBranchId, employeeId, department, designation,
         phoneNumber, address, dob, gender, hireDate,
         employmentType, salary, emergencyContactName, emergencyContactPhone, status,
       });

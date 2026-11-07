@@ -1,5 +1,5 @@
 // src/App.tsx
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AlertCircle, RefreshCw, X } from 'lucide-react';
 import { useAppStore, initStore } from './store';
 import { Login } from './components/Login';
@@ -7,6 +7,7 @@ import { DashboardLayout } from './components/DashboardLayout';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { LandingPage } from './pages/LandingPage';
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { useRuntimeMode } from './utils/runtimeMode';
 import './App.css'; 
 
 function App() {
@@ -14,6 +15,8 @@ function App() {
   // a sign-in during a backend outage shows this same banner, not an empty dashboard.
   const { currentUser, setCurrentUser, initErrors, setInitErrors } = useAppStore();
   const [isLoading, setIsLoading] = useState(true);
+  // A live till opens on the sign-in screen, not on the marketing page.
+  const { production } = useRuntimeMode();
 
   const runInit = (role: string) => initStore(role);
 
@@ -106,7 +109,7 @@ function App() {
       )}
       <ErrorBoundary>
         <Routes>
-          <Route path="/" element={<LandingPage />} />
+          <Route path="/" element={production ? <Navigate to="/login" replace /> : <LandingPage />} />
           <Route path="/login" element={!currentUser ? <Login /> : <Navigate to="/dashboard" replace />} />
           <Route path="/dashboard/*" element={currentUser ? <DashboardLayout /> : <Navigate to="/login" replace />} />
           <Route path="*" element={<Navigate to="/" replace />} />

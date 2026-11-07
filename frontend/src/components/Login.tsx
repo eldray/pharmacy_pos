@@ -9,6 +9,7 @@ import {
   FlaskConical, CheckCircle, Zap, AlertCircle,
 } from 'lucide-react';
 import { ThemeToggle } from './ui/ThemeToggle';
+import { useRuntimeMode } from '../utils/runtimeMode';
 
 export const Login: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -20,7 +21,8 @@ export const Login: React.FC = () => {
 
   const { loginUser, currentUser } = useAppStore();
   const navigate = useNavigate();
-  const demoUsers = getDemoUsers();
+  const { demoLogin } = useRuntimeMode();
+  const demoUsers = demoLogin ? getDemoUsers() : [];
 
   useEffect(() => {
     if (currentUser) navigate('/dashboard');
@@ -252,6 +254,7 @@ export const Login: React.FC = () => {
                 </button>
               </form>
 
+              {demoLogin && (
               <div style={{ marginTop: '20px', paddingTop: '20px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
                 <div className="flex items-center justify-center" style={{ gap: '6px', marginBottom: '12px' }}>
                   <Zap style={{ width: 14, height: 14, color: '#FBBF24', opacity: 0.85 }} />
@@ -310,6 +313,7 @@ export const Login: React.FC = () => {
                   Click any role to auto-login
                 </div>
               </div>
+              )}
             </div>
           </div>
         </div>

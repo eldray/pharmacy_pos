@@ -34,4 +34,27 @@ const BranchInventory = sequelize.define('BranchInventory', {
   ]
 });
 
+/**
+ * Gives a branch a stock row for every product it has none for, carrying the
+ * product's own quantity. Products predating the multi-branch module only have
+ * `products.quantity`, so without this the Branches page and the low-stock
+ * alerts read zero for stock the POS is still selling. Existing rows are never
+ * touched — a branch's counted quantity outranks the catalogue's.
+ * Returns the number of rows added.
+ */
+BranchInventory.syncFromProducts = async function (branchId, transaction) {
+  const Product = require('./Product');
+  const [products, stocked] = await Promise.all([
+    Product.findAll({ attributes: ['id', 'quantity'], transaction }),
+    this.findAll({ where: { branchId }, attributes: ['productId'], transaction }),
+  ]);
+  const hasRow = new Set(stocked.map((r) => r.productId));
+  const missing = products
+    .filter((p) => !hasRow.has(p.id))
+    .map((p) => ({ branchId, productId: p.id, quantity: p.quantity || 0 }));
+  if (!missing.length) return 0;
+  await this.bulkCreate(missing, { ignoreDuplicates: true, transaction });
+  return missing.length;
+};
+
 module.exports = BranchInventory;

@@ -59,14 +59,25 @@ const Transaction = sequelize.define('Transaction', {
   },
   customerName: DataTypes.STRING,
   customerPhone: DataTypes.STRING,
-  notes: DataTypes.TEXT
+  notes: DataTypes.TEXT,
+  // When the money was taken. A transactions row is only ever inserted at the
+  // moment of payment, so this is set once here rather than at each call site.
+  paidAt: {
+    type: DataTypes.DATE,
+    allowNull: true
+  }
 }, {
   tableName: 'transactions',
   indexes: [
     { fields: ['cashierId'] },
     { fields: ['createdAt'] },
     { fields: ['paymentMethod'] },
-  ]
+  ],
+  hooks: {
+    beforeCreate: (transaction) => {
+      if (!transaction.paidAt) transaction.paidAt = new Date();
+    }
+  }
 });
 
 // NO ASSOCIATIONS HERE - They are handled in models/index.js

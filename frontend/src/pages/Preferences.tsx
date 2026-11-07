@@ -5,11 +5,22 @@ import {
     Bell, Mail, Phone, Save, RefreshCw,
     DollarSign, Calendar, Package, Eye, Palette,
     Building, AlertTriangle, CheckCircle, Loader2,
-    ChevronRight, Info,
+    ChevronRight, Info, Zap,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAppStore } from '../store';
 import { useThemeStore, Theme } from '../store/themeStore';
+import {
+    getReceiptPaper,
+    isRunningInElectron,
+    listPrinters,
+    printFragment,
+    readPrintPreferences,
+    savePrintPreferences,
+    type PrinterInfo,
+    type PrintPreferences,
+    type PrintProfile,
+} from '../utils/printEngine';
 
 /* ═══════════════════════════════════════════════════════════════════════
    Types & defaults
@@ -416,6 +427,51 @@ export const Preferences: React.FC = () => {
         setTimeout(() => setBanner(null), 3000);
     };
 
+    /* ── Printing (desktop app only) ───────────────────────────────────
+       Which printer a slip goes to is a property of this till, not of the
+       company, so it is stored on the machine and applied the moment it
+       changes — it is not part of the Save Preferences round-trip. */
+    const inElectron = isRunningInElectron();
+    const [printers, setPrinters] = useState<PrinterInfo[]>([]);
+    const [printPrefs, setPrintPrefs] = useState<PrintPreferences>(() => readPrintPreferences());
+    const [testing, setTesting] = useState<PrintProfile | null>(null);
+
+    useEffect(() => {
+        if (!inElectron) return;
+        let alive = true;
+        listPrinters().then((list) => { if (alive) setPrinters(list); });
+        return () => { alive = false; };
+    }, [inElectron]);
+
+    const changePrintPref = (profile: PrintProfile, patch: Partial<{ silent: boolean; printer: string }>) => {
+        const next = { ...printPrefs, [profile]: { ...printPrefs[profile], ...patch } };
+        setPrintPrefs(next);
+        savePrintPreferences(next);
+    };
+
+    const handleTestPrint = async (profile: PrintProfile) => {
+        setTesting(profile);
+        const paper = getReceiptPaper();
+        const label = profile === 'receipt' ? `${paper.widthMm}mm receipt` : 'A4 report';
+        const fragment = `
+            <div style="width:${profile === 'receipt' ? `${paper.contentMm}mm` : '186mm'};margin:0 auto;font-family:'Courier New',monospace;color:#000;">
+                <h2 style="font-size:${profile === 'receipt' ? '12pt' : '16pt'};text-align:center;">TEST PRINT</h2>
+                <p style="font-size:${profile === 'receipt' ? '8pt' : '11pt'};text-align:center;">${label} · ${new Date().toLocaleString()}</p>
+                <p style="font-size:${profile === 'receipt' ? '8pt' : '11pt'};text-align:center;margin-top:6px;">
+                    If this page is the right size, the printer is set up correctly.
+                </p>
+            </div>`;
+        const result = await printFragment(fragment, { profile, title: `Test print (${label})` });
+        setTesting(null);
+        setBanner(
+            result.outcome === 'printed'
+                ? { type: 'success', text: `Test page sent to ${result.printer || 'the default printer'}` }
+                : result.outcome === 'failed'
+                    ? { type: 'error', text: `Test print failed: ${result.error}` }
+                    : { type: 'info', text: 'Complete the test page in the print preview' },
+        );
+    };
+
     /* ── Warn on navigation away with unsaved changes ────────────────── */
     useEffect(() => {
         const handler = (e: BeforeUnloadEvent) => {
@@ -594,6 +650,70 @@ export const Preferences: React.FC = () => {
                             </div>
                         </div>
                     </Section>
+
+                    {inElectron && (
+                        <Section
+                            icon={<Printer size={16} />}
+                            title="Printing"
+                            description="Where each document goes on this computer"
+                            hint="Saved on this machine straight away — no need to press Save Preferences."
+                        >
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                                {(['receipt', 'a4'] as PrintProfile[]).map((profile) => (
+                                    <div key={profile} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                        <label style={labelStyle}>
+                                            {profile === 'receipt'
+                                                ? `Receipt printer (${preferences.receiptPaperSize} roll)`
+                                                : 'Report printer (A4)'}
+                                        </label>
+                                        <select
+                                            value={printPrefs[profile].printer}
+                                            onChange={(e) => changePrintPref(profile, { printer: e.target.value })}
+                                            style={{ ...fieldStyle, cursor: 'pointer' }}
+                                            onFocus={onF}
+                                            onBlur={onB}
+                                        >
+                                            <option value="">Windows default printer</option>
+                                            {printers.map((p) => (
+                                                <option key={p.name} value={p.name}>
+                                                    {p.displayName}{p.isDefault ? ' (default)' : ''}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <ToggleRow
+                                            icon={Zap}
+                                            label="Print without the Windows dialog"
+                                            description={profile === 'receipt'
+                                                ? 'Recommended for the till — the slip fires as soon as you press Print'
+                                                : 'Off shows the print preview, so you can check the report first'}
+                                            checked={printPrefs[profile].silent}
+                                            onChange={(v) => changePrintPref(profile, { silent: v })}
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => handleTestPrint(profile)}
+                                            disabled={testing !== null}
+                                            className="btn-ghost"
+                                            style={{
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                                                opacity: testing !== null ? 0.6 : 1,
+                                                cursor: testing !== null ? 'not-allowed' : 'pointer',
+                                            }}
+                                        >
+                                            {testing === profile
+                                                ? <><Loader2 size={14} className="animate-spin" /> Printing…</>
+                                                : <><Printer size={14} /> Test {profile === 'receipt' ? 'receipt' : 'A4 page'}</>}
+                                        </button>
+                                    </div>
+                                ))}
+                                {printers.length === 0 && (
+                                    <p style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', margin: 0 }}>
+                                        No printers were reported by Windows. Install the receipt printer's driver, then reopen this page.
+                                    </p>
+                                )}
+                            </div>
+                        </Section>
+                    )}
 
                     <Section
                         icon={<Bell size={16} />}

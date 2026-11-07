@@ -1,0 +1,4 @@
+name,sku,barcode,category,unitPrice,cost,quantity,batchNumber,expiryDate,supplier,description,packageType,dispensingUnit,unitsPerPackage,packagePrice,sellingPrice,insurancePrice,schedule
+Paracetamol 500mg,PAR-500,6001234500017,Pain Relief,2.50,1.20,240,PCM-2411,2027-11-30,Ernest Chemists,Fever and mild pain,Box,Tablet,20,45.00,2.50,2.00,none
+Amoxicillin 500mg,AMX-500,6001234500024,Antibiotics,4.00,2.10,120,AMX-2502,2027-06-30,Kinapharma,Broad-spectrum antibiotic,Box,Capsule,30,110.00,4.00,3.50,none
+Tramadol 50mg,TRA-50,6001234500031,Pain Relief,6.50,3.40,60,TRM-2501,2027-03-31,Danama,Opioid analgesic — controlled,Box,Tablet,10,60.00,6.50,5.00,IV

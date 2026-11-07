@@ -7,6 +7,8 @@ const { Client } = require('pg');
 
 dotenv.config();
 
+const { isProduction, isDemoSeedAllowed } = require('./utils/environment');
+
 // The repository's placeholder secret is public, so any token could be forged.
 // Refuse to boot in production; elsewhere swap in a random secret for this
 // process (sessions then expire on restart instead of being guessable).
@@ -15,8 +17,7 @@ function enforceJwtSecret() {
   const secret = process.env.JWT_SECRET;
   if (secret && secret !== PLACEHOLDER_JWT && secret.length >= 32) return;
 
-  const isProduction = process.env.NODE_ENV === 'production';
-  if (isProduction) {
+  if (isProduction()) {
     console.error('❌ JWT_SECRET is missing, is the repository placeholder, or is shorter than 32 characters.');
     console.error('   Set a long random value in backend/.env (e.g. `node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"`).');
     process.exit(1);
@@ -81,6 +82,8 @@ app.use((req, res, next) => {
 });
 
 // ==================== HEALTH ====================
+// Also the unauthenticated runtime-mode probe the SPA reads before it decides
+// whether to offer the demo sign-ins or the marketing landing page.
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'healthy',
@@ -89,6 +92,8 @@ app.get('/api/health', (req, res) => {
     timestamp: new Date().toISOString(),
     electron: !!process.env.ELECTRON,
     nodeEnv: process.env.NODE_ENV || 'development',
+    production: isProduction(),
+    demoLogin: isDemoSeedAllowed(),
     database: 'PostgreSQL'
   });
 });
@@ -219,7 +224,7 @@ const startServer = async () => {
 
     // Step 4: Seed ONLY if there are no users yet.
     //         Seed is idempotent, so this is a cheap safety check.
-    const { User } = require('./models');
+    const { User, Branch } = require('./models');
     const userCount = await User.count();
     if (userCount === 0) {
       console.log('🌱 Empty database — running seed...');
@@ -228,6 +233,21 @@ const startServer = async () => {
       console.log('✅ Seeding complete');
     } else {
       console.log(`✅ Database has ${userCount} user(s) — skipping seed (run \`npm run seed\` to top up catalogue/reference rows)`);
+    }
+
+    // Step 5: The home branch is structure, not seed data, so it is ensured even
+    //         when the seed was skipped — an install that already has users may
+    //         still have no branch to attribute a sale to.
+    const mainBranch = await Branch.ensureMainBranch({ name: process.env.SEED_BRANCH_NAME || 'Main Branch' });
+    console.log(`✅ Main branch: ${mainBranch.name} (${mainBranch.code})`);
+
+    if (isProduction()) {
+      const demoAccounts = await User.demoPasswordAccounts();
+      if (demoAccounts.length) {
+        console.warn(`⚠️  ${demoAccounts.length} account(s) still use a published demo password and cannot sign in:`);
+        demoAccounts.forEach((u) => console.warn(`   - ${u.email} (${u.role})`));
+        console.warn('   Reset each one in User Management, or re-seed into a fresh database.');
+      }
     }
 
     console.log('🎉 Database initialization complete!');

@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const { auth } = require('../middleware/auth');
 const { rateLimit } = require('../middleware/rateLimit');
+const { isProduction, isDemoPassword } = require('../utils/environment');
 
 const router = express.Router();
 const { numericIdParams } = require('../utils/numericIdParams');
@@ -31,6 +32,16 @@ router.post('/login', loginLimiter, async (req, res) => {
 
     const valid = await user.comparePassword(password);
     if (!valid) return res.status(400).json({ msg: 'Invalid credentials' });
+
+    // A database carried over from a demo install still has the hashes for the
+    // passwords printed on the sign-in screen. On a live till those are public
+    // credentials, so refuse them and say what to do instead.
+    if (isProduction() && isDemoPassword(password)) {
+      console.warn(`Refused demo password at login for ${user.email}`);
+      return res.status(403).json({
+        msg: 'This account still uses a demo password. An administrator must reset it before it can sign in.'
+      });
+    }
 
     // A blocked account must not obtain a token at all, even for read-only access.
     if (user.status !== 'active') {

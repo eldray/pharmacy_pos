@@ -41,3 +41,10 @@ Logs: Help > View Logs
 
 Build on Windows, or push a tag like v1.0.1 / run the "Build and Release
 PharmacyPOS" GitHub Action to get the installer as a build artifact.
+
+
+check the branching setup so when we seed whats the main branch we are working on
+
+lets set the system up in  A WAY THAT WHEN ITS IN PRODUCTION, DEMO  ACCOUNTS AND SOME  DETAILS DONT LOG THERE, ALSO IN PRODUCTION HOW SHOULD WE SEED THE  DRUGS DATA maybe only admin is seeded,
+
+fix the printout for the lab results so that it prints the actual result on the paper fitted to the size of the paper a4 , for the receipt it should print the exact receipt framwe and not use the  windows print window, also let the paid time log at the botom

@@ -121,6 +121,13 @@ const LabTransaction = sequelize.define('LabTransaction', {
         type: DataTypes.DATE,
         allowNull: true
     },
+    // When the request was settled. Distinct from createdAt (the order was
+    // raised) and completedAt (the last result was entered), because a lab
+    // request is paid for at a different moment from both.
+    paidAt: {
+        type: DataTypes.DATE,
+        allowNull: true
+    },
     cancelledAt: {
         type: DataTypes.DATE,
         allowNull: true

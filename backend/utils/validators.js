@@ -2,6 +2,8 @@
 
 // Password policy: at least 8 chars, with an uppercase letter, a lowercase
 // letter, and a digit. Returns an error string, or null if valid.
+// Every demo password fails this policy already; a database seeded before the
+// policy existed is caught at login instead (routes/auth.js).
 function validatePassword(password) {
   if (!password || typeof password !== 'string') return 'Password is required';
   if (password.length < 8) return 'Password must be at least 8 characters long';

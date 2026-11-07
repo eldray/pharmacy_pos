@@ -18,7 +18,7 @@ import {
   type DocumentMode,
   type PrintableDoc,
 } from './document';
-import { printFragment, type PrintResult } from './printEngine';
+import { getReceiptPaper, printFragment, type PrintResult } from './printEngine';
 import { safeNumber } from './number';
 
 const esc = (value: unknown): string =>
@@ -120,7 +120,7 @@ export function buildReceiptHtml(
       font-family: 'Courier New', 'Consolas', monospace;
       font-size: 8.5pt;
       margin: 0 auto;
-      max-width: 72mm;
+      max-width: ${getReceiptPaper().contentMm}mm;
       padding: 3mm 2mm;
       line-height: 1.5;
       color: #1a1a1a;

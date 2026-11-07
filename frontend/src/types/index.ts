@@ -217,6 +217,8 @@ export interface Transaction {
   customerName?: string;
   customerPhone?: string;
   notes?: string;
+  /** When the money was taken — printed at the foot of the receipt. */
+  paidAt?: string;
   createdAt: string;
 }
 
@@ -396,6 +398,7 @@ export interface LabTransaction {
   receiptPrintedAt?: string;
   completedAt?: string;
   cancelledAt?: string;
+  paidAt?: string;
   labTests?: LabTest[];
   createdAt: string;
   updatedAt: string;

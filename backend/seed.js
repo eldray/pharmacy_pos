@@ -1,9 +1,27 @@
 // backend/seed.js
-const {
-  User, Product, Supplier, Company, LabTestTemplate, InsuranceProvider,
-} = require('./models');
+//
+// Two very different jobs share this file:
+//
+//   production (NODE_ENV=production, what the packaged desktop app sets)
+//     One admin, taken from SEED_ADMIN_EMAIL / SEED_ADMIN_PASSWORD in .env, one
+//     home branch and a company shell with no invented address or phone. No
+//     sample staff, no fake suppliers, no randomised stock, no passwords in the
+//     log. Drugs come from `npm run import:products -- --file <real catalogue>`.
+//
+//   development
+//     The above plus the demo logins the sign-in screen offers, sample
+//     suppliers/insurers and data/products.json. SEED_DEMO=false gets a
+//     realistic empty till without leaving development mode.
+//
+// Schema is owned by migrations — there is no sequelize.sync() here.
+require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
+const {
+  User, Product, Supplier, Company, LabTestTemplate, InsuranceProvider, Branch, BranchInventory,
+} = require('./models');
+const { isProduction, isDemoSeedAllowed } = require('./utils/environment');
+const { validatePassword, validateEmail } = require('./utils/validators');
 
 function loadJsonData(filename) {
   const filePath = path.join(__dirname, 'data', filename);
@@ -15,161 +33,198 @@ function loadJsonData(filename) {
   }
 }
 
+/**
+ * The operator's own administrator. In production a missing or weak value is a
+ * hard stop rather than a fallback: shipping a live till with a password that is
+ * printed on the sign-in screen is the failure this whole file exists to avoid.
+ */
+function resolveAdmin() {
+  const production = isProduction();
+  const email = (process.env.SEED_ADMIN_EMAIL || (production ? '' : 'admin@pharmacy.com')).trim().toLowerCase();
+  const password = process.env.SEED_ADMIN_PASSWORD || (production ? '' : 'admin123');
+  const name = (process.env.SEED_ADMIN_NAME || (production ? 'Administrator' : 'Admin User')).trim();
+
+  const emailError = validateEmail(email);
+  if (emailError) {
+    throw new Error(
+      `${production ? 'SEED_ADMIN_EMAIL' : 'Admin email'}: ${emailError}. ` +
+      'Set SEED_ADMIN_EMAIL in backend/.env to the pharmacy owner\'s address.'
+    );
+  }
+
+  if (production || process.env.SEED_ADMIN_PASSWORD) {
+    const passwordError = validatePassword(password);
+    if (passwordError) {
+      throw new Error(
+        `SEED_ADMIN_PASSWORD: ${passwordError}. ` +
+        'Set it in backend/.env (8+ characters, an uppercase letter, a lowercase letter and a digit).'
+      );
+    }
+  }
+
+  return { name, email, password, role: 'admin' };
+}
+
 async function seedDatabase() {
+  const production = isProduction();
+  const demo = isDemoSeedAllowed();
+
   try {
-    console.log('🌱 Starting database seed...\n');
+    console.log(`🌱 Starting database seed (${production ? 'production' : 'development'}${demo ? '' : ', demo data off'})...\n`);
 
-    // ⚠️  NO sequelize.sync() HERE.
-    // Schema is owned by migrations. Seed only inserts data.
+    // ==================== ADMIN ====================
+    const admin = resolveAdmin();
+    const [, adminCreated] = await User.findOrCreate({
+      where: { email: admin.email },
+      defaults: admin,
+      individualHooks: true, // hashes the password
+    });
+    console.log(`✅ Admin ${adminCreated ? 'created' : 'already present'}: ${admin.email}`);
 
-    // ==================== USERS ====================
-    // These defaults are the demo logins the sign-in screen offers; set
-    // SEED_ADMIN_PASSWORD etc. in .env for a real installation.
-    const demoPassword = (key, fallback) => {
-      const fromEnv = process.env[key];
-      if (fromEnv) return fromEnv;
-      demoPasswordsInUse = true;
-      return fallback;
-    };
-    let demoPasswordsInUse = false;
-
-    const userDefs = [
-      { name: 'Admin User',      email: 'admin@pharmacy.com',      password: demoPassword('SEED_ADMIN_PASSWORD', 'admin123'),      role: 'admin' },
-      { name: 'Mark Manager',    email: 'manager@pharmacy.com',    password: demoPassword('SEED_MANAGER_PASSWORD', 'manager123'),  role: 'manager' },
-      { name: 'John Cashier',    email: 'cashier@pharmacy.com',    password: demoPassword('SEED_CASHIER_PASSWORD', 'cashier123'),   role: 'cashier' },
-      { name: 'Jane Pharmacist', email: 'pharmacist@pharmacy.com', password: demoPassword('SEED_PHARMACIST_PASSWORD', 'pharmacist123'), role: 'pharmacist_sales' },
-      { name: 'Dr. Sarah Lab',   email: 'lab@pharmacy.com',        password: demoPassword('SEED_LAB_PASSWORD', 'lab123'),          role: 'lab_tech' },
-    ];
-
-    for (const u of userDefs) {
-      await User.findOrCreate({
-        where: { email: u.email },
-        defaults: u,
-        individualHooks: true,
-      });
-    }
-    console.log(`✅ Ensured ${userDefs.length} users exist`);
-    userDefs.forEach(u => console.log(`   - ${u.name} (${u.role})`));
-    console.log('');
-
-    // ==================== SUPPLIERS ====================
-    const supplierDefs = [
-      { name: 'Pharma Inc',     email: 'sales@pharmainc.com',  phone: '+233555123456', address: '123 Pharmacy Street', city: 'Accra',  country: 'Ghana' },
-      { name: 'Health Plus',    email: 'info@healthplus.com',  phone: '+233555654321', address: '456 Health Avenue',   city: 'Kumasi', country: 'Ghana' },
-      { name: 'MediSupply Ltd', email: 'orders@medisupply.com',phone: '+233555789012', address: '789 Medical Road',    city: 'Tema',   country: 'Ghana' },
-    ];
-    for (const s of supplierDefs) {
-      await Supplier.findOrCreate({ where: { name: s.name }, defaults: s });
-    }
-    console.log(`✅ Ensured ${supplierDefs.length} suppliers exist\n`);
-
-    // ==================== PRODUCTS ====================
-    if ((await Product.count()) === 0) {
-      const productsData = loadJsonData('products.json');
-      let rows;
-
-      if (productsData?.products) {
-        rows = productsData.products.map((p, i) => ({
-          ...p,
-          supplier: ['Pharma Inc', 'Health Plus', 'MediSupply Ltd'][i % 3],
-          quantity: p.quantity || Math.floor(Math.random() * 100) + 10,
-          unitPrice: p.unitPrice || (Math.random() * 50 + 5),
-          batchNumber: p.batchNumber || `BATCH-${String(i + 1).padStart(3, '0')}`,
-          expiryDate: p.expiryDate || new Date(Date.now() + 365 * 864e5).toISOString().split('T')[0],
-        }));
-      } else {
-        console.log('⚠️  No products.json — using defaults');
-        rows = [
-          { name: 'Paracetamol 500mg', sku: 'PAR-001', barcode: 'BAR-001', category: 'Pain Relief',     description: 'For fever and mild pain',   quantity: 150, unitPrice: 2.50, batchNumber: 'BATCH-001', expiryDate: new Date(Date.now() + 365*864e5).toISOString().split('T')[0], supplier: 'Pharma Inc' },
-          { name: 'Amoxicillin 250mg', sku: 'AMX-001', barcode: 'BAR-002', category: 'Antibiotics',     description: 'Broad-spectrum antibiotic', quantity: 80,  unitPrice: 3.75, batchNumber: 'BATCH-002', expiryDate: new Date(Date.now() + 300*864e5).toISOString().split('T')[0], supplier: 'Health Plus' },
-          { name: 'Vitamin C 1000mg',  sku: 'VIT-001', barcode: 'BAR-003', category: 'Vitamins',        description: 'Immune support',            quantity: 200, unitPrice: 1.99, batchNumber: 'BATCH-003', expiryDate: new Date(Date.now() + 400*864e5).toISOString().split('T')[0], supplier: 'MediSupply Ltd' },
-          { name: 'Omeprazole 20mg',   sku: 'OME-001', barcode: 'BAR-004', category: 'Gastrointestinal',description: 'For acid reflux',           quantity: 45,  unitPrice: 4.25, batchNumber: 'BATCH-004', expiryDate: new Date(Date.now() + 250*864e5).toISOString().split('T')[0], supplier: 'Pharma Inc' },
-          { name: 'Loratadine 10mg',   sku: 'LOR-001', barcode: 'BAR-005', category: 'Antihistamine',   description: 'Allergy relief',            quantity: 30,  unitPrice: 3.50, batchNumber: 'BATCH-005', expiryDate: new Date(Date.now() + 200*864e5).toISOString().split('T')[0], supplier: 'Health Plus' },
-        ];
-      }
-
-      const created = await Product.bulkCreate(rows);
-      const missingCost = created.filter((p) => !Number(p.cost)).length;
-      console.log(`✅ Created ${created.length} products`);
-      if (missingCost) {
-        console.log(`⚠️  ${missingCost} have no cost price, so profit and COGS reports show a 100% margin`);
-        console.log('   until you enter one per product in Product Management (costs are never guessed here).');
-      }
-      console.log('');
-    } else {
-      console.log(`✅ Products already present (${await Product.count()}) — skipping\n`);
-    }
-
-    // ==================== LAB TEST TEMPLATES ====================
-    // findOrCreate per name, not a single bulkCreate behind a `count() === 0`
-    // guard: re-running the seed must add the tests that are new to the
-    // catalogue without touching prices a pharmacy has already edited.
-    const labData = loadJsonData('lab-templates.json');
-    const templates = labData?.templates || [
-      { name: 'Complete Blood Count (CBC)', category: 'Hematology',   description: 'RBC/WBC/platelets', price: 45.00, sampleType: 'Blood', insurancePrice: 35, resultFields: [{ name: 'WBC', type: 'number', required: true }, { name: 'RBC', type: 'number', required: true }, { name: 'Hemoglobin', type: 'number', required: true }, { name: 'Platelets', type: 'number', required: true }], defaultReferenceRanges: { WBC: { referenceRange: '4.5-11.0', unit: 'x10^3/µL' }, Hemoglobin: { referenceRange: '12.0-16.0', unit: 'g/dL' } }, instructions: 'EDTA tube.' },
-      { name: 'Malaria Test',              category: 'Parasitology', description: 'RDT for malaria',   price: 25.00, sampleType: 'Blood', insurancePrice: 15, resultFields: [{ name: 'Result', type: 'text', required: true }, { name: 'Species', type: 'text', required: false }], defaultReferenceRanges: {}, instructions: 'Rapid test.' },
-      { name: 'Blood Glucose',             category: 'Biochemistry', description: 'Blood sugar',       price: 15.00, sampleType: 'Blood', insurancePrice: 10, resultFields: [{ name: 'Glucose Level', type: 'number', required: true }], defaultReferenceRanges: { 'Glucose Level': { referenceRange: '70-100', unit: 'mg/dL (fasting)' } }, instructions: '8h fast for fasting.' },
-      { name: 'Lipid Profile',             category: 'Biochemistry', description: 'Cholesterol panel', price: 55.00, sampleType: 'Blood', insurancePrice: 40, resultFields: [{ name: 'Total Cholesterol', type: 'number', required: true }, { name: 'LDL', type: 'number', required: true }, { name: 'HDL', type: 'number', required: true }, { name: 'Triglycerides', type: 'number', required: true }], defaultReferenceRanges: {}, instructions: '12h fast.' },
-      { name: 'Urinalysis',                category: 'Urinalysis',   description: 'Urine analysis',    price: 30.00, sampleType: 'Urine', insurancePrice: 20, resultFields: [{ name: 'Appearance', type: 'text', required: false }, { name: 'Protein', type: 'text', required: true }], defaultReferenceRanges: {}, instructions: 'Mid-stream.' },
-    ];
-
-    let labAdded = 0;
-    let labExisting = 0;
-    for (const t of templates) {
-      const [, wasCreated] = await LabTestTemplate.findOrCreate({
-        where: { name: t.name },
-        defaults: t,
-      });
-      if (wasCreated) labAdded++; else labExisting++;
-    }
-    if (!labData?.templates) console.log('⚠️  No lab-templates.json — using the built-in fallback list');
-    console.log(`✅ Lab templates: ${labAdded} created, ${labExisting} already present (${await LabTestTemplate.count()} total)\n`);
-
-    // ==================== INSURANCE PROVIDERS ====================
-    const providerDefs = [
-      { name: 'National Health Insurance Scheme', code: 'NHIS',   coverageType: 'fixed',      defaultCopayPercent: 0,  contactPerson: 'NHIS Desk',      phone: '+233302123456', email: 'info@nhis.gov.gh',    status: 'active' },
-      { name: 'Acacia Health Insurance',          code: 'ACACIA', coverageType: 'percentage', defaultCopayPercent: 20, contactPerson: 'Claims Officer', phone: '+233302987654', email: 'claims@acacia.com.gh', status: 'active' },
-      { name: 'Apex Health Insurance',            code: 'APEX',   coverageType: 'percentage', defaultCopayPercent: 10, status: 'active' },
-    ];
-    for (const p of providerDefs) {
-      await InsuranceProvider.findOrCreate({ where: { code: p.code }, defaults: p });
-    }
-    console.log(`✅ Ensured ${providerDefs.length} insurance providers\n`);
+    // ==================== HOME BRANCH ====================
+    // Structure, not demo data: stock, staff and every sale need a branch to
+    // belong to, and exactly one of them is "this till".
+    const branch = await Branch.ensureMainBranch({ name: process.env.SEED_BRANCH_NAME || 'Main Branch' });
+    console.log(`✅ Main branch: ${branch.name} (${branch.code})\n`);
 
     // ==================== COMPANY ====================
-    // Singleton table, so the guard is "does any row exist", not "does a row
-    // with this name exist". findOrCreate({ where: { name } }) used to insert a
-    // second company for an owner who had renamed the first, and the app then
-    // read and wrote whichever of the two rows Postgres happened to scan first.
-    const companyCount = await Company.count();
-    if (companyCount === 0) {
+    // Singleton table, so the guard is "does any row exist", not "does a row with
+    // this name exist" — the latter inserted a second company for an owner who
+    // had renamed the first, and reads then flipped between the two rows.
+    if ((await Company.count()) === 0) {
+      const taxRate = process.env.SEED_TAX_RATE !== undefined ? Number(process.env.SEED_TAX_RATE) : (production ? 0 : 15);
+      if (!Number.isFinite(taxRate) || taxRate < 0 || taxRate > 100) {
+        throw new Error(`SEED_TAX_RATE must be a number between 0 and 100 (got "${process.env.SEED_TAX_RATE}")`);
+      }
       await Company.create({
-        name: 'Pharmacy POS System',
-        addressStreet: '123 Pharmacy Street',
-        addressCity: 'Accra',
-        addressCountry: 'Ghana',
-        contactPhone: '+233555123456',
-        contactEmail: 'info@pharmacy.com',
-        taxRate: 15.0,
-        receiptFooter: 'Thank you for your purchase!',
+        name: process.env.SEED_COMPANY_NAME || (production ? 'My Pharmacy' : 'Pharmacy POS System'),
+        taxRate,
+        // A production receipt must not print an address or phone number nobody
+        // entered. The owner fills these in under Settings → Company.
+        ...(production ? {} : {
+          addressStreet: '123 Pharmacy Street',
+          addressCity: 'Accra',
+          addressCountry: 'Ghana',
+          contactPhone: '+233555123456',
+          contactEmail: 'info@pharmacy.com',
+          receiptFooter: 'Thank you for your purchase!',
+        }),
       });
-      console.log('✅ Created default company settings\n');
+      console.log(`✅ Created company settings${production ? ' (name and VAT only — add address, phone and logo in Settings)' : ''}\n`);
     } else {
       console.log('✅ Company settings already in place, left untouched\n');
     }
 
+    // ==================== DEMO STAFF ====================
+    let demoUsers = [];
+    if (demo) {
+      demoUsers = [
+        { name: 'Mark Manager',    email: 'manager@pharmacy.com',    password: process.env.SEED_MANAGER_PASSWORD || 'manager123',       role: 'manager' },
+        { name: 'John Cashier',    email: 'cashier@pharmacy.com',    password: process.env.SEED_CASHIER_PASSWORD || 'cashier123',       role: 'cashier' },
+        { name: 'Jane Pharmacist', email: 'pharmacist@pharmacy.com', password: process.env.SEED_PHARMACIST_PASSWORD || 'pharmacist123', role: 'pharmacist_sales' },
+        { name: 'Dr. Sarah Lab',   email: 'lab@pharmacy.com',        password: process.env.SEED_LAB_PASSWORD || 'lab123',               role: 'lab_tech' },
+      ];
+      for (const u of demoUsers) {
+        await User.findOrCreate({ where: { email: u.email }, defaults: u, individualHooks: true });
+      }
+      console.log(`✅ Ensured ${demoUsers.length} demo staff accounts\n`);
+    }
+
+    // ==================== SUPPLIERS ====================
+    if (demo) {
+      const supplierDefs = [
+        { name: 'Pharma Inc',     email: 'sales@pharmainc.com',  phone: '+233555123456', address: '123 Pharmacy Street', city: 'Accra',  country: 'Ghana' },
+        { name: 'Health Plus',    email: 'info@healthplus.com',  phone: '+233555654321', address: '456 Health Avenue',   city: 'Kumasi', country: 'Ghana' },
+        { name: 'MediSupply Ltd', email: 'orders@medisupply.com',phone: '+233555789012', address: '789 Medical Road',    city: 'Tema',   country: 'Ghana' },
+      ];
+      for (const s of supplierDefs) {
+        await Supplier.findOrCreate({ where: { name: s.name }, defaults: s });
+      }
+      console.log(`✅ Ensured ${supplierDefs.length} sample suppliers\n`);
+    }
+
+    // ==================== PRODUCTS ====================
+    // Development only, and only into an empty catalogue. A production pharmacy
+    // loads its own drugs with `npm run import:products -- --file catalogue.csv`;
+    // nothing here invents a price, a batch number or an expiry date.
+    if (demo) {
+      if ((await Product.count()) === 0) {
+        const productsData = loadJsonData('products.json');
+        const rows = productsData?.products;
+        if (!rows?.length) {
+          console.log('⚠️  No products.json — no demo products created\n');
+        } else {
+          const created = await Product.bulkCreate(rows);
+          console.log(`✅ Created ${created.length} demo products`);
+          const missingCost = created.filter((p) => !Number(p.cost)).length;
+          if (missingCost) {
+            console.log(`⚠️  ${missingCost} have no cost price, so profit and COGS reports show a 100% margin`);
+            console.log('   until you enter one per product in Product Management (costs are never guessed here).');
+          }
+          console.log('');
+        }
+      } else {
+        console.log(`✅ Products already present (${await Product.count()}) — skipping\n`);
+      }
+    } else if (production) {
+      console.log(`ℹ️  Products: ${await Product.count()} on file. Import your own catalogue with`);
+      console.log('   npm run import:products -- --file data/your-catalogue.csv (see data/products.example.csv)\n');
+    }
+
+    // Per-branch stock rows for anything that has none, so the Branches page and
+    // low-stock alerts see the same quantities the POS sells from.
+    const stocked = await BranchInventory.syncFromProducts(branch.id);
+    if (stocked) console.log(`✅ Added ${stocked} stock row(s) for ${branch.name}\n`);
+
+    // ==================== LAB TEST TEMPLATES ====================
+    // Reference data with prices a pharmacy will want to edit, so production
+    // opts in with SEED_LAB_CATALOGUE=true instead of getting it silently.
+    if (demo || process.env.SEED_LAB_CATALOGUE === 'true') {
+      const labData = loadJsonData('lab-templates.json');
+      const templates = labData?.templates || [];
+      let added = 0;
+      let existing = 0;
+      for (const t of templates) {
+        // findOrCreate per name, not one bulkCreate behind a count() === 0
+        // guard: re-running adds new tests without touching edited prices.
+        const [, wasCreated] = await LabTestTemplate.findOrCreate({ where: { name: t.name }, defaults: t });
+        if (wasCreated) added++; else existing++;
+      }
+      if (!templates.length) console.log('⚠️  No lab-templates.json — no lab catalogue created');
+      console.log(`✅ Lab templates: ${added} created, ${existing} already present (${await LabTestTemplate.count()} total)\n`);
+    }
+
+    // ==================== INSURANCE PROVIDERS ====================
+    if (demo) {
+      const providerDefs = [
+        { name: 'National Health Insurance Scheme', code: 'NHIS',   coverageType: 'fixed',      defaultCopayPercent: 0,  contactPerson: 'NHIS Desk',      phone: '+233302123456', email: 'info@nhis.gov.gh',    status: 'active' },
+        { name: 'Acacia Health Insurance',          code: 'ACACIA', coverageType: 'percentage', defaultCopayPercent: 20, contactPerson: 'Claims Officer', phone: '+233302987654', email: 'claims@acacia.com.gh', status: 'active' },
+        { name: 'Apex Health Insurance',            code: 'APEX',   coverageType: 'percentage', defaultCopayPercent: 10, status: 'active' },
+      ];
+      for (const p of providerDefs) {
+        await InsuranceProvider.findOrCreate({ where: { code: p.code }, defaults: p });
+      }
+      console.log(`✅ Ensured ${providerDefs.length} sample insurance providers\n`);
+    }
+
     console.log('🎉 Seed completed successfully!\n');
-    console.log('📋 Login Credentials:');
-    userDefs.forEach(u => console.log(`   ${u.role.padEnd(16)} ${u.email.padEnd(25)} / ${u.password}`));
-    if (demoPasswordsInUse) {
-      console.log('\n⚠️  These are the demo passwords from the sign-in screen.');
-      console.log('   For a live till, set SEED_ADMIN_PASSWORD / SEED_MANAGER_PASSWORD / … in backend/.env');
-      console.log('   and change each account password after first sign-in.');
+
+    // ==================== SUMMARY ====================
+    // Passwords are only ever echoed for the demo logins, and only outside
+    // production. A live installation's log is not a place to leave a credential.
+    if (demo) {
+      console.log('📋 Demo sign-ins (development only):');
+      [{ ...admin, password: process.env.SEED_ADMIN_PASSWORD || 'admin123' }, ...demoUsers]
+        .forEach((u) => console.log(`   ${u.role.padEnd(16)} ${u.email.padEnd(25)} / ${u.password}`));
+      console.log('\n⚠️  These are the demo passwords shown on the sign-in screen.');
+      console.log('   Production never seeds them and refuses them at login — set SEED_ADMIN_PASSWORD in backend/.env.');
+    } else {
+      console.log(`📋 Sign in as ${admin.email} with the SEED_ADMIN_PASSWORD from backend/.env, then change it under Settings.`);
     }
 
     return true;
   } catch (err) {
-    console.error('❌ Seed error:', err);
+    console.error('❌ Seed error:', err.message);
     throw err;
   }
 }
@@ -180,5 +235,5 @@ module.exports = seedDatabase;
 if (require.main === module) {
   seedDatabase()
     .then(() => { console.log('✅ Seeding complete!'); process.exit(0); })
-    .catch((err) => { console.error('❌ Seeding failed:', err); process.exit(1); });
+    .catch(() => process.exit(1));
 }

@@ -55,4 +55,24 @@ User.prototype.comparePassword = async function (password) {
   return bcrypt.compare(password, this.password);
 };
 
+/**
+ * Accounts still using one of the passwords printed on the demo sign-in screen.
+ * A database carried over from a demo install keeps its hashes, so production
+ * checks at boot (to name them in the log) and at login (to refuse them).
+ */
+User.demoPasswordAccounts = async function () {
+  const { DEMO_PASSWORDS } = require('../utils/environment');
+  const users = await this.findAll({ attributes: ['id', 'email', 'role', 'password'] });
+  const found = [];
+  for (const user of users) {
+    for (const candidate of DEMO_PASSWORDS) {
+      if (await user.comparePassword(candidate)) {
+        found.push({ id: user.id, email: user.email, role: user.role });
+        break;
+      }
+    }
+  }
+  return found;
+};
+
 module.exports = User;

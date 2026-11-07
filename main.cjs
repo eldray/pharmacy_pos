@@ -37,6 +37,30 @@ DB_PASSWORD=postgres
 # Alternatively, use a single connection string (overrides the DB_* values above):
 # DATABASE_URL=postgres://user:password@host:5432/pharmacy_pos
 # DB_SSL=true
+
+# ─── First run on a live till ───────────────────────────────────────────────
+# The installed app runs in production mode: it creates ONE administrator, from
+# the two values below, and nothing else. No sample staff, no sample suppliers,
+# no stock, no demo passwords. Set these before the first start — the app stops
+# with an explanation if they are missing or the password is too weak.
+# Password rule: 8+ characters, an uppercase letter, a lowercase letter, a digit.
+# SEED_ADMIN_EMAIL=owner@yourpharmacy.com
+# SEED_ADMIN_PASSWORD=
+# SEED_ADMIN_NAME=Your Name
+
+# Optional details for that first run (anything left out stays blank for you to
+# fill in under Settings, rather than being invented):
+# SEED_COMPANY_NAME=Your Pharmacy Ltd
+# SEED_BRANCH_NAME=Main Branch
+# SEED_TAX_RATE=0
+# SEED_LAB_CATALOGUE=true   # load the standard lab test list and its prices
+
+# Your own drugs are loaded from a file, not seeded:
+#   npm run import:products -- --file data/your-catalogue.csv
+# (in the installed app: resources/backend, see data/products.example.csv)
+
+# Development only — the sample logins and sample data. Never used in production.
+# SEED_DEMO=false
 `;
 
 let mainWindow = null;
@@ -758,6 +782,21 @@ function toMargins(marginType) {
   return { marginType: marginType === 'none' ? 'none' : 'default' };
 }
 
+// The print document states its own page box in #print-page-size (the receipt
+// measures its content and writes an explicit roll length there). Silent jobs
+// must hand that box to the driver as pageSize: a thermal printer otherwise
+// falls back to whatever form Windows has set as its default, which is how an
+// 80mm slip ended up on A4. A4 documents state a named size and match nothing
+// here, so they keep the named pageSize below.
+function readPageSizeMicrons(win) {
+  return win.webContents.executeJavaScript(`(() => {
+    var el = document.getElementById('print-page-size');
+    var m = el && el.textContent.match(/size:\\s*([\\d.]+)mm\\s+([\\d.]+)mm/);
+    if (!m) return null;
+    return { width: Math.round(parseFloat(m[1]) * 1000), height: Math.round(parseFloat(m[2]) * 1000) };
+  })()`);
+}
+
 ipcMain.handle('print-html', async (event, payload) => {
   const { html = '', silent = false, deviceName = '', marginType = 'default' } = payload || {};
   if (!html.trim()) return { success: false, error: 'Nothing to print' };
@@ -772,11 +811,13 @@ ipcMain.handle('print-html', async (event, payload) => {
   if (deviceName) options.deviceName = deviceName;
 
   try {
-    const result = await withHiddenPrintWindow(html, (win) =>
-      new Promise((resolve) => {
+    const result = await withHiddenPrintWindow(html, async (win) => {
+      const measured = await readPageSizeMicrons(win);
+      options.pageSize = measured || 'A4';
+      return new Promise((resolve) => {
         win.webContents.print(options, (success, failureType) => resolve({ success, failureType }));
-      })
-    );
+      });
+    });
     if (result.success) return { success: true, printer: deviceName || 'default printer' };
 
     log(`Print job failed (${result.failureType}) for printer "${deviceName || 'default'}"`);

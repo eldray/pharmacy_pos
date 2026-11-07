@@ -28,6 +28,13 @@ try {
     restartBackend: () => ipcRenderer.invoke('restart-backend'),
     openSettings: () => ipcRenderer.invoke('open-settings'),
     getDbInfo: () => ipcRenderer.invoke('get-db-info'),
+
+    // Printing. The renderer hands over a complete print document and the main
+    // process sends it to the printer, so a till slip never waits on the Windows
+    // print dialog. See frontend/src/utils/printEngine.ts for the paper profiles.
+    printHtml: (payload) => ipcRenderer.invoke('print-html', payload),
+    savePdf: (payload) => ipcRenderer.invoke('save-pdf', payload),
+    getPrinters: () => ipcRenderer.invoke('get-printers'),
     
     // Event listeners
     onBackendReady: (callback) => safeIpcHandler('backend-ready', callback),

@@ -79,16 +79,64 @@ export function savePrintPreferences(prefs: PrintPreferences): void {
    A4 with a printable margin. print-color-adjust keeps the report's dark heading
    bands, which would otherwise print as blank paper with invisible white text. */
 
-const PAGE_CSS: Record<PrintProfile, string> = {
-  receipt: `
-    @page { size: 80mm auto; margin: 0; }
-    html, body { width: 80mm; margin: 0; padding: 0; }
-  `,
-  a4: `
+/** The roll width chosen in Preferences → Receipt. The content is narrower than
+    the roll because a thermal printer cannot print to the very edge. */
+export interface ReceiptPaper {
+  widthMm: number;
+  contentMm: number;
+}
+
+const RECEIPT_PREFS_KEY = 'pharmacy_preferences';
+
+export function getReceiptPaper(): ReceiptPaper {
+  let compact = false;
+  try {
+    compact = JSON.parse(localStorage.getItem(RECEIPT_PREFS_KEY) || '{}')?.receiptPaperSize === '58mm';
+  } catch {
+    // A corrupt entry must not stop the till from printing; use the wide roll.
+  }
+  return compact ? { widthMm: 58, contentMm: 50 } : { widthMm: 80, contentMm: 72 };
+}
+
+function pageCss(profile: PrintProfile): string {
+  if (profile === 'a4') {
+    return `
     @page { size: A4; margin: 12mm; }
     html, body { width: 186mm; margin: 0; padding: 0; }
-  `,
-};
+  `;
+  }
+  const { widthMm } = getReceiptPaper();
+  return `
+    @page { size: ${widthMm}mm auto; margin: 0; }
+    html, body { width: ${widthMm}mm; margin: 0; padding: 0; }
+  `;
+}
+
+/**
+ * Chromium refuses a page size whose height is `auto` — it discards the whole
+ * declaration and prints the slip on whatever paper the driver defaults to,
+ * which is how an 80mm receipt ended up centred on a Letter sheet. The roll is
+ * continuous, so the length is measured from the laid-out content and stated
+ * explicitly. This runs in the print document itself, so the desktop app and the
+ * browser preview both get the same page box from one implementation.
+ */
+function receiptFitScript(widthMm: number): string {
+  return `<script>
+(function () {
+  var PX_PER_MM = 96 / 25.4;
+  var style = document.getElementById('print-page-size');
+  function fit() {
+    var height = document.body.getBoundingClientRect().height / PX_PER_MM;
+    // A millimetre of slack keeps the last line clear of the cutter.
+    var length = (Math.ceil(height * 10) / 10 + 1).toFixed(1);
+    style.textContent = '@page { size: ${widthMm}mm ' + length + 'mm; margin: 0; }'
+      + ' html, body { width: ${widthMm}mm; margin: 0; padding: 0; }';
+  }
+  fit();
+  window.addEventListener('load', fit);
+})();
+</script>`;
+}
 
 /** Electron's margin setting for the profile, kept in step with the @page rule. */
 const MARGIN_TYPE: Record<PrintProfile, 'none' | 'default'> = {
@@ -110,13 +158,13 @@ export function buildPrintDocument(fragment: string, profile: PrintProfile, titl
       color: #1a1a1a;
       background: #ffffff;
     }
-    ${PAGE_CSS[profile]}
     @media screen {
       body { padding: 12px; }
     }
   </style>
+  <style id="print-page-size">${pageCss(profile)}</style>
 </head>
-<body>${fragment}</body>
+<body>${fragment}${profile === 'receipt' ? receiptFitScript(getReceiptPaper().widthMm) : ''}</body>
 </html>`;
 }
 

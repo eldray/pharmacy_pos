@@ -211,9 +211,6 @@ const LabResultPrint: React.FC<LabResultPrintProps> = ({ transaction }) => {
           {transaction.patientGender && <InfoRow label="Gender"        value={transaction.patientGender} />}
           {transaction.patientPhone  && <InfoRow label="Phone"         value={transaction.patientPhone} />}
           {transaction.requestedByName && <InfoRow label="Requested By" value={transaction.requestedByName} />}
-          {transaction.priority && transaction.priority !== 'normal' && (
-            <InfoRow label="Priority" value={transaction.priority.toUpperCase()} bold />
-          )}
         </div>
       </div>
 
@@ -224,7 +221,6 @@ const LabResultPrint: React.FC<LabResultPrintProps> = ({ transaction }) => {
 
       {reportedTests.map((test: any, index: number) => {
         const hasResults  = test.results && Object.keys(test.results).length > 0;
-        const resultCount = hasResults ? Object.keys(test.results).length : 0;
         const testAbnormalCount = hasResults
           ? Object.keys(test.results).filter(
               (k) => test.referenceRanges?.[k]?.flag && test.referenceRanges[k].flag !== 'normal'
