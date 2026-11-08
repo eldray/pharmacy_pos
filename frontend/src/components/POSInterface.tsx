@@ -10,7 +10,7 @@ import api, { getErrorMessage } from '../api/api';
 import { useBarcodeScanner } from '../hooks/useBarcodeScanner';
 import { ReceiptModal } from './ReceiptModal';
 import { SalesOrder } from '../types';
-import { safeNumber } from '../utils/number';
+import { safeNumber, getSellingPrice } from '../utils/number';
 
 /* ─── Stock badge ──────────────────────────────────────────────────── */
 const StockBadge: React.FC<{ quantity: number }> = ({ quantity }) => {
@@ -30,13 +30,15 @@ const StockBadge: React.FC<{ quantity: number }> = ({ quantity }) => {
 /* ─── Product card ─────────────────────────────────────────────────── */
 const ProductCard: React.FC<{
   product: Product;
-  onSelect: (p: Product) => void;
+  onSelect: (p: Product, qty?: number) => void;
   disabled?: boolean;
 }> = React.memo(({ product, onSelect, disabled }) => {
   const outOfStock = product.quantity <= 0;
   const blocked = outOfStock || disabled;
-  const price = safeNumber(product.sellingPrice || product.unitPrice);
+  const price = getSellingPrice(product);
+  const unitName = product.dispensingUnit || 'unit';
   return (
+    <div>
     <button
       type="button"
       disabled={blocked}
@@ -75,10 +77,11 @@ const ProductCard: React.FC<{
       <div className="flex items-center justify-between" style={{ marginTop: '6px' }}>
         <p className="truncate" style={{ fontSize: '10px', color: 'var(--color-text-muted)' }}>{product.category}</p>
         <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--color-accent-text)', fontVariantNumeric: 'tabular-nums' }}>
-          GHS {price.toFixed(2)}
+          GHS {price.toFixed(2)} <span style={{ fontSize: '10px', fontWeight: 500, color: 'var(--color-text-muted)' }}>/ {unitName}</span>
         </span>
       </div>
     </button>
+    </div>
   );
 });
 ProductCard.displayName = 'ProductCard';
@@ -627,7 +630,7 @@ export const POSInterface: React.FC = () => {
     [searchQuery, searchResults, topSellingProducts]
   );
 
-  const handleAddProduct = React.useCallback((product: Product) => {
+  const handleAddProduct = React.useCallback((product: Product, qty: number = 1) => {
     setFormError('');
     if (saleMode === 'insurance' && !insuranceReady) {
       setFormError('Select customer and insurance policy first.');
@@ -635,7 +638,8 @@ export const POSInterface: React.FC = () => {
     }
     if (!product.id) { setFormError('Product missing ID.'); return; }
     if (product.quantity <= 0) { setFormError(`${product.name} is out of stock.`); return; }
-    addToCart(product, 1);
+    if (qty > product.quantity) { setFormError(`Only ${product.quantity} ${product.dispensingUnit || 'unit'}(s) of ${product.name} in stock.`); return; }
+    addToCart(product, qty);
     setSearchQuery('');
   }, [addToCart, saleMode, insuranceReady]);
 
@@ -683,7 +687,7 @@ export const POSInterface: React.FC = () => {
       // NHIS-style: subtract insurancePrice per unit from each line
       let patientSub = 0;
       cartItems.forEach((item) => {
-        const unitPrice = safeNumber(item.product.sellingPrice || item.unitPrice);
+        const unitPrice = getSellingPrice(item.product);
         const insPrice = safeNumber(item.product.insurancePrice);
         const lineTotal = item.quantity * unitPrice;
         // Cap coverage at lineTotal (never overpay)
@@ -723,8 +727,8 @@ export const POSInterface: React.FC = () => {
         product: { name: i.product.name, sku: i.product.sku },
         productName: i.product.name,
         quantity: i.quantity,
-        unitPrice: safeNumber(i.product.sellingPrice || i.unitPrice),
-        total: i.quantity * safeNumber(i.product.sellingPrice || i.unitPrice),
+        unitPrice: getSellingPrice(i.product),
+        total: i.quantity * getSellingPrice(i.product),
       }));
 
       const useInsurance = saleMode === 'insurance' && !!selectedProvider;
@@ -1194,7 +1198,7 @@ export const POSInterface: React.FC = () => {
 
                       <div style={{ maxHeight: '34vh', overflowY: 'auto' }}>
                         {cartItems.map((item) => {
-                          const unitPrice = safeNumber(item.product.sellingPrice || item.unitPrice);
+                          const unitPrice = getSellingPrice(item.product);
                           const lineTotal = item.quantity * unitPrice;
                           return (
                             <div
@@ -1203,7 +1207,7 @@ export const POSInterface: React.FC = () => {
                             >
                               <div style={{ minWidth: 0 }}>
                                 <p className="truncate" style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-primary)', margin: 0 }}>{item.product.name}</p>
-                                <p style={{ fontSize: 10, color: 'var(--color-text-muted)', margin: 0, fontVariantNumeric: 'tabular-nums' }}>GHS {unitPrice.toFixed(2)} ea</p>
+                                <p style={{ fontSize: 10, color: 'var(--color-text-muted)', margin: 0, fontVariantNumeric: 'tabular-nums' }}>GHS {unitPrice.toFixed(2)} / {(item.product.dispensingUnit || 'unit').toLowerCase()}</p>
                               </div>
 
                               <div style={{ display: 'flex', alignItems: 'center', gap: 2, justifyContent: 'center' }}>

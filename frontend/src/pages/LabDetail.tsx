@@ -9,7 +9,6 @@ import {
     CheckCircle,
     User,
     Phone,
-    Calendar,
     DollarSign,
     CreditCard,
     Clock,
@@ -26,22 +25,13 @@ import {
     Receipt,
     Home,
     Search,
-    Filter,
-    Download,
-    Plus,
-    Minus,
-    Activity,
-    Thermometer,
-    HeartPulse,
-    Syringe,
-    TestTube,
     Microscope,
-    ClipboardCheck,
-    Pill,
-    Stethoscope
+    ClipboardCheck
 } from 'lucide-react';
 import { useAppStore } from '../store';
 import { Card } from '../components/ui/Card';
+import { Pagination } from '../components/ui';
+import { usePagination } from '../hooks/usePagination';
 import { LabResultEntry } from '../components/LabResultEntry';
 import { LabResultPrint } from '../components/LabResultPrint';
 import { ReceiptModal } from '../components/ReceiptModal';
@@ -52,11 +42,7 @@ export const LabDetail: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const {
-        fetchLabTransaction,
-        updateLabTest,
-        addLabTestResults,
-        reprintLabReceipt,
-        currentUser
+        fetchLabTransaction
     } = useAppStore();
 
     const [loading, setLoading] = useState(true);
@@ -221,6 +207,11 @@ export const LabDetail: React.FC = () => {
         return tests;
     };
 
+    const tests = filteredTests();
+    const testsPager = usePagination(tests, { pageSize: 10 });
+    const completedTestList = transaction?.labTests?.filter((t: any) => t.status === 'completed') || [];
+    const resultsPager = usePagination(completedTestList, { pageSize: 10 });
+
     const renderResultTable = (test: any) => {
         if (!test.results || Object.keys(test.results).length === 0) {
             return (
@@ -258,7 +249,7 @@ export const LabDetail: React.FC = () => {
                                         color: flag === 'normal' ? 'var(--color-success-text)' : 'var(--color-danger-text)',
                                         fontVariantNumeric: 'tabular-nums'
                                     }}>
-                                        {value || 'N/A'}
+                                        {(value as React.ReactNode) || 'N/A'}
                                     </td>
                                     <td className="px-4 py-3 text-sm text-secondary">{refRange || 'N/A'}</td>
                                     <td className="px-4 py-3 text-sm text-secondary">{unit || 'N/A'}</td>
@@ -736,7 +727,7 @@ export const LabDetail: React.FC = () => {
                                     type="text"
                                     placeholder="Search tests..."
                                     value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    onChange={(e) => { setSearchQuery(e.target.value); testsPager.resetPage(); }}
                                     className="w-full pl-9 pr-3 py-2 text-sm rounded-lg"
                                     style={{
                                         background: 'var(--color-input-bg)',
@@ -757,7 +748,7 @@ export const LabDetail: React.FC = () => {
                         </div>
                         <select
                             value={statusFilter}
-                            onChange={(e) => setStatusFilter(e.target.value)}
+                            onChange={(e) => { setStatusFilter(e.target.value); testsPager.resetPage(); }}
                             className="px-3 py-2 text-sm rounded-lg"
                             style={{
                                 background: 'var(--color-input-bg)',
@@ -781,13 +772,13 @@ export const LabDetail: React.FC = () => {
                             <option value="cancelled">Cancelled</option>
                         </select>
                         <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                            {filteredTests().length} test{filteredTests().length !== 1 ? 's' : ''} found
+                            {tests.length} test{tests.length !== 1 ? 's' : ''} found
                         </span>
                     </Card>
 
                     {/* Tests List */}
                     <div className="space-y-3">
-                        {filteredTests().map((test: any) => {
+                        {testsPager.pageItems.map((test: any) => {
                             const statusConfig = getStatusConfig(test.status);
                             const priorityConfig = getPriorityConfig(test.priority);
                             const isExpanded = expandedTest === test.id;
@@ -923,7 +914,7 @@ export const LabDetail: React.FC = () => {
                             );
                         })}
 
-                        {filteredTests().length === 0 && (
+                        {tests.length === 0 && (
                             <div className="text-center py-12">
                                 <AlertCircle className="h-12 w-12 mx-auto mb-4" style={{ color: 'var(--color-text-muted)' }} />
                                 <p className="text-sm font-medium text-secondary">No tests found</p>
@@ -933,13 +924,15 @@ export const LabDetail: React.FC = () => {
                             </div>
                         )}
                     </div>
+
+                    <Pagination pager={testsPager} label="tests" />
                 </div>
             )}
 
             {/* ── RESULTS TAB ────────────────────────────────────────────── */}
             {activeTab === 'results' && (
                 <div className="space-y-4">
-                    {transaction.labTests?.filter((t: any) => t.status === 'completed').map((test: any) => {
+                    {resultsPager.pageItems.map((test: any) => {
                         const hasResults = test.results && Object.keys(test.results).length > 0;
                         const isExpanded = expandedTest === test.id;
                         const statusConfig = getStatusConfig(test.status);
@@ -1033,7 +1026,6 @@ export const LabDetail: React.FC = () => {
                                         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
                                             {Object.entries(test.results).slice(0, 5).map(([key, value]) => {
                                                 const flag = test.referenceRanges?.[key]?.flag || 'normal';
-                                                const flagConfig = getFlagConfig(flag);
                                                 
                                                 return (
                                                     <div key={key} className="flex items-center justify-between px-3 py-2 rounded-lg text-xs" style={{
@@ -1044,7 +1036,7 @@ export const LabDetail: React.FC = () => {
                                                         <span className="font-semibold" style={{ 
                                                             color: flag === 'normal' ? 'var(--color-success-text)' : 'var(--color-danger-text)'
                                                         }}>
-                                                            {value || 'N/A'}
+                                                            {(value as React.ReactNode) || 'N/A'}
                                                         </span>
                                                     </div>
                                                 );
@@ -1065,7 +1057,7 @@ export const LabDetail: React.FC = () => {
                         );
                     })}
 
-                    {transaction.labTests?.filter((t: any) => t.status === 'completed').length === 0 && (
+                    {completedTestList.length === 0 && (
                         <div className="text-center py-16">
                             <AlertCircle className="h-16 w-16 mx-auto mb-4" style={{ color: 'var(--color-text-muted)' }} />
                             <h3 className="text-lg font-semibold text-primary">No Completed Tests</h3>
@@ -1088,6 +1080,8 @@ export const LabDetail: React.FC = () => {
                             )}
                         </div>
                     )}
+
+                    <Pagination pager={resultsPager} label="results" />
                 </div>
             )}
 

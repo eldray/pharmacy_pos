@@ -11,6 +11,8 @@ import { Card } from '../components/ui/Card';
 import { ProductHistoryModal } from '../components/ProductHistoryModal';
 import { getCategoryOptions } from '../lib/categories';
 import { validateProduct } from '../lib/validation';
+import { getSellingPrice } from '../utils/number';
+import { DISPENSING_UNITS, withCurrent } from '../constants/units';
 
 const ADD_NEW_CATEGORY = '__add_new__';
 
@@ -41,7 +43,6 @@ export const ProductManagement: React.FC = () => {
     packageType: 'Box',
     dispensingUnit: 'Tablet',
     unitsPerPackage: '',
-    packagePrice: '',
     schedule: 'none',
   });
   // When true, the category field shows a free-text input for a new category.
@@ -131,7 +132,6 @@ export const ProductManagement: React.FC = () => {
       packageType: 'Box',
       dispensingUnit: 'Tablet',
       unitsPerPackage: '100',
-      packagePrice: '',
       schedule: 'none',
     });
     setShowModal(true);
@@ -151,7 +151,6 @@ export const ProductManagement: React.FC = () => {
       packageType: product.packageType || 'Box',
       dispensingUnit: product.dispensingUnit || 'Tablet',
       unitsPerPackage: (product.unitsPerPackage || 1).toString(),
-      packagePrice: (product.packagePrice || '').toString(),
       schedule: product.schedule || 'none',
     });
     setShowModal(true);
@@ -229,7 +228,6 @@ export const ProductManagement: React.FC = () => {
         packageType: formData.packageType || 'Box',
         dispensingUnit: formData.dispensingUnit || 'Tablet',
         unitsPerPackage: parseInt(formData.unitsPerPackage) || 1,
-        packagePrice: formData.packagePrice ? parseFloat(formData.packagePrice) : undefined,
         schedule: formData.schedule || 'none',
       };
 
@@ -524,7 +522,7 @@ export const ProductManagement: React.FC = () => {
               <div className="flex items-center justify-between pt-3 border-t border-theme">
                 <div>
                   <p className="text-lg font-bold" style={{ color: 'var(--color-accent-text)' }}>
-                    GHS {product.unitPrice.toFixed(2)}
+                    GHS {getSellingPrice(product).toFixed(2)}
                   </p>
                   <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>Selling Price</p>
                   <div className="mt-1">
@@ -589,7 +587,7 @@ export const ProductManagement: React.FC = () => {
                     </td>
                     <td className="px-4 py-3">
                       <p className="text-base font-bold" style={{ color: 'var(--color-accent-text)' }}>
-                        GHS {product.unitPrice.toFixed(2)}
+                        GHS {getSellingPrice(product).toFixed(2)}
                       </p>
                       <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>Selling Price</p>
                     </td>
@@ -811,6 +809,9 @@ export const ProductManagement: React.FC = () => {
                     onFocus={onFieldFocus}
                     onBlur={onFieldBlur}
                   />
+                  <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
+                    This is the price charged at the POS. Leave blank to use the Single Unit Price.
+                  </p>
                 </div>
 
                 {/* Insurance Price */}
@@ -867,26 +868,12 @@ export const ProductManagement: React.FC = () => {
                   );
                 })()}
 
-                <div>
-                  <label className="block text-sm font-semibold text-primary mb-2">Bulk Package Type</label>
-                  <select
-                    value={formData.packageType}
-                    onChange={(e) => setFormData({ ...formData, packageType: e.target.value })}
-                    className="input-base w-full text-sm"
-                    style={fieldStyle}
-                    onFocus={onFieldFocus}
-                    onBlur={onFieldBlur}
-                  >
-                    <option value="Box">Box</option>
-                    <option value="Bottle">Bottle</option>
-                    <option value="Pack">Pack</option>
-                    <option value="Jar">Jar</option>
-                    <option value="Strip">Strip</option>
-                  </select>
-                </div>
+
+
+
 
                 <div>
-                  <label className="block text-sm font-semibold text-primary mb-2">Dispensing Unit Type</label>
+                  <label className="block text-sm font-semibold text-primary mb-2">Dispensing Unit Type <span style={{fontWeight:400,color:'var(--color-text-muted)'}}>(smallest unit you sell &amp; count stock in)</span></label>
                   <select
                     value={formData.dispensingUnit}
                     onChange={(e) => setFormData({ ...formData, dispensingUnit: e.target.value })}
@@ -895,46 +882,9 @@ export const ProductManagement: React.FC = () => {
                     onFocus={onFieldFocus}
                     onBlur={onFieldBlur}
                   >
-                    <option value="Tablet">Tablet</option>
-                    <option value="Capsule">Capsule</option>
-                    <option value="Strip">Strip</option>
-                    <option value="Sachet">Sachet</option>
-                    <option value="ml">ml (Liquid)</option>
-                    <option value="Piece">Piece</option>
+                    {withCurrent(DISPENSING_UNITS, formData.dispensingUnit).map((u) => (<option key={u} value={u}>{u === 'ml' ? 'ml (Liquid)' : u === 'g' ? 'g (Weight)' : u}</option>))}
                   </select>
                 </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-primary mb-2">Units per Bulk Package</label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={formData.unitsPerPackage}
-                    onChange={(e) => setFormData({ ...formData, unitsPerPackage: e.target.value })}
-                    placeholder="e.g. 100 tablets per box"
-                    className="input-base w-full text-sm"
-                    style={fieldStyle}
-                    onFocus={onFieldFocus}
-                    onBlur={onFieldBlur}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-primary mb-2">Bulk Package Price (GHS)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={formData.packagePrice}
-                    onChange={(e) => setFormData({ ...formData, packagePrice: e.target.value })}
-                    placeholder="e.g. 12.00 (Per Box)"
-                    className="input-base w-full text-sm"
-                    style={fieldStyle}
-                    onFocus={onFieldFocus}
-                    onBlur={onFieldBlur}
-                  />
-                </div>
-
                 <div>
                   <label className="block text-sm font-semibold text-primary mb-2">Controlled Substance</label>
                   <select

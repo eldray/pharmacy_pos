@@ -2,12 +2,14 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
     Users, Search, RefreshCw, Eye, Edit2, Plus, Shield,
-    Phone, Mail, Calendar, Loader2, ChevronLeft, ChevronRight, X, Trash2,
+    Phone, Mail, Calendar, Loader2, X, Trash2,
 } from 'lucide-react';
 import api, { getErrorMessage } from '../api/api';
 import { useAppStore } from '../store';
 import { Customer, InsuranceProvider, CustomerInsurance } from '../types';
 import { Card } from '../components/ui/Card';
+import { Pagination } from '../components/ui';
+import { usePagination } from '../hooks/usePagination';
 
 export const CustomersPage: React.FC = () => {
     const { currentUser } = useAppStore();
@@ -17,8 +19,6 @@ export const CustomersPage: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
-    const [currentPage, setCurrentPage] = useState(1);
-    const itemsPerPage = 15;
 
     // Detail modal
     const [selected, setSelected] = useState<Customer | null>(null);
@@ -51,11 +51,7 @@ export const CustomersPage: React.FC = () => {
 
     useEffect(() => { loadData(); }, [loadData]);
 
-    const totalPages = Math.ceil(customers.length / itemsPerPage);
-    const paginated = customers.slice(
-        (currentPage - 1) * itemsPerPage,
-        currentPage * itemsPerPage
-    );
+    const pager = usePagination(customers, { pageSize: 15, resetKey: searchQuery });
 
     const openCreate = () => {
         setEditing(null);
@@ -110,7 +106,7 @@ export const CustomersPage: React.FC = () => {
                     <input
                         type="text"
                         value={searchQuery}
-                        onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+                        onChange={(e) => { setSearchQuery(e.target.value); pager.resetPage(); }}
                         placeholder="Search by name, phone, or email…"
                         className="input-base w-full text-sm"
                         style={{ paddingLeft: '2.5rem' }}
@@ -141,7 +137,7 @@ export const CustomersPage: React.FC = () => {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-theme">
-                                {paginated.length === 0 ? (
+                                {pager.pageItems.length === 0 ? (
                                     <tr>
                                         <td colSpan={5} className="px-4 py-12 text-center">
                                             <Users className="h-12 w-12 text-muted mx-auto mb-3" />
@@ -152,7 +148,7 @@ export const CustomersPage: React.FC = () => {
                                         </td>
                                     </tr>
                                 ) : (
-                                    paginated.map((c) => {
+                                    pager.pageItems.map((c) => {
                                         const insurances = c.insurances || [];
                                         const primary = insurances.find((i) => i.isPrimary) || insurances[0];
                                         return (
@@ -250,22 +246,7 @@ export const CustomersPage: React.FC = () => {
                         </table>
                     </div>
 
-                    {totalPages > 1 && (
-                        <div className="flex items-center justify-between px-4 py-3 border-t border-theme flex-wrap gap-3">
-                            <p className="text-sm text-secondary">
-                                Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, customers.length)} of {customers.length}
-                            </p>
-                            <div className="flex items-center gap-2">
-                                <button onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1} className="btn-ghost px-3 py-1.5 text-sm disabled:opacity-50">
-                                    <ChevronLeft className="h-4 w-4" />
-                                </button>
-                                <span className="px-3 py-1.5 text-sm font-medium text-primary">{currentPage} / {totalPages}</span>
-                                <button onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="btn-ghost px-3 py-1.5 text-sm disabled:opacity-50">
-                                    <ChevronRight className="h-4 w-4" />
-                                </button>
-                            </div>
-                        </div>
-                    )}
+                    <Pagination pager={pager} label="customers" />
                 </Card>
             )}
 

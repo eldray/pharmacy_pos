@@ -19,6 +19,8 @@ import {
 } from 'lucide-react';
 import { useAppStore } from '../store';
 import { Card } from '../components/ui/Card';
+import { Pagination } from '../components/ui/Pagination';
+import { usePagination } from '../hooks/usePagination';
 import { Transaction } from '../types';
 import { DocumentDetailsModal } from '../components/DocumentDetailsModal';
 import { formatPaymentMethod } from '../utils/document';
@@ -105,6 +107,10 @@ export const SalesPage: React.FC = () => {
   }, [filteredTransactions, searchQuery]);
 
   // Calculate metrics
+  const pager = usePagination(searchedTransactions, {
+    resetKey: `${dateRange}|${startDate}|${endDate}|${searchQuery}`,
+  });
+
   const metrics = useMemo(() => {
     const totalRevenue = searchedTransactions.reduce((sum, t) => sum + t.total, 0);
     const totalTransactions = searchedTransactions.length;
@@ -445,7 +451,7 @@ export const SalesPage: React.FC = () => {
                 </tr>
               ) : (
                 <>
-                  {searchedTransactions.map((transaction) => {
+                  {pager.pageItems.map((transaction) => {
                     const PaymentIcon = getPaymentMethodIcon(transaction.paymentMethod);
                     const color = getPaymentMethodColor(transaction.paymentMethod);
                     return (
@@ -539,6 +545,7 @@ export const SalesPage: React.FC = () => {
             </tbody>
           </table>
         </div>
+        <Pagination pager={pager} label="transactions" />
       </Card>
 
       {/* ─── TRANSACTION DETAILS ───────────────────────────────────────────── */}

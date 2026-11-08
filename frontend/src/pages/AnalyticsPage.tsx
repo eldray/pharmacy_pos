@@ -2,13 +2,13 @@
 import React, { useMemo, useState } from 'react';
 import {
   TrendingUp, DollarSign, ShoppingCart, Package, Calendar, Download,
-  BarChart3, Users, AlertTriangle, Clock, CheckCircle, PackageSearch, Filter,
-  ChevronDown, ChevronRight
+  AlertTriangle, CheckCircle, PackageSearch,
 } from 'lucide-react';
 import { useAppStore } from '../store';
-import { Link } from 'react-router-dom';
 import { safeNumber } from '../utils/number';
 import { formatPaymentMethod } from '../utils/document';
+import { Pagination } from '../components/ui';
+import { usePagination } from '../hooks/usePagination';
 
 export const AnalyticsPage: React.FC = () => {
   const [dateRange, setDateRange] = useState('today');
@@ -89,10 +89,21 @@ export const AnalyticsPage: React.FC = () => {
       if (!acc[month]) acc[month] = [];
       acc[month].push(p);
       return acc;
-    }, {} as Record<string, typeof products[]>);
+    }, {} as Record<string, typeof products>);
 
     return { expired: expiredProducts, expiringSoon: expiringProducts, totalExpiring: expiringProducts.length, totalExpired: expiredProducts.length, expiryByMonth, threshold: expiryThreshold };
   }, [products, expiryThreshold]);
+
+  /* ── Paginated table rows ─────────────────────────────────────────── */
+  const expiryRows = useMemo(
+    () => [...expiryData.expired, ...expiryData.expiringSoon].sort((a, b) => {
+      // Sort by expiry date (soonest first)
+      return new Date(a.expiryDate!).getTime() - new Date(b.expiryDate!).getTime();
+    }),
+    [expiryData]
+  );
+  const inventoryPager = usePagination(products, { pageSize: 10 });
+  const expiryPager = usePagination(expiryRows, { pageSize: 10 });
 
   /* ── Sales metrics ───────────────────────────────────────────────── */
   const metrics = useMemo(() => {
@@ -108,7 +119,7 @@ export const AnalyticsPage: React.FC = () => {
 
     const productSales = filteredTransactions.reduce((acc, t) => {
       t.items.forEach((item) => {
-        const name = item.product?.name || item.productName || 'Unknown';
+        const name = item.product?.name || (item as any).productName || 'Unknown';
         if (!acc[name]) acc[name] = { quantity: 0, revenue: 0 };
         acc[name].quantity += safeNumber(item.quantity);
         acc[name].revenue += safeNumber(item.total);
@@ -149,8 +160,8 @@ export const AnalyticsPage: React.FC = () => {
     const rows = [
       ['Product', 'SKU', 'Batch', 'Qty', 'Expiry', 'Days Left', 'Status'],
       ...[...expiryData.expired, ...expiryData.expiringSoon].map((p) => {
-        const days = Math.ceil((new Date(p.expiryDate).getTime() - new Date().getTime()) / 86400000);
-        return [p.name, p.sku, p.batchNumber || '', p.quantity, new Date(p.expiryDate).toLocaleDateString(), days < 0 ? 'EXPIRED' : days, days <= 7 ? 'Critical' : days <= 30 ? 'Warning' : 'OK'];
+        const days = Math.ceil((new Date(p.expiryDate!).getTime() - new Date().getTime()) / 86400000);
+        return [p.name, p.sku, p.batchNumber || '', p.quantity, new Date(p.expiryDate!).toLocaleDateString(), days < 0 ? 'EXPIRED' : days, days <= 7 ? 'Critical' : days <= 30 ? 'Warning' : 'OK'];
       }),
     ];
     const blob = new Blob([rows.map((r) => r.join(',')).join('\n')], { type: 'text/csv' });
@@ -162,13 +173,6 @@ export const AnalyticsPage: React.FC = () => {
   };
 
   /* ── Shared styles ──────────────────────────────────────────────────── */
-  const cardStyle: React.CSSProperties = {
-    background: 'var(--color-bg-surface)',
-    border: '1px solid var(--color-border)',
-    borderRadius: '10px',
-    boxShadow: 'var(--shadow-card)',
-  };
-
   const headerStyle: React.CSSProperties = {
     fontSize: '14px',
     fontWeight: 600,
@@ -196,7 +200,7 @@ export const AnalyticsPage: React.FC = () => {
   };
 
   // Define Num component for tabular numbers
-  const Num: React.FC<{ children: React.ReactNode; className?: string }> = ({
+  const Num: React.FC<{ children: React.ReactNode; className?: string; style?: React.CSSProperties }> = ({
     children,
     className = '',
   }) => (
@@ -659,7 +663,7 @@ export const AnalyticsPage: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {products.slice(0, 20).map((p) => {
+                  {inventoryPager.pageItems.map((p) => {
                     const qty = safeNumber(p.quantity);
                     const price = safeNumber(p.unitPrice);
                     const status = qty === 0 ? 'Out' : qty <= 20 ? 'Low' : 'OK';
@@ -693,6 +697,7 @@ export const AnalyticsPage: React.FC = () => {
                 </tbody>
               </table>
             </div>
+            <Pagination pager={inventoryPager} label="products" />
           </div>
         </div>
       )}
@@ -1034,14 +1039,8 @@ export const AnalyticsPage: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {[...expiryData.expired, ...expiryData.expiringSoon]
-                    .sort((a, b) => {
-                      // Sort by expiry date (soonest first)
-                      return new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime();
-                    })
-                    .slice(0, 25)
-                    .map((p) => {
-                      const days = Math.ceil((new Date(p.expiryDate).getTime() - new Date().getTime()) / 86400000);
+                  {expiryPager.pageItems.map((p) => {
+                      const days = Math.ceil((new Date(p.expiryDate!).getTime() - new Date().getTime()) / 86400000);
                       const isExpired = days < 0;
 
                       // Get urgency color for row
@@ -1084,7 +1083,7 @@ export const AnalyticsPage: React.FC = () => {
                             color: isExpired ? 'var(--color-danger-text)' : 'var(--color-text-secondary)',
                             fontWeight: isExpired ? 600 : 400,
                           }}>
-                            {new Date(p.expiryDate).toLocaleDateString('en-US', {
+                            {new Date(p.expiryDate!).toLocaleDateString('en-US', {
                               month: 'short',
                               day: 'numeric',
                               year: 'numeric'
@@ -1109,10 +1108,12 @@ export const AnalyticsPage: React.FC = () => {
                           </td>
                         </tr>
                       );
-                    })}
+                  })}
                 </tbody>
               </table>
             </div>
+
+            <Pagination pager={expiryPager} label="batches" />
 
             {/* Empty state for table */}
             {expiryData.expired.length === 0 && expiryData.expiringSoon.length === 0 && (

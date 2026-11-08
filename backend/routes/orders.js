@@ -3,7 +3,7 @@ const { SalesOrder, User, Transaction, InventoryLog, Customer, Branch } = requir
 const { auth } = require('../middleware/auth');
 const { sequelize } = require('../config/database');
 const { createdAtRange } = require('../utils/dateRange');
-const { priceCartItems, resolveInsurance } = require('../utils/pricing');
+const { priceCartItems, resolveInsurance, lineStockUnits } = require('../utils/pricing');
 const { deductStock } = require('../utils/stock');
 const { nextReference } = require('../utils/references');
 const { normalizePaymentMethod } = require('../utils/validators');
@@ -249,7 +249,8 @@ router.post('/:id/pay', auth, async (req, res) => {
     for (const item of order.items || []) {
       // Locked row + short-stock rejection. This used to clamp to
       // Math.max(0, stock - qty), which hid oversells instead of refusing them.
-      const product = await deductStock(item.productId, item.quantity, {
+      const units = lineStockUnits(item);
+      const product = await deductStock(item.productId, units, {
         transaction: t, allowMissing: true
       });
       if (!product) {
@@ -263,7 +264,7 @@ router.post('/:id/pay', auth, async (req, res) => {
         userId: req.user.userId,
         userName: cashier ? cashier.name : 'Cashier',
         type: 'outflow',
-        quantity: Number(item.quantity),
+        quantity: units,
         reference: transactionNumber,
         notes: `Sales Order #${order.orderNumber}`
       }, { transaction: t });

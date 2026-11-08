@@ -22,6 +22,7 @@ export interface NormalizedItem {
   quantity: number;
   unitPrice: number;
   total: number;
+  unitLabel?: string;
 }
 
 export type DocumentStatusKey =
@@ -172,6 +173,7 @@ function normalizeItems(doc: PrintableDoc): NormalizedItem[] {
       quantity,
       unitPrice,
       total: round2(safeNumber(item.total) || unitPrice * quantity),
+      unitLabel: item.unitMode === 'package' ? (item.unitLabel || 'Package') : undefined,
     };
   });
 }
@@ -186,9 +188,14 @@ export function normalizeDocument(
   const isLab = isLabDoc(doc);
   const status = deriveStatus(doc);
 
-  // An order stops being an "awaiting payment" slip the moment it is settled,
-  // so a paid sales order prints as a receipt rather than a NOT A RECEIPT slip.
-  const isOrder = mode === 'order' || (isOrderDoc(doc) && status.key !== 'paid');
+  // The slip is for money still owed. Once an order is settled it prints as a
+  // receipt; a cancelled or refunded one is not awaiting payment either, so it
+  // prints as a receipt carrying its own status rather than a "pay at the
+  // cashier" slip. Lab requests are orders too — they carry a receiptNumber
+  // rather than an orderNumber, so detection by column name alone let an unpaid
+  // request print as a full receipt claiming PAID.
+  const awaitingPayment = status.key === 'pending' || status.key === 'partial';
+  const isOrder = awaitingPayment && (mode === 'order' || isOrderDoc(doc) || isLab);
 
   const items = normalizeItems(doc);
   const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
@@ -287,6 +294,19 @@ export function normalizeDocument(
 }
 
 /* ─── Formatting shared by view, print and PDF ──────────────────────── */
+
+/**
+ * The VAT percentage to print. Back-deriving it from a tax amount already rounded
+ * to two decimals drifts on small tickets — GHS 0.98 on GHS 6.50 reads as 15.08% —
+ * so the configured rate wins whenever the derived one sits within that rounding
+ * distance of it. A genuinely different rate still prints as itself.
+ */
+export function receiptTaxRate(n: NormalizedDocument, configured?: number | null): number {
+  if (n.taxRate == null) return configured ?? 15;
+  if (configured == null || n.subtotal <= 0) return n.taxRate;
+  const tolerance = (0.5 / n.subtotal) * 100;
+  return Math.abs(n.taxRate - configured) <= tolerance ? configured : n.taxRate;
+}
 
 export function formatDocumentDate(value?: string): string {
   return formatDateWith(value, false);

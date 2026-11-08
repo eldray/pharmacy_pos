@@ -14,7 +14,7 @@
     "devs": "concurrently -k \"npm run dev:backend\" \"npm run dev:frontend\"",
     "dev:frontend": "cd frontend && npm run dev",
     "dev:backend": "cd backend && npm start",
-    "electron": "wait-on http://localhost:3000 && electron . --no-sandbox",
+    "electron": "wait-on http://127.0.0.1:3000 && electron . --no-sandbox",
     "build:frontend": "cd frontend && npm run build",
     "prepare:backend": "node scripts/prepare-backend.cjs",
     "build:prepare": "npm run build:frontend && npm run prepare:backend",

@@ -13,6 +13,9 @@ import { safeNumber } from '../utils/number';
 import { formatPaymentMethod, normalizeDocument } from '../utils/document';
 import { printDocument } from '../utils/receiptHtml';
 import { describePrintOutcome } from '../utils/printEngine';
+import { Pagination } from '../components/ui';
+import { ReceiptModal } from '../components/ReceiptModal';
+import { usePagination } from '../hooks/usePagination';
 
 type Tab = 'pos' | 'lab';
 type DateFilter = 'pending' | 'today' | 'yesterday' | 'week' | 'month' | 'all';
@@ -154,6 +157,22 @@ const isPaid = (o: Order): boolean =>
 
 const isCancelled = (o: Order): boolean => o.status === 'cancelled';
 
+// The payment record carries the method, reference and settlement time; the order
+// carries the items and totals. The thermal template reads one document, so the
+// two are merged here for both the preview and the print.
+const receiptDocument = (order: Order, tx: any): Order =>
+  ({
+    ...order,
+    transactionNumber: (order as any).transactionNumber || tx?.transactionNumber,
+    paymentMethod: tx?.paymentMethod || (order as any).paymentMethod,
+    paymentReference: tx?.paymentReference || (order as any).paymentReference,
+    cashierName: tx?.cashierName || (order as any).cashierName,
+    status: isLab(order) ? order.status : 'paid',
+    paymentStatus: 'paid',
+    createdAt: tx?.createdAt || (order as any).createdAt,
+    paidAt: tx?.paidAt || (order as any).paidAt || tx?.createdAt,
+  }) as unknown as Order;
+
 /* ═══════════════════════════════════════════════════════════════════ */
 export const PaymentPage: React.FC = () => {
   const { company, refreshStockAndTransactions } = useAppStore();
@@ -171,9 +190,12 @@ export const PaymentPage: React.FC = () => {
   const [error, setError] = useState('');
   const [successTx, setSuccessTx] = useState<any>(null);
   const [lastPaidOrder, setLastPaidOrder] = useState<Order | null>(null);
+  const [paidReceipt, setPaidReceipt] = useState<Order | null>(null);
   const [searchParams] = useSearchParams();
 
   const searchMode = !!searchQuery.trim();
+
+  const orderPager = usePagination(orders, { pageSize: 10 });
 
   /* ── Fetch orders for the active tab + filter ─────────────────── */
   const fetchOrders = useCallback(async () => {
@@ -279,6 +301,9 @@ export const PaymentPage: React.FC = () => {
       const tx = res.data.transaction || res.data;
       setSuccessTx(tx);
       setLastPaidOrder(selectedOrder);
+      // Taking the money is what earns the customer a full receipt, so it opens
+      // here the same way the order slip opens when the order is created.
+      setPaidReceipt(receiptDocument(selectedOrder, tx));
       refreshList();
       // A POS sale decrements product stock server-side. Force-refresh products
       // (fetchProducts has a 30s freshness guard) alongside the transactions
@@ -288,14 +313,26 @@ export const PaymentPage: React.FC = () => {
 
       setSelectedOrder((prev) => {
         if (!prev) return null;
-        // Merge what the server just settled (method, reference, cashier, paid
-        // amount) back into the row. Patching only the status flags left the
-        // paid receipt printing "Payment N/A" for the rest of the session.
-        if (tx && String(tx.id ?? '') === String(prev.id)) return { ...prev, ...tx } as any;
-        if (isLab(prev)) {
-          return { ...prev, paymentStatus: 'paid', status: 'in_progress' } as any;
+        // The settlement is a transactions row with its own id and MED- number.
+        // Only its payment fields belong on the order: merging the whole row
+        // swapped the order for the transaction whenever the two ids happened to
+        // match, which left the pane showing "Pending" and offering to take the
+        // payment a second time.
+        const settlement = {
+          transactionNumber: tx?.transactionNumber,
+          paymentMethod: tx?.paymentMethod || paymentMethod,
+          paymentReference: tx?.paymentReference || paymentRef || undefined,
+          cashierName: tx?.cashierName,
+          paidAt: tx?.paidAt || tx?.createdAt,
+        };
+        const settled = res.data.order;
+        if (settled && String(settled.id ?? '') === String(prev.id)) {
+          return { ...prev, ...settled, ...settlement } as any;
         }
-        return { ...prev, status: 'paid' } as any;
+        if (isLab(prev)) {
+          return { ...prev, ...settlement, paymentStatus: 'paid', status: 'in_progress' } as any;
+        }
+        return { ...prev, ...settlement, status: 'paid' } as any;
       });
     } catch (err) {
       setError(getErrorMessage(err));
@@ -330,22 +367,8 @@ export const PaymentPage: React.FC = () => {
   /* ── Receipt printer (handles both POS and Lab) ──────────────── */
   const handlePrint = async (order: Order | null, tx: any) => {
     if (!order || !tx) return;
-
-    // The payment record carries the method and reference, the order carries the
-    // items and totals. The thermal template reads one document, so merge them.
-    const receiptDoc = {
-      ...order,
-      transactionNumber: (order as any).transactionNumber || tx.transactionNumber,
-      paymentMethod: tx.paymentMethod,
-      paymentReference: tx.paymentReference,
-      cashierName: tx.cashierName || (order as any).cashierName,
-      paymentStatus: 'paid',
-      createdAt: tx.createdAt || (order as any).createdAt,
-      paidAt: tx.paidAt || (order as any).paidAt || tx.createdAt,
-    } as unknown as Order;
-
     const message = describePrintOutcome(
-      await printDocument(receiptDoc, { company, mode: 'receipt' }),
+      await printDocument(receiptDocument(order, tx), { company, mode: 'receipt' }),
     );
     if (message) alert(message);
   };
@@ -374,7 +397,7 @@ export const PaymentPage: React.FC = () => {
       {/* Tabs */}
       <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid var(--color-border)' }}>
         <button
-          onClick={() => setTab('pos')}
+          onClick={() => { setTab('pos'); orderPager.resetPage(); }}
           style={{
             fontSize: '13px', fontWeight: 600, padding: '8px 16px',
             borderRadius: '8px 8px 0 0', border: 'none', cursor: 'pointer',
@@ -386,7 +409,7 @@ export const PaymentPage: React.FC = () => {
           <Receipt style={{ width: 14, height: 14 }} /> POS Orders
         </button>
         <button
-          onClick={() => setTab('lab')}
+          onClick={() => { setTab('lab'); orderPager.resetPage(); }}
           style={{
             fontSize: '13px', fontWeight: 600, padding: '8px 16px',
             borderRadius: '8px 8px 0 0', border: 'none', cursor: 'pointer',
@@ -407,7 +430,7 @@ export const PaymentPage: React.FC = () => {
             return (
               <button
                 key={f}
-                onClick={() => setDateFilter(f)}
+                onClick={() => { setDateFilter(f); orderPager.resetPage(); }}
                 style={{
                   fontSize: '12px',
                   fontWeight: 600,
@@ -433,14 +456,14 @@ export const PaymentPage: React.FC = () => {
         <input
           type="text"
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
+          onChange={(e) => { setSearchQuery(e.target.value); orderPager.resetPage(); }}
           placeholder="Search by order number, patient name, or phone…"
           style={{ fontSize: '14px', background: 'var(--color-input-bg)', border: '1px solid var(--color-input-border)', borderRadius: '10px', color: 'var(--color-input-text)', padding: '10px 16px 10px 38px', outline: 'none', height: '44px', width: '100%' }}
           onFocus={(e) => { e.target.style.borderColor = 'var(--color-input-border-focus)'; e.target.style.boxShadow = '0 0 0 2px var(--color-input-ring)'; }}
           onBlur={(e) => { e.target.style.borderColor = 'var(--color-input-border)'; e.target.style.boxShadow = 'none'; }}
         />
         {searchQuery && (
-          <button onClick={() => { setSearchQuery(''); }} aria-label="Clear search" style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)' }}>
+          <button onClick={() => { setSearchQuery(''); orderPager.resetPage(); }} aria-label="Clear search" style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)' }}>
             <X style={{ width: 14, height: 14 }} />
           </button>
         )}
@@ -479,7 +502,7 @@ export const PaymentPage: React.FC = () => {
                 </p>
               </div>
             ) : (
-              orders.map((order) => {
+              orderPager.pageItems.map((order) => {
                 const lab = isLab(order);
                 const name = displayName(order);
                 const phone = displayPhone(order);
@@ -539,6 +562,7 @@ export const PaymentPage: React.FC = () => {
               })
             )}
           </div>
+          <Pagination pager={orderPager} label="orders" />
         </div>
 
         {/* Right: Order detail + payment */}
@@ -713,13 +737,6 @@ export const PaymentPage: React.FC = () => {
 
                   {!paid && !cancelled && (
                     <>
-                      {successTx && lastPaidOrder?.id === selectedOrder.id && (
-                        <div style={{ background: 'var(--color-success-light)', border: '1px solid var(--color-success)', borderRadius: '8px', padding: '12px', fontSize: '13px', color: 'var(--color-success-text)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <CheckCircle style={{ width: 16, height: 16, flexShrink: 0 }} />
-                          <span>Payment accepted! <strong>{successTx.transactionNumber}</strong></span>
-                        </div>
-                      )}
-
                       <div>
                         <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Payment Method</div>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
@@ -772,15 +789,6 @@ export const PaymentPage: React.FC = () => {
                       >
                         <Ban style={{ width: 14, height: 14 }} /> Cancel Order
                       </button>
-
-                      {successTx && lastPaidOrder?.id === selectedOrder.id && (
-                        <button
-                          onClick={() => handlePrint(lastPaidOrder, successTx)}
-                          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '11px', background: 'var(--color-bg-subtle)', border: '1px solid var(--color-border)', borderRadius: '10px', fontSize: '14px', fontWeight: 600, color: 'var(--color-text-secondary)', cursor: 'pointer' }}
-                        >
-                          <Printer style={{ width: 16, height: 16 }} /> Print Receipt
-                        </button>
-                      )}
                     </>
                   )}
                 </div>
@@ -791,6 +799,14 @@ export const PaymentPage: React.FC = () => {
       </div>
 
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+
+      {paidReceipt && (
+        <ReceiptModal
+          doc={paidReceipt}
+          mode="receipt"
+          onClose={() => setPaidReceipt(null)}
+        />
+      )}
     </div>
   );
 };

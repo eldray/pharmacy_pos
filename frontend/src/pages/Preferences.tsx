@@ -15,6 +15,7 @@ import {
     isRunningInElectron,
     listPrinters,
     printFragment,
+    printerHasProblem,
     readPrintPreferences,
     savePrintPreferences,
     type PrinterInfo,
@@ -433,15 +434,25 @@ export const Preferences: React.FC = () => {
        changes — it is not part of the Save Preferences round-trip. */
     const inElectron = isRunningInElectron();
     const [printers, setPrinters] = useState<PrinterInfo[]>([]);
+    const [loadingPrinters, setLoadingPrinters] = useState(false);
+    const [printerRefresh, setPrinterRefresh] = useState(0);
     const [printPrefs, setPrintPrefs] = useState<PrintPreferences>(() => readPrintPreferences());
     const [testing, setTesting] = useState<PrintProfile | null>(null);
 
     useEffect(() => {
         if (!inElectron) return;
         let alive = true;
-        listPrinters().then((list) => { if (alive) setPrinters(list); });
+        setLoadingPrinters(true);
+        listPrinters().then((list) => {
+            if (!alive) return;
+            setPrinters(list);
+            setLoadingPrinters(false);
+        });
         return () => { alive = false; };
-    }, [inElectron]);
+    }, [inElectron, printerRefresh]);
+
+    const defaultPrinter = printers.find((p) => p.isDefault);
+    const troubledPrinters = printers.filter(printerHasProblem);
 
     const changePrintPref = (profile: PrintProfile, patch: Partial<{ silent: boolean; printer: string }>) => {
         const next = { ...printPrefs, [profile]: { ...printPrefs[profile], ...patch } };
@@ -463,12 +474,15 @@ export const Preferences: React.FC = () => {
             </div>`;
         const result = await printFragment(fragment, { profile, title: `Test print (${label})` });
         setTesting(null);
+        setPrinterRefresh((n) => n + 1);
         setBanner(
-            result.outcome === 'printed'
-                ? { type: 'success', text: `Test page sent to ${result.printer || 'the default printer'}` }
-                : result.outcome === 'failed'
-                    ? { type: 'error', text: `Test print failed: ${result.error}` }
-                    : { type: 'info', text: 'Complete the test page in the print preview' },
+            result.warning
+                ? { type: 'error', text: result.warning }
+                : result.outcome === 'printed'
+                    ? { type: 'success', text: `Test page sent to ${result.printer || 'the default printer'}` }
+                    : result.outcome === 'failed'
+                        ? { type: 'error', text: `Test print failed: ${result.error}` }
+                        : { type: 'info', text: 'Complete the test page in the print preview' },
         );
     };
 
@@ -659,7 +673,39 @@ export const Preferences: React.FC = () => {
                             hint="Saved on this machine straight away — no need to press Save Preferences."
                         >
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                                {(['receipt', 'a4'] as PrintProfile[]).map((profile) => (
+                                {troubledPrinters.length > 0 && (
+                                    <div
+                                        role="alert"
+                                        style={{
+                                            display: 'flex', gap: 10, alignItems: 'flex-start',
+                                            padding: '10px 12px', borderRadius: 8,
+                                            background: 'var(--color-warning-light, var(--color-danger-light))',
+                                            border: '1px solid var(--color-warning, var(--color-danger))',
+                                            color: 'var(--color-warning-text, var(--color-danger-text))',
+                                            fontSize: '0.74rem', lineHeight: 1.55,
+                                        }}
+                                    >
+                                        <AlertTriangle className="h-4 w-4" style={{ flexShrink: 0, marginTop: 1 }} />
+                                        <div style={{ flex: 1 }}>
+                                            {troubledPrinters.map((p) => (
+                                                <div key={p.name}>
+                                                    <strong>{p.displayName}</strong>
+                                                    {p.status && p.status !== 'Normal' ? ` is reporting ${p.status.toLowerCase()}` : ' has a blocked queue'}
+                                                    {p.queuedJobs > 0 && ` — ${p.queuedJobs} job${p.queuedJobs === 1 ? '' : 's'} waiting`}
+                                                    {p.stuckJobs > 0 && `, ${p.stuckJobs} stuck`}.
+                                                </div>
+                                            ))}
+                                            <div style={{ marginTop: 4 }}>
+                                                Slips sent to these printers stay in the Windows queue until the device is
+                                                cleared. Open <strong>File &rsaquo; Printer Status</strong> to see the stuck jobs.
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                                {(['receipt', 'a4'] as PrintProfile[]).map((profile) => {
+                                    const active = printers.find((p) => p.name === printPrefs[profile].printer) || defaultPrinter;
+                                    const problem = active ? printerHasProblem(active) : false;
+                                    return (
                                     <div key={profile} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                                         <label style={labelStyle}>
                                             {profile === 'receipt'
@@ -673,13 +719,34 @@ export const Preferences: React.FC = () => {
                                             onFocus={onF}
                                             onBlur={onB}
                                         >
-                                            <option value="">Windows default printer</option>
+                                            <option value="">
+                                                Windows default printer{defaultPrinter ? ` — ${defaultPrinter.displayName}` : ''}
+                                            </option>
                                             {printers.map((p) => (
                                                 <option key={p.name} value={p.name}>
-                                                    {p.displayName}{p.isDefault ? ' (default)' : ''}
+                                                    {p.displayName}{p.isDefault ? ' (default)' : ''}{printerHasProblem(p) ? ' — needs attention' : ''}
                                                 </option>
                                             ))}
                                         </select>
+                                        <p
+                                            style={{
+                                                margin: 0, fontSize: '0.7rem', lineHeight: 1.5,
+                                                color: problem ? 'var(--color-danger-text)' : 'var(--color-text-muted)',
+                                            }}
+                                        >
+                                            {loadingPrinters
+                                                ? 'Asking Windows about the printers…'
+                                                : active
+                                                    ? <>
+                                                        {active.status || 'State unknown'}
+                                                        {' · '}
+                                                        {active.queuedJobs === 0
+                                                            ? 'queue empty'
+                                                            : `${active.queuedJobs} job${active.queuedJobs === 1 ? '' : 's'} waiting${active.stuckJobs ? `, ${active.stuckJobs} stuck` : ''}`}
+                                                        {problem ? ' — paper will not come out until this is cleared.' : ''}
+                                                    </>
+                                                    : 'No printer selected.'}
+                                        </p>
                                         <ToggleRow
                                             icon={Zap}
                                             label="Print without the Windows dialog"
@@ -705,12 +772,29 @@ export const Preferences: React.FC = () => {
                                                 : <><Printer size={14} /> Test {profile === 'receipt' ? 'receipt' : 'A4 page'}</>}
                                         </button>
                                     </div>
-                                ))}
-                                {printers.length === 0 && (
-                                    <p style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', margin: 0 }}>
-                                        No printers were reported by Windows. Install the receipt printer's driver, then reopen this page.
-                                    </p>
-                                )}
+                                    );
+                                })}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                                    <button
+                                        type="button"
+                                        onClick={() => setPrinterRefresh((n) => n + 1)}
+                                        disabled={loadingPrinters}
+                                        className="btn-ghost"
+                                        style={{
+                                            display: 'flex', alignItems: 'center', gap: 6,
+                                            opacity: loadingPrinters ? 0.6 : 1,
+                                            cursor: loadingPrinters ? 'not-allowed' : 'pointer',
+                                        }}
+                                    >
+                                        <RefreshCw size={14} className={loadingPrinters ? 'animate-spin' : undefined} />
+                                        Refresh printers
+                                    </button>
+                                    {printers.length === 0 && !loadingPrinters && (
+                                        <p style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', margin: 0, flex: 1 }}>
+                                            No printers were reported by Windows. Install the receipt printer's driver, then refresh.
+                                        </p>
+                                    )}
+                                </div>
                             </div>
                         </Section>
                     )}

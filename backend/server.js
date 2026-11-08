@@ -235,6 +235,15 @@ const startServer = async () => {
       console.log(`✅ Database has ${userCount} user(s) — skipping seed (run \`npm run seed\` to top up catalogue/reference rows)`);
     }
 
+    // An install seeded before the lab catalogue shipped by default has users but no
+    // lab tests. Fill it in once; after that the pharmacy's own edits are left alone.
+    const { LabTestTemplate } = require('./models');
+    const { seedLabCatalogue, labCatalogueEnabled } = require('./seed');
+    if (labCatalogueEnabled() && (await LabTestTemplate.count()) === 0) {
+      console.log('🧪 No lab tests on file — loading the standard lab catalogue...');
+      await seedLabCatalogue();
+    }
+
     // Step 5: The home branch is structure, not seed data, so it is ensured even
     //         when the seed was skipped — an install that already has users may
     //         still have no branch to attribute a sale to.

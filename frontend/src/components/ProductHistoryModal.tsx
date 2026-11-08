@@ -6,6 +6,8 @@ import { Product } from '../types';
 import { Card } from './ui/Card';
 import { DocumentDetailsModal } from './DocumentDetailsModal';
 import { safeNumber } from '../utils/number';
+import { Pagination } from './ui/Pagination';
+import { usePagination } from '../hooks/usePagination';
 
 interface ProductHistoryModalProps {
     product: Product;
@@ -42,6 +44,8 @@ export const ProductHistoryModal: React.FC<ProductHistoryModalProps> = ({
             });
         }).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     }, [transactions, product]);
+
+    const pager = usePagination(productTransactions, { pageSize: 10, resetKey: product?.id });
 
     // Calculate total quantity sold
     const totalQuantitySold = useMemo(() => {
@@ -247,7 +251,7 @@ export const ProductHistoryModal: React.FC<ProductHistoryModalProps> = ({
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-theme">
-                                        {productTransactions.map((tx) => {
+                                        {pager.pageItems.map((tx) => {
                                             const txItems = tx.items || [];
                                             const productItem = txItems.find(item => {
                                                 const productId = item.productId || item.product?.id || item.product?._id;
@@ -319,6 +323,7 @@ export const ProductHistoryModal: React.FC<ProductHistoryModalProps> = ({
                                         })}
                                     </tbody>
                                 </table>
+                                <Pagination pager={pager} label="transactions" />
                             </div>
                         )}
                     </div>

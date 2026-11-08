@@ -6,7 +6,7 @@ import { Login } from './components/Login';
 import { DashboardLayout } from './components/DashboardLayout';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { LandingPage } from './pages/LandingPage';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { useRuntimeMode } from './utils/runtimeMode';
 import './App.css'; 
 
@@ -19,6 +19,15 @@ function App() {
   const { production } = useRuntimeMode();
 
   const runInit = (role: string) => initStore(role);
+
+  // The desktop application menu opens pages that belong to the SPA rather than
+  // to Electron, so it asks for them here instead of loading a second window.
+  const navigate = useNavigate();
+  useEffect(() => {
+    const api = (window as any).electronAPI;
+    if (!api?.onNavigate) return;
+    return api.onNavigate((path: string) => navigate(path));
+  }, [navigate]);
 
   useEffect(() => {
     const token = localStorage.getItem('auth_token');

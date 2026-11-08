@@ -65,6 +65,30 @@ function resolveAdmin() {
   return { name, email, password, role: 'admin' };
 }
 
+/** Production seeds the lab catalogue unless the operator turns it off. */
+function labCatalogueEnabled() {
+  return String(process.env.SEED_LAB_CATALOGUE || '').toLowerCase() !== 'false';
+}
+
+/**
+ * Adds any standard lab test that is missing, matched by name. Safe to run any
+ * number of times: findOrCreate per name, so re-running adds new tests without
+ * touching prices or fields a pharmacy has edited.
+ */
+async function seedLabCatalogue() {
+  const labData = loadJsonData('lab-templates.json');
+  const templates = labData?.templates || [];
+  let added = 0;
+  let existing = 0;
+  for (const t of templates) {
+    const [, wasCreated] = await LabTestTemplate.findOrCreate({ where: { name: t.name }, defaults: t });
+    if (wasCreated) added++; else existing++;
+  }
+  if (!templates.length) console.log('⚠️  No lab-templates.json — no lab catalogue created');
+  console.log(`✅ Lab templates: ${added} created, ${existing} already present (${await LabTestTemplate.count()} total)\n`);
+  return { added, existing };
+}
+
 async function seedDatabase() {
   const production = isProduction();
   const demo = isDemoSeedAllowed();
@@ -177,21 +201,11 @@ async function seedDatabase() {
     if (stocked) console.log(`✅ Added ${stocked} stock row(s) for ${branch.name}\n`);
 
     // ==================== LAB TEST TEMPLATES ====================
-    // Reference data with prices a pharmacy will want to edit, so production
-    // opts in with SEED_LAB_CATALOGUE=true instead of getting it silently.
-    if (demo || process.env.SEED_LAB_CATALOGUE === 'true') {
-      const labData = loadJsonData('lab-templates.json');
-      const templates = labData?.templates || [];
-      let added = 0;
-      let existing = 0;
-      for (const t of templates) {
-        // findOrCreate per name, not one bulkCreate behind a count() === 0
-        // guard: re-running adds new tests without touching edited prices.
-        const [, wasCreated] = await LabTestTemplate.findOrCreate({ where: { name: t.name }, defaults: t });
-        if (wasCreated) added++; else existing++;
-      }
-      if (!templates.length) console.log('⚠️  No lab-templates.json — no lab catalogue created');
-      console.log(`✅ Lab templates: ${added} created, ${existing} already present (${await LabTestTemplate.count()} total)\n`);
+    // The standard lab catalogue (tests, reference ranges, prices) is part of a
+    // working lab module, so production gets it too. Prices are editable under Lab
+    // Management and are never overwritten on re-seed. Opt out: SEED_LAB_CATALOGUE=false.
+    if (demo || labCatalogueEnabled()) {
+      await seedLabCatalogue();
     }
 
     // ==================== INSURANCE PROVIDERS ====================
@@ -230,6 +244,8 @@ async function seedDatabase() {
 }
 
 module.exports = seedDatabase;
+module.exports.seedLabCatalogue = seedLabCatalogue;
+module.exports.labCatalogueEnabled = labCatalogueEnabled;
 
 // Allow running standalone: `node seed.js`
 if (require.main === module) {

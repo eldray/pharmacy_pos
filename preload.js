@@ -10,7 +10,7 @@ const safeIpcHandler = (channel, callback) => {
 try {
   contextBridge.exposeInMainWorld('electronAPI', {
     platform: process.platform,
-    isPackaged: process.env.NODE_ENV === 'production',
+    isPackaged: process.argv.includes('--pharmacy-packaged=true'),
     isElectron: true,
     
     versions: {
@@ -21,7 +21,6 @@ try {
     
     // Application info
     getAppVersion: () => ipcRenderer.invoke('get-app-version'),
-    getDBPath: () => ipcRenderer.invoke('get-db-path'),
     getBackendStatus: () => ipcRenderer.invoke('get-backend-status'),
     
     // Backend control
@@ -41,13 +40,16 @@ try {
     onBackendRestarted: (callback) => safeIpcHandler('backend-restarted', callback),
     onUpdateAvailable: (callback) => safeIpcHandler('update_available', callback),
     onUpdateDownloaded: (callback) => safeIpcHandler('update_downloaded', callback),
-    
+    // Application menu asking the SPA to show one of its own pages.
+    onNavigate: (callback) => safeIpcHandler('navigate', callback),
+
     // Remove listeners
     removeAllListeners: () => {
       ipcRenderer.removeAllListeners('backend-ready');
       ipcRenderer.removeAllListeners('backend-restarted');
       ipcRenderer.removeAllListeners('update_available');
       ipcRenderer.removeAllListeners('update_downloaded');
+      ipcRenderer.removeAllListeners('navigate');
     },
     
     // Platform-specific features

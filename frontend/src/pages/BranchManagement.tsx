@@ -8,6 +8,9 @@ import api, { getErrorMessage } from '../api/api';
 import { useAppStore } from '../store';
 import { Branch, Product, StockTransfer, StockTransferItem } from '../types';
 import { Card } from '../components/ui/Card';
+import { Pagination } from '../components/ui/Pagination';
+import { usePagination } from '../hooks/usePagination';
+import { SearchableSelect, SearchableOption } from '../components/ui/SearchableSelect';
 
 const STATUS_BADGES: Record<string, { label: string; bg: string; color: string }> = {
   pending: { label: '⏳ Pending', bg: 'var(--color-warning-light)', color: 'var(--color-warning-text)' },
@@ -125,6 +128,9 @@ export const BranchManagement: React.FC = () => {
     return transfers.filter((t) => t.status === transferStatusFilter);
   }, [transfers, transferStatusFilter]);
 
+  const transferPager = usePagination(filteredTransfers, { resetKey: transferStatusFilter });
+  const branchPager = usePagination(branches, { pageSize: 10 });
+
   return (
     <div className="space-y-6 pb-6">
       {/* Header */}
@@ -201,6 +207,7 @@ export const BranchManagement: React.FC = () => {
 
       {/* Branches Tab */}
       {activeTab === 'branches' && (
+        <>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {isLoading ? (
             <Card className="p-12 text-center col-span-full">
@@ -211,7 +218,7 @@ export const BranchManagement: React.FC = () => {
               <Building2 className="w-12 h-12 mx-auto text-muted mb-3" />
               <p className="text-secondary">No branches yet. Add your first location to get started.</p>
             </Card>
-          ) : branches.map((b) => (
+          ) : branchPager.pageItems.map((b) => (
             <Card key={b.id} className="p-6 space-y-3">
               <div className="flex justify-between items-start">
                 <div className="flex items-center gap-3">
@@ -241,6 +248,8 @@ export const BranchManagement: React.FC = () => {
             </Card>
           ))}
         </div>
+        <Card><Pagination pager={branchPager} label="branches" className="border-t-0" /></Card>
+        </>
       )}
 
       {/* Transfers Tab */}
@@ -276,6 +285,7 @@ export const BranchManagement: React.FC = () => {
                 <p className="text-secondary">No stock transfers {transferStatusFilter !== 'all' ? `with status "${transferStatusFilter}"` : ''} yet.</p>
               </div>
             ) : (
+              <>
               <table className="w-full text-left border-collapse">
                 <thead className="bg-subtle border-b border-theme">
                   <tr>
@@ -289,7 +299,7 @@ export const BranchManagement: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-theme">
-                  {filteredTransfers.map((t) => {
+                  {transferPager.pageItems.map((t) => {
                     const badge = STATUS_BADGES[t.status] || STATUS_BADGES.pending;
                     return (
                       <tr key={t.id} className="hover:bg-subtle transition-colors">
@@ -366,6 +376,8 @@ export const BranchManagement: React.FC = () => {
                   })}
                 </tbody>
               </table>
+              <Pagination pager={transferPager} label="transfers" />
+              </>
             )}
           </Card>
         </div>
@@ -470,6 +482,25 @@ const TransferModal: React.FC<{
 
   const updateItem = (idx: number, patch: Partial<StockTransferItem>) =>
     setItems(items.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
+
+  // One option per product. Anything already picked on another row is greyed out so
+  // the same drug can't be added to a transfer twice.
+  const productOptions = useMemo<SearchableOption[]>(
+    () =>
+      products.map((p) => ({
+        value: String(p.id),
+        label: p.name,
+        sublabel: [p.sku, p.category].filter(Boolean).join(' · ') || undefined,
+        meta: `Qty ${p.quantity ?? 0}`,
+        keywords: [p.barcode, p.sku, p.category, p.description].filter(Boolean).join(' '),
+      })),
+    [products]
+  );
+
+  const optionsForRow = (idx: number): SearchableOption[] => {
+    const taken = new Set(items.filter((_, i) => i !== idx).map((it) => it.productId).filter(Boolean));
+    return productOptions.map((o) => (taken.has(o.value) ? { ...o, disabled: true, disabledReason: 'Already added' } : o));
+  };
 
   const handleProductChange = (idx: number, productId: string) => {
     const p = products.find((x) => String(x.id) === productId);
@@ -588,20 +619,15 @@ const TransferModal: React.FC<{
               {items.map((it, idx) => (
                 <div key={idx} className="flex gap-2 items-start">
                   <div className="flex-1">
-                    <select
+                    <SearchableSelect
+                      options={optionsForRow(idx)}
                       value={it.productId}
-                      onChange={(e) => handleProductChange(idx, e.target.value)}
+                      onChange={(v) => handleProductChange(idx, v)}
+                      placeholder="Search & select product…"
+                      searchPlaceholder="Search by name, SKU, barcode or category…"
+                      emptyText="No product matches your search"
                       style={fieldStyle}
-                      onFocus={onFieldFocus}
-                      onBlur={onFieldBlur}
-                    >
-                      <option value="">-- Select product --</option>
-                      {products.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name} {p.sku ? `(${p.sku})` : ''}
-                        </option>
-                      ))}
-                    </select>
+                    />
                   </div>
                   <input
                     type="number"

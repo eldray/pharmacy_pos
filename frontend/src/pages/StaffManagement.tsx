@@ -8,6 +8,8 @@ import api, { getErrorMessage } from '../api/api';
 import { useAppStore } from '../store';
 import { User, Branch, StaffProfile } from '../types';
 import { Card } from '../components/ui/Card';
+import { Pagination } from '../components/ui/Pagination';
+import { usePagination } from '../hooks/usePagination';
 
 const VALID_ROLES = ['admin', 'manager', 'pharmacist_sales', 'cashier', 'lab_tech'] as const;
 type ValidRole = typeof VALID_ROLES[number];
@@ -111,6 +113,8 @@ export const StaffManagement: React.FC = () => {
       (u.staffProfile?.department || '').toLowerCase().includes(term)
     );
   });
+
+  const pager = usePagination(filtered, { resetKey: `${searchTerm}|${roleFilter}|${statusFilter}` });
 
   return (
     <div className="space-y-6 pb-6">
@@ -239,7 +243,7 @@ export const StaffManagement: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-theme">
-                {filtered.map((u) => {
+                {pager.pageItems.map((u) => {
                   const profile = u.staffProfile;
                   const isSelf = u.id === currentUser?.id;
                   return (
@@ -373,6 +377,7 @@ export const StaffManagement: React.FC = () => {
                 })}
               </tbody>
             </table>
+            <Pagination pager={pager} label="users" />
           </div>
         )}
       </Card>

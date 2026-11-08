@@ -23,13 +23,36 @@ export interface PrintResult {
   error?: string;
   /** Which printer the job went to, when Electron reported it. */
   printer?: string;
+  /**
+   * The job was accepted but the device cannot deliver it — an offline or jammed
+   * printer, or a queue blocked by a stuck job. Worth showing even on success.
+   */
+  warning?: string;
+  /** Where a PDF was written, when the outcome came from Save PDF. */
+  path?: string;
 }
 
 export interface PrinterInfo {
   name: string;
   displayName: string;
+  description: string;
+  /** From Windows; Chromium's own printer list does not carry it. */
   isDefault: boolean;
-  status: number;
+  /** Windows' device state ("Normal", "Error", "Offline"…), null if unreadable. */
+  status: string | null;
+  queuedJobs: number;
+  stuckJobs: number;
+}
+
+/** States that need someone to intervene; "Printing" and "WarmingUp" do not. */
+const PRINTER_FAULTS = new Set([
+  'error', 'offline', 'paused', 'paperjam', 'paperout', 'paperproblem', 'dooropen',
+  'notavailable', 'userinterventionrequired', 'outofmemory', 'notoner',
+  'pendingdeletion', 'server_unknown',
+]);
+
+export function printerHasProblem(p: PrinterInfo): boolean {
+  return p.stuckJobs > 0 || (!!p.status && PRINTER_FAULTS.has(p.status.toLowerCase()));
 }
 
 /* ─── Per-machine preferences ───────────────────────────────────────────────
@@ -176,7 +199,7 @@ interface ElectronPrintApi {
     silent: boolean;
     deviceName: string;
     marginType: 'none' | 'default';
-  }) => Promise<{ success: boolean; error?: string; printer?: string }>;
+  }) => Promise<{ success: boolean; error?: string; printer?: string; warning?: string; failureType?: string }>;
   savePdf?: (payload: {
     html: string;
     fileName: string;
@@ -218,14 +241,34 @@ export async function printFragment(
   const api = electronApi();
 
   if (api?.printHtml) {
+    const send = (silent: boolean, deviceName = prefs.printer) => api.printHtml!({
+      html,
+      silent,
+      deviceName,
+      marginType: MARGIN_TYPE[profile],
+    });
     try {
-      const result = await api.printHtml({
-        html,
-        silent: prefs.silent,
-        deviceName: prefs.printer,
-        marginType: MARGIN_TYPE[profile],
-      });
-      if (result?.success) return { outcome: 'printed', printer: result.printer };
+      const result = await send(prefs.silent);
+      if (result?.success) {
+        return { outcome: 'printed', printer: result.printer, warning: result.warning };
+      }
+      // A printer that was unplugged or renamed since Preferences was last opened
+      // never receives the job. Rather than leave the cashier with nothing, hand
+      // it to the Windows dialog — with the dead name dropped, or the dialog is
+      // rejected for the same invalid device and nothing appears at all.
+      if (prefs.silent && result?.failureType === 'printer-invalid') {
+        const retry = await send(false, '');
+        if (retry?.success) {
+          return {
+            outcome: 'dialog',
+            printer: retry.printer,
+            warning: `${result.error} Choose a printer in the Windows dialog to print this one.`,
+          };
+        }
+        if (retry?.failureType === 'cancelled') {
+          return { outcome: 'dialog', warning: `${result.error} Nothing was printed.` };
+        }
+      }
       return { outcome: 'failed', error: result?.error || 'The print job failed' };
     } catch (err: any) {
       return { outcome: 'failed', error: err?.message || String(err) };
@@ -260,13 +303,13 @@ export async function printFragment(
   return { outcome: 'dialog' };
 }
 
-/** Message a till can be shown for anything other than a clean print. */
+/** Message a till can be shown for anything other than a clean, delivered print. */
 export function describePrintOutcome(result: PrintResult): string | null {
   switch (result.outcome) {
     case 'printed':
-      return null;
+      return result.warning || (result.path ? `Saved to ${result.path}` : null);
     case 'dialog':
-      return null;
+      return result.warning || null;
     case 'blocked':
       return 'The print window was blocked. Allow pop-ups for this site, or run the desktop app.';
     case 'failed':
@@ -290,7 +333,7 @@ export async function savePdf(
   const html = buildPrintDocument(fragment, profile, title);
   try {
     const result = await api.savePdf({ html, fileName, marginType: MARGIN_TYPE[profile] });
-    if (result?.success) return { outcome: 'printed' };
+    if (result?.success) return { outcome: 'printed', path: result.path };
     if (result?.cancelled) return { outcome: 'dialog' };
     return { outcome: 'failed', error: result?.error || 'Could not write the PDF' };
   } catch (err: any) {

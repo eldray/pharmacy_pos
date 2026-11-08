@@ -24,6 +24,12 @@ function unitPriceOf(product) {
   return Number(product.sellingPrice || product.unitPrice) || 0;
 }
 
+// Stock movements always count dispensing units. Lines stored before package
+// sales existed carry only quantity, so fall back to it.
+function lineStockUnits(line) {
+  return Number(line.stockQuantity) || Number(line.quantity) || 0;
+}
+
 function resolveTaxRate(taxRate) {
   if (taxRate == null) return TAX_RATE_FALLBACK;
   const parsed = Number(taxRate);
@@ -50,7 +56,26 @@ function priceCart(items, productsById, taxRate, cartDiscount = 0) {
       throw new AppError(`Invalid quantity for ${product.name}`, 400);
     }
 
-    const unitPrice = unitPriceOf(product);
+    // A line sells either single dispensing units or whole bulk packages.
+    // Stock is always counted in units, so a package line carries stockQuantity
+    // = quantity × unitsPerPackage for the deduction at payment time.
+    const unitMode = item.unitMode === 'package' ? 'package' : 'single';
+    let unitPrice;
+    let stockQuantity = quantity;
+    let unitsPerPackage = 1;
+    let unitLabel = product.dispensingUnit || 'Unit';
+    if (unitMode === 'package') {
+      unitsPerPackage = Number(product.unitsPerPackage) || 0;
+      const packPrice = Number(product.packagePrice);
+      if (unitsPerPackage <= 1 || !Number.isFinite(packPrice) || packPrice <= 0) {
+        throw new AppError(`${product.name} is not set up for package sales (needs a pack size and package price)`, 400);
+      }
+      unitPrice = packPrice;
+      stockQuantity = quantity * unitsPerPackage;
+      unitLabel = product.packageType || 'Package';
+    } else {
+      unitPrice = unitPriceOf(product);
+    }
     const lineTotal = round2(quantity * unitPrice);
     const discount = round2(Math.min(Math.max(Number(item.discount) || 0, 0), lineTotal));
 
@@ -61,6 +86,10 @@ function priceCart(items, productsById, taxRate, cartDiscount = 0) {
       productId: product.id,
       product: { name: product.name, sku: product.sku, category: product.category },
       quantity,
+      unitMode,
+      unitLabel,
+      unitsPerPackage,
+      stockQuantity,
       unitPrice,
       total: lineTotal,
       discount,
@@ -93,7 +122,7 @@ async function priceCartItems(items, { transaction, cartDiscount = 0 } = {}) {
 
   const products = await Product.findAll({
     where: { id: ids },
-    attributes: ['id', 'name', 'sku', 'category', 'unitPrice', 'sellingPrice', 'cost', 'quantity', 'schedule', 'insurancePrice'],
+    attributes: ['id', 'name', 'sku', 'category', 'unitPrice', 'sellingPrice', 'cost', 'quantity', 'schedule', 'insurancePrice', 'packagePrice', 'unitsPerPackage', 'packageType', 'dispensingUnit'],
     transaction
   });
 
@@ -126,8 +155,10 @@ function insuranceSplit(provider, lines, subtotal, taxRate) {
     let patientSub = 0;
     for (const line of lines) {
       const insurerPrice = Number(line.insurancePrice) || 0;
-      // The agreed tariff is capped against the net line, never the VAT.
-      const lineCovered = round2(Math.min(line.total, insurerPrice * line.quantity));
+      // The agreed tariff is per dispensing unit, capped against the net line,
+      // never the VAT. Package lines cover unitsPerPackage × packages.
+      const stockUnits = Number(line.stockQuantity) || Number(line.quantity) || 0;
+      const lineCovered = round2(Math.min(line.total, insurerPrice * stockUnits));
       patientSub += line.total - lineCovered;
     }
     const copayAmount = round2(patientSub * grossOf);
@@ -199,6 +230,7 @@ async function priceLabTests(tests, { transaction } = {}) {
 module.exports = {
   TAX_RATE_FALLBACK,
   unitPriceOf,
+  lineStockUnits,
   priceCart,
   priceCartItems,
   priceLabTests,

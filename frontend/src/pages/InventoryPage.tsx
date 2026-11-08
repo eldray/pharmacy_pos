@@ -19,8 +19,6 @@ import {
   ChevronDown,
   ChevronUp,
   FileText,
-  ChevronLeft,
-  ChevronRight,
   X,
   Box,
   Clock,
@@ -38,6 +36,8 @@ import {
 import { useAppStore } from '../store';
 import { Product, InventoryLog } from '../types';
 import { Card } from '../components/ui/Card';
+import { Pagination } from '../components/ui';
+import { usePagination } from '../hooks/usePagination';
 
 type TabType = 'overview' | 'low-stock' | 'expiry' | 'history';
 
@@ -66,13 +66,6 @@ const InventoryPage: React.FC = () => {
   const [undoing, setUndoing] = useState(false);
   const [disposalQty, setDisposalQty] = useState(0);
   const [disposalReason, setDisposalReason] = useState('');
-
-  // Pagination states
-  const [overviewPage, setOverviewPage] = useState(1);
-  const [lowStockPage, setLowStockPage] = useState(1);
-  const [expiryPage, setExpiryPage] = useState(1);
-  const [historyPage, setHistoryPage] = useState(1);
-  const [itemsPerPage] = useState(10);
 
   // ─── SORT STATES ──────────────────────────────────────────────────
   const [sortConfig, setSortConfig] = useState<SortConfig>({ field: 'name', direction: 'asc' });
@@ -206,7 +199,7 @@ const InventoryPage: React.FC = () => {
       direction: prev.field === field && prev.direction === 'asc' ? 'desc' : 'asc'
     }));
     // Reset to page 1 when sorting
-    setOverviewPage(1);
+    overviewPager.resetPage();
   };
 
   const getSortIcon = (field: SortField) => {
@@ -259,41 +252,14 @@ const InventoryPage: React.FC = () => {
   }, [inventoryLogs]);
 
   // ─── PAGINATION ──────────────────────────────────────────────────
-  const overviewTotalPages = Math.ceil(sortedProducts.length / itemsPerPage);
-  const overviewStartIndex = (overviewPage - 1) * itemsPerPage;
-  const overviewEndIndex = overviewStartIndex + itemsPerPage;
-  const currentProducts = sortedProducts.slice(overviewStartIndex, overviewEndIndex);
-
-  const goToOverviewPage = (page: number) => {
-    setOverviewPage(Math.max(1, Math.min(page, overviewTotalPages)));
-  };
-
-  const lowStockTotalPages = Math.ceil(sortedLowStock.length / itemsPerPage);
-  const lowStockStartIndex = (lowStockPage - 1) * itemsPerPage;
-  const lowStockEndIndex = lowStockStartIndex + itemsPerPage;
-  const currentLowStock = sortedLowStock.slice(lowStockStartIndex, lowStockEndIndex);
-
-  const goToLowStockPage = (page: number) => {
-    setLowStockPage(Math.max(1, Math.min(page, lowStockTotalPages)));
-  };
-
-  const expiryTotalPages = Math.ceil(sortedExpiry.length / itemsPerPage);
-  const expiryStartIndex = (expiryPage - 1) * itemsPerPage;
-  const expiryEndIndex = expiryStartIndex + itemsPerPage;
-  const currentExpiry = sortedExpiry.slice(expiryStartIndex, expiryEndIndex);
-
-  const goToExpiryPage = (page: number) => {
-    setExpiryPage(Math.max(1, Math.min(page, expiryTotalPages)));
-  };
-
-  const historyTotalPages = Math.ceil(sortedHistory.length / itemsPerPage);
-  const historyStartIndex = (historyPage - 1) * itemsPerPage;
-  const historyEndIndex = historyStartIndex + itemsPerPage;
-  const currentHistory = sortedHistory.slice(historyStartIndex, historyEndIndex);
-
-  const goToHistoryPage = (page: number) => {
-    setHistoryPage(Math.max(1, Math.min(page, historyTotalPages)));
-  };
+  const overviewPager = usePagination(sortedProducts, { pageSize: 10 });
+  const lowStockPager = usePagination(sortedLowStock, { pageSize: 10 });
+  const expiryPager = usePagination(sortedExpiry, { pageSize: 10 });
+  const historyPager = usePagination(sortedHistory, { pageSize: 10 });
+  const currentProducts = overviewPager.pageItems;
+  const currentLowStock = lowStockPager.pageItems;
+  const currentExpiry = expiryPager.pageItems;
+  const currentHistory = historyPager.pageItems;
 
   const openAdjustmentModal = (product: Product) => {
     setSelectedProduct(product);
@@ -468,75 +434,6 @@ const InventoryPage: React.FC = () => {
     }
   };
 
-  // ─── PAGINATION COMPONENT ──────────────────────────────────────
-  const Pagination = ({
-    currentPage,
-    totalPages,
-    onPageChange,
-    startIndex,
-    endIndex,
-    totalItems,
-    itemsLabel = 'items'
-  }: {
-    currentPage: number;
-    totalPages: number;
-    onPageChange: (page: number) => void;
-    startIndex: number;
-    endIndex: number;
-    totalItems: number;
-    itemsLabel?: string;
-  }) => {
-    if (totalPages <= 1) return null;
-
-    return (
-      <div className="flex items-center justify-between px-4 py-3 border-t border-theme flex-wrap gap-3">
-        <div className="text-sm text-secondary">
-          Showing {startIndex + 1}-{Math.min(endIndex, totalItems)} of {totalItems} {itemsLabel}
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <button
-            onClick={() => onPageChange(currentPage - 1)}
-            disabled={currentPage === 1}
-            className="btn-ghost flex items-center gap-1 px-3 py-1.5 text-sm disabled:opacity-50"
-          >
-            <ChevronLeft className="h-4 w-4" />
-            Previous
-          </button>
-
-          <div className="flex gap-1">
-            {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
-              const page = i + 1;
-              return (
-                <button
-                  key={page}
-                  onClick={() => onPageChange(page)}
-                  className={`px-3 py-1.5 text-sm font-medium rounded-lg ${currentPage === page
-                      ? 'btn-accent'
-                      : 'btn-ghost'
-                    }`}
-                >
-                  {page}
-                </button>
-              );
-            })}
-            {totalPages > 7 && (
-              <span className="px-2 py-1.5 text-sm text-secondary">...</span>
-            )}
-          </div>
-
-          <button
-            onClick={() => onPageChange(currentPage + 1)}
-            disabled={currentPage === totalPages}
-            className="btn-ghost flex items-center gap-1 px-3 py-1.5 text-sm disabled:opacity-50"
-          >
-            Next
-            <ChevronRight className="h-4 w-4" />
-          </button>
-        </div>
-      </div>
-    );
-  };
-
   // ─── SORTABLE TABLE HEADER ──────────────────────────────────────
   const SortableHeader = ({ field, label }: { field: SortField; label: string }) => (
     <th
@@ -648,7 +545,7 @@ const InventoryPage: React.FC = () => {
             value={searchQuery}
             onChange={(e) => {
               setSearchQuery(e.target.value);
-              setOverviewPage(1);
+              overviewPager.resetPage();
             }}
             placeholder="Search products by name, SKU, barcode, or category..."
             className="input-base w-full pl-10 pr-4 text-sm"
@@ -744,15 +641,7 @@ const InventoryPage: React.FC = () => {
           </div>
 
           {/* Overview Pagination */}
-          <Pagination
-            currentPage={overviewPage}
-            totalPages={overviewTotalPages}
-            onPageChange={goToOverviewPage}
-            startIndex={overviewStartIndex}
-            endIndex={overviewEndIndex}
-            totalItems={sortedProducts.length}
-            itemsLabel="products"
-          />
+          <Pagination pager={overviewPager} label="products" />
         </Card>
       </div>
     );
@@ -825,15 +714,7 @@ const InventoryPage: React.FC = () => {
           )}
         </div>
 
-        <Pagination
-          currentPage={lowStockPage}
-          totalPages={lowStockTotalPages}
-          onPageChange={goToLowStockPage}
-          startIndex={lowStockStartIndex}
-          endIndex={lowStockEndIndex}
-          totalItems={sortedLowStock.length}
-          itemsLabel="products"
-        />
+        <Pagination pager={lowStockPager} label="products" />
       </Card>
     </div>
   );
@@ -908,15 +789,7 @@ const InventoryPage: React.FC = () => {
           )}
         </div>
 
-        <Pagination
-          currentPage={expiryPage}
-          totalPages={expiryTotalPages}
-          onPageChange={goToExpiryPage}
-          startIndex={expiryStartIndex}
-          endIndex={expiryEndIndex}
-          totalItems={sortedExpiry.length}
-          itemsLabel="products"
-        />
+        <Pagination pager={expiryPager} label="products" />
       </Card>
     </div>
   );
@@ -992,15 +865,7 @@ const InventoryPage: React.FC = () => {
           )}
         </div>
 
-        <Pagination
-          currentPage={historyPage}
-          totalPages={historyTotalPages}
-          onPageChange={goToHistoryPage}
-          startIndex={historyStartIndex}
-          endIndex={historyEndIndex}
-          totalItems={sortedHistory.length}
-          itemsLabel="logs"
-        />
+        <Pagination pager={historyPager} label="logs" />
       </Card>
     </div>
   );
@@ -1072,10 +937,10 @@ const InventoryPage: React.FC = () => {
             key={tab.id}
             onClick={() => {
               setActiveTab(tab.id as TabType);
-              if (tab.id === 'overview') setOverviewPage(1);
-              else if (tab.id === 'low-stock') setLowStockPage(1);
-              else if (tab.id === 'expiry') setExpiryPage(1);
-              else if (tab.id === 'history') setHistoryPage(1);
+              if (tab.id === 'overview') overviewPager.resetPage();
+              else if (tab.id === 'low-stock') lowStockPager.resetPage();
+              else if (tab.id === 'expiry') expiryPager.resetPage();
+              else if (tab.id === 'history') historyPager.resetPage();
             }}
             className="relative p-4 rounded-xl text-left transition-all duration-200 group"
             style={{

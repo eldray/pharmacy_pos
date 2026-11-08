@@ -3,13 +3,15 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
     ClipboardList, Search, RefreshCw, Eye, Printer, Ban,
     Clock, CheckCircle, XCircle, DollarSign, User, Shield,
-    ChevronLeft, ChevronRight, CreditCard, Filter, Calendar, Loader2,
+    CreditCard, Filter, Calendar, Loader2,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import api, { getErrorMessage } from '../api/api';
 import { useAppStore } from '../store';
 import { SalesOrder } from '../types';
 import { Card } from '../components/ui/Card';
+import { Pagination } from '../components/ui';
+import { usePagination } from '../hooks/usePagination';
 import { DocumentDetailsModal } from '../components/DocumentDetailsModal';
 import { printDocument } from '../utils/receiptHtml';
 import { describePrintOutcome } from '../utils/printEngine';
@@ -31,9 +33,7 @@ export const OrdersPage: React.FC = () => {
     const [dateFilter, setDateFilter] = useState<DateFilter>('today');
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
-    const [currentPage, setCurrentPage] = useState(1);
     const [detailOrder, setDetailOrder] = useState<SalesOrder | null>(null);
-    const itemsPerPage = 15;
 
     // Compute date range from dateFilter
     const dateRange = useMemo(() => {
@@ -87,11 +87,7 @@ export const OrdersPage: React.FC = () => {
 
     const filteredOrders = orders;
 
-    const totalPages = Math.ceil(filteredOrders.length / itemsPerPage);
-    const paginatedOrders = filteredOrders.slice(
-        (currentPage - 1) * itemsPerPage,
-        currentPage * itemsPerPage
-    );
+    const pager = usePagination(filteredOrders, { pageSize: 15 });
 
     const getStatusBadge = (status: string) => {
         const map: Record<string, { label: string; cls: string }> = {
@@ -130,7 +126,7 @@ export const OrdersPage: React.FC = () => {
 
     const DateFilterBtn: React.FC<{ label: string; value: DateFilter }> = ({ label, value }) => (
         <button
-            onClick={() => { setDateFilter(value); setCurrentPage(1); }}
+            onClick={() => { setDateFilter(value); pager.resetPage(); }}
             className="px-3 py-1.5 rounded-lg text-[0.72rem] font-semibold transition-all duration-200 whitespace-nowrap"
             style={{
                 background: dateFilter === value ? 'var(--color-accent)' : 'var(--color-bg-subtle)',
@@ -238,7 +234,7 @@ export const OrdersPage: React.FC = () => {
                             <input
                                 type="text"
                                 value={searchQuery}
-                                onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+                                onChange={(e) => { setSearchQuery(e.target.value); pager.resetPage(); }}
                                 placeholder="Search by order #, customer name, or phone…"
                                 className="input-base w-full text-sm"
                                 style={{ paddingLeft: '2.5rem' }}
@@ -246,7 +242,7 @@ export const OrdersPage: React.FC = () => {
                         </div>
                         <select
                             value={statusFilter}
-                            onChange={(e) => { setStatusFilter(e.target.value as StatusFilter); setCurrentPage(1); }}
+                            onChange={(e) => { setStatusFilter(e.target.value as StatusFilter); pager.resetPage(); }}
                             className="input-base px-4 text-sm"
                             style={{ minWidth: 160 }}
                         >
@@ -327,7 +323,7 @@ export const OrdersPage: React.FC = () => {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-theme">
-                                {paginatedOrders.length === 0 ? (
+                                {pager.pageItems.length === 0 ? (
                                     <tr>
                                         <td colSpan={8} className="px-4 py-12 text-center">
                                             <ClipboardList className="h-12 w-12 text-muted mx-auto mb-3" />
@@ -336,7 +332,7 @@ export const OrdersPage: React.FC = () => {
                                         </td>
                                     </tr>
                                 ) : (
-                                    paginatedOrders.map((order) => {
+                                    pager.pageItems.map((order) => {
                                         const itemCount = (order.items || []).reduce((sum: number, i: any) => sum + (i.quantity || 0), 0);
                                         return (
                                             <tr key={order.id} className="hover:bg-subtle transition-colors">
@@ -440,30 +436,7 @@ export const OrdersPage: React.FC = () => {
                     </div>
 
                     {/* Pagination */}
-                    {totalPages > 1 && (
-                        <div className="flex items-center justify-between px-4 py-3 border-t border-theme flex-wrap gap-3">
-                            <p className="text-sm text-secondary">
-                                Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, filteredOrders.length)} of {filteredOrders.length}
-                            </p>
-                            <div className="flex items-center gap-2">
-                                <button
-                                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                                    disabled={currentPage === 1}
-                                    className="btn-ghost px-3 py-1.5 text-sm disabled:opacity-50"
-                                >
-                                    <ChevronLeft className="h-4 w-4" />
-                                </button>
-                                <span className="px-3 py-1.5 text-sm font-medium text-primary">{currentPage} / {totalPages}</span>
-                                <button
-                                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                                    disabled={currentPage === totalPages}
-                                    className="btn-ghost px-3 py-1.5 text-sm disabled:opacity-50"
-                                >
-                                    <ChevronRight className="h-4 w-4" />
-                                </button>
-                            </div>
-                        </div>
-                    )}
+                    <Pagination pager={pager} label="orders" />
                 </Card>
             )}
 

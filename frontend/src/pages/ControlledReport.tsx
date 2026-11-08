@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { ShieldAlert, Printer, RefreshCw, Loader2 } from 'lucide-react';
 import { useAppStore } from '../store';
 import { Card } from '../components/ui/Card';
+import { Pagination } from '../components/ui/Pagination';
+import { usePagination } from '../hooks/usePagination';
 
 interface DispenseRecord {
   date: string;
@@ -29,6 +31,7 @@ export const ControlledReport: React.FC = () => {
   const [records, setRecords] = useState<DispenseRecord[]>([]);
   const [summary, setSummary] = useState<{ totalRecords: number; totalQuantity: number }>({ totalRecords: 0, totalQuantity: 0 });
   const [loading, setLoading] = useState(false);
+  const pager = usePagination(records, { resetKey: `${startDate}|${endDate}` });
 
   const fieldStyle: React.CSSProperties = {
     background: 'var(--color-input-bg)',
@@ -132,7 +135,7 @@ export const ControlledReport: React.FC = () => {
                   <p className="text-xs text-secondary">Sales of Schedule II–V products will appear here.</p>
                 </td></tr>
               ) : (
-                records.map((r, i) => (
+                pager.pageItems.map((r, i) => (
                   <tr key={i} className="hover:bg-subtle transition-colors">
                     <td className="px-4 py-3 text-sm text-secondary tabular-nums">{fmtDate(r.date)}</td>
                     <td className="px-4 py-3 text-sm font-mono text-secondary">{r.transactionNumber}</td>
@@ -152,6 +155,7 @@ export const ControlledReport: React.FC = () => {
             </tbody>
           </table>
         </div>
+        <Pagination pager={pager} label="records" />
       </Card>
     </div>
   );

@@ -8,7 +8,7 @@ const Company = require('../models/Company');
 const { auth, adminAuth } = require('../middleware/auth');
 const { recordAudit } = require('../utils/audit');
 const { createdAtRange } = require('../utils/dateRange');
-const { priceCartItems } = require('../utils/pricing');
+const { priceCartItems, lineStockUnits } = require('../utils/pricing');
 const { deductStock, addStock } = require('../utils/stock');
 const { normalizePaymentMethod } = require('../utils/validators');
 const { nextReference } = require('../utils/references');
@@ -304,7 +304,8 @@ router.post('/', auth, async (req, res) => {
     }, { transaction: t });
 
     for (const item of priced.lines) {
-      const product = await deductStock(item.productId, item.quantity, { transaction: t, allowMissing: true });
+      const units = lineStockUnits(item);
+      const product = await deductStock(item.productId, units, { transaction: t, allowMissing: true });
       if (!product) {
         console.warn(`Product not found: ${item.productId}`);
         continue;
@@ -314,7 +315,7 @@ router.post('/', auth, async (req, res) => {
         productId: item.productId,
         productName: product.name,
         type: 'outflow',
-        quantity: item.quantity,
+        quantity: units,
         reference: transactionNumber,
         userId: req.user.userId,
         userName: user.name,
@@ -384,7 +385,7 @@ router.post('/:id/refund', auth, adminAuth, async (req, res) => {
       transactionNumber: refundNumber,
       cashierId: req.user.userId,
       cashierName: user.name,
-      items: tx.items.map(i => ({ ...i, quantity: -i.quantity, total: -i.total })),
+      items: tx.items.map(i => ({ ...i, quantity: -i.quantity, stockQuantity: i.stockQuantity != null ? -i.stockQuantity : undefined, total: -i.total })),
       subtotal: -tx.subtotal,
       tax: -tx.tax,
       total: -tx.total,
@@ -394,7 +395,8 @@ router.post('/:id/refund', auth, adminAuth, async (req, res) => {
     }, { transaction: t });
 
     for (const item of tx.items) {
-      const product = await addStock(item.productId, Number(item.quantity), {
+      const units = lineStockUnits(item);
+      const product = await addStock(item.productId, units, {
         transaction: t, allowMissing: true
       });
       if (!product) continue;
@@ -403,7 +405,7 @@ router.post('/:id/refund', auth, adminAuth, async (req, res) => {
         productId: item.productId,
         productName: item.product?.name || item.productName || product.name,
         type: 'inflow',
-        quantity: item.quantity,
+        quantity: units,
         reference: refundNumber,
         userId: req.user.userId,
         userName: user.name,

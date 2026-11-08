@@ -27,13 +27,22 @@ The database "pharmacy_pos" is created automatically on first launch.
 
 Logs: Help > View Logs
 
-## Default Users
-- Admin: admin@pharmacy.com / admin123
-- Manager: manager@pharmacy.com / manager123
-- Cashier: cashier@pharmacy.com / cashier123
-- Pharmacist: pharmacist@pharmacy.com / pharmacist123
-- Lab: lab@pharmacy.com / lab123
-(Change these passwords after the first login.)
+## First-time setup (administrator account)
+The installed app runs in production mode. On its very first start it creates ONE
+administrator and nothing else - no sample staff, no demo passwords, no fake stock.
+Before the first start, open File > Edit Database Settings... (or the error page's
+"Edit Database Settings" button), remove the # in front of these lines and fill them in:
+    SEED_ADMIN_EMAIL=owner@yourpharmacy.com
+    SEED_ADMIN_PASSWORD=<8+ characters, with an uppercase letter, a lowercase letter and a digit>
+    SEED_ADMIN_NAME=Your Name
+Save, then press Retry (or File > Restart Backend). Sign in with that email and password,
+then add your other staff under Staff Management.
+
+What is loaded on first start: the administrator, the Main Branch, a company shell, and the
+standard lab test catalogue (71 tests with reference ranges and prices - edit prices under
+Lab Management). Set SEED_LAB_CATALOGUE=false in the settings file to skip the lab catalogue.
+Your drugs are NOT seeded: import them from your own file (see data/products.example.csv and
+"npm run import:products" in the backend folder).
 
 ## Building the installer (developers)
     npm run install:all

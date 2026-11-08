@@ -7,13 +7,15 @@ const {
   priceCart,
   insuranceSplit,
   unitPriceOf,
+  lineStockUnits,
   TAX_RATE_FALLBACK
 } = require('../utils/pricing');
 
 const products = [
   { id: 1, name: 'Paracetamol', sku: 'P1', category: 'Analgesic', unitPrice: 5, sellingPrice: 6, cost: 2, schedule: 'none', insurancePrice: 4 },
   { id: 2, name: 'Amoxicillin', sku: 'A1', category: 'Antibiotic', unitPrice: 10, sellingPrice: null, cost: 7, schedule: 'II', insurancePrice: 0 },
-  { id: 3, name: 'Sachet', sku: 'S1', category: 'OTC', unitPrice: 0.05, sellingPrice: 0.05, cost: 0.01, schedule: 'none', insurancePrice: 0 }
+  { id: 3, name: 'Sachet', sku: 'S1', category: 'OTC', unitPrice: 0.05, sellingPrice: 0.05, cost: 0.01, schedule: 'none', insurancePrice: 0 },
+  { id: 4, name: 'Paracetamol 500mg', sku: 'P4', category: 'Analgesic', unitPrice: 0.15, sellingPrice: 0.2, cost: 0.1, schedule: 'none', insurancePrice: 0.05, packageType: 'Box', dispensingUnit: 'Tablet', unitsPerPackage: 100, packagePrice: 12 }
 ];
 const byId = new Map(products.map((p) => [String(p.id), p]));
 
@@ -151,4 +153,51 @@ test('a fixed tariff covers its net price plus the VAT on that price', () => {
   const split = insuranceSplit({ coverageType: 'fixed', defaultCopayPercent: 0 }, priced.lines, priced.subtotal, 15);
   assert.equal(split.copayAmount, 13.8);
   assert.equal(split.insuranceCoverage, 4.6);
+});
+
+test('a package line prices at packagePrice and deducts stock in dispensing units', () => {
+  const priced = priceCart([{ productId: 4, quantity: 2, unitMode: 'package' }], byId, 0);
+  const ln = priced.lines[0];
+  assert.equal(ln.unitPrice, 12);
+  assert.equal(ln.total, 24);
+  assert.equal(ln.quantity, 2);
+  assert.equal(ln.stockQuantity, 200);
+  assert.equal(ln.unitLabel, 'Box');
+  assert.equal(priced.total, 24);
+});
+
+test('the same product sold as single units uses the retail unit price', () => {
+  const priced = priceCart([{ productId: 4, quantity: 3 }], byId, 0);
+  const ln = priced.lines[0];
+  assert.equal(ln.unitPrice, 0.2);
+  assert.equal(ln.stockQuantity, 3);
+  assert.equal(ln.unitLabel, 'Tablet');
+});
+
+test('package mode is refused when the product has no pack setup', () => {
+  assert.throws(
+    () => priceCart([{ productId: 1, quantity: 1, unitMode: 'package' }], byId, 0),
+    (err) => err.status === 400 && /package sales/.test(err.message)
+  );
+});
+
+test('a fixed tariff covers a package line per dispensing unit, capped at the line', () => {
+  // 1 box of 100 @ GHS 12; tariff 0.05/tablet → covers 5, patient pays 7.
+  const priced = priceCart([{ productId: 4, quantity: 1, unitMode: 'package' }], byId, 0);
+  const split = insuranceSplit({ coverageType: 'fixed', defaultCopayPercent: 0 }, priced.lines, priced.subtotal, 0);
+  assert.equal(split.insuranceCoverage, 5);
+  assert.equal(split.copayAmount, 7);
+
+  // Tariff above the package price never overpays: 0.20 × 100 = 20 capped at 12.
+  const rich = new Map(byId);
+  rich.set('4', { ...products[3], insurancePrice: 0.2 });
+  const priced2 = priceCart([{ productId: 4, quantity: 1, unitMode: 'package' }], rich, 0);
+  const split2 = insuranceSplit({ coverageType: 'fixed', defaultCopayPercent: 0 }, priced2.lines, priced2.subtotal, 0);
+  assert.equal(split2.insuranceCoverage, 12);
+  assert.equal(split2.copayAmount, 0);
+});
+
+test('legacy lines without stockQuantity still move their quantity of stock', () => {
+  assert.equal(lineStockUnits({ quantity: 3 }), 3);
+  assert.equal(lineStockUnits({ quantity: 2, stockQuantity: 200 }), 200);
 });

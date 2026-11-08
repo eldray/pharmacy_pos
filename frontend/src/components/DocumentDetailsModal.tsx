@@ -11,6 +11,7 @@ import {
   formatDocumentDateTime,
   formatPaymentMethod,
   normalizeDocument,
+  receiptTaxRate,
   type DocumentMode,
   type PrintableDoc,
 } from '../utils/document';
@@ -103,7 +104,7 @@ export const DocumentDetailsModal: React.FC<DocumentDetailsModalProps> = ({
   // same word instead of a bare dash.
   const name = customerName || n.customerName || (n.isLab ? '' : 'Walk-in');
   const phone = customerPhone || n.customerPhone || '';
-  const taxRate = n.taxRate ?? company?.receiptSettings?.taxRate ?? 15;
+  const taxRate = receiptTaxRate(n, company?.receiptSettings?.taxRate);
 
   const handlePrint = async () => {
     if (onPrint) {
@@ -223,6 +224,7 @@ export const DocumentDetailsModal: React.FC<DocumentDetailsModalProps> = ({
                     >
                       <td className="text-[0.78rem] px-3 py-2" style={{ color: 'var(--color-text-primary)' }}>
                         {item.name}
+                        {item.unitLabel && <span className="text-[0.68rem]" style={{ color: 'var(--color-text-muted)' }}> ({item.unitLabel})</span>}
                       </td>
                       <td className="text-[0.78rem] text-center tabular-nums px-2 py-2" style={{ color: 'var(--color-text-secondary)' }}>
                         {item.quantity}

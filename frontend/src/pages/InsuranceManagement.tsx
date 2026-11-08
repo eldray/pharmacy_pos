@@ -3,6 +3,8 @@ import { Shield, Plus, FileText, Percent, Phone, Mail, Building, Edit2, Loader2 
 import api, { getErrorMessage } from '../api/api';
 import { InsuranceProvider, InsuranceClaim } from '../types';
 import { Card } from '../components/ui/Card';
+import { Pagination } from '../components/ui/Pagination';
+import { usePagination } from '../hooks/usePagination';
 
 export const InsuranceManagement: React.FC = () => {
   const [providers, setProviders] = useState<InsuranceProvider[]>([]);
@@ -110,6 +112,9 @@ export const InsuranceManagement: React.FC = () => {
     }
   };
 
+  const providerPager = usePagination(providers, { pageSize: 10 });
+  const claimPager = usePagination(claims);
+
   return (
     <div className="space-y-6 pb-6">
       <div className="flex justify-between items-center">
@@ -170,6 +175,7 @@ export const InsuranceManagement: React.FC = () => {
       </div>
 
       {activeTab === 'providers' ? (
+        <>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {isLoading ? (
             <Card className="p-12 text-center col-span-full">
@@ -181,7 +187,7 @@ export const InsuranceManagement: React.FC = () => {
               <h3 className="text-lg font-semibold text-primary mb-2">No Providers Yet</h3>
               <p className="text-secondary">Add an insurance provider to start tracking co-pay and reimbursement.</p>
             </Card>
-          ) : providers.map((p) => (
+          ) : providerPager.pageItems.map((p) => (
             <Card key={p.id} className="p-6 space-y-4 border-theme hover:border-accent transition-all duration-200 group">
               <div className="flex justify-between items-start">
                 <div>
@@ -217,6 +223,8 @@ export const InsuranceManagement: React.FC = () => {
             </Card>
           ))}
         </div>
+        <Card><Pagination pager={providerPager} label="providers" className="border-t-0" /></Card>
+        </>
       ) : isLoading ? (
         <Card className="p-12 text-center">
           <Loader2 className="w-8 h-8 animate-spin mx-auto" style={{ color: 'var(--color-accent)' }} />
@@ -242,14 +250,14 @@ export const InsuranceManagement: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-theme">
-              {claims.map((c) => (
+              {claimPager.pageItems.map((c) => (
                 <tr key={c.id} className="hover:bg-subtle transition-colors">
                   <td className="p-4 font-mono font-semibold text-sm text-accent">{c.claimNumber}</td>
                   <td className="p-4 text-sm text-primary">{c.provider?.name || 'N/A'}</td>
                   <td className="p-4 font-mono text-xs text-secondary">{c.policyNumber}</td>
-                  <td className="p-4 font-semibold text-sm text-primary">${Number(c.totalAmount).toFixed(2)}</td>
-                  <td className="p-4 font-medium text-sm" style={{ color: 'var(--color-success-text)' }}>${Number(c.claimAmount).toFixed(2)}</td>
-                  <td className="p-4 text-sm" style={{ color: 'var(--color-info-text)' }}>${Number(c.copayPaid).toFixed(2)}</td>
+                  <td className="p-4 font-semibold text-sm text-primary">GHS {Number(c.totalAmount).toFixed(2)}</td>
+                  <td className="p-4 font-medium text-sm" style={{ color: 'var(--color-success-text)' }}>GHS {Number(c.claimAmount).toFixed(2)}</td>
+                  <td className="p-4 text-sm" style={{ color: 'var(--color-info-text)' }}>GHS {Number(c.copayPaid).toFixed(2)}</td>
                   <td className="p-4">
                     <span className="badge badge-warning font-medium">{c.status}</span>
                   </td>
@@ -257,6 +265,7 @@ export const InsuranceManagement: React.FC = () => {
               ))}
             </tbody>
           </table>
+          <Pagination pager={claimPager} label="claims" />
         </Card>
       )}
 

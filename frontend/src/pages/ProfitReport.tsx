@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { TrendingUp, Printer, RefreshCw, Loader2 } from 'lucide-react';
 import { useAppStore } from '../store';
 import { Card } from '../components/ui/Card';
+import { Pagination } from '../components/ui/Pagination';
+import { usePagination } from '../hooks/usePagination';
 
 interface ProductRow {
   productName: string;
@@ -33,6 +35,7 @@ export const ProfitReport: React.FC = () => {
   const [rows, setRows] = useState<ProductRow[]>([]);
   const [summary, setSummary] = useState<Summary>({ revenue: 0, cogs: 0, profit: 0, margin: 0, transactionCount: 0 });
   const [loading, setLoading] = useState(false);
+  const pager = usePagination(rows, { resetKey: `${startDate}|${endDate}` });
 
   const fieldStyle: React.CSSProperties = {
     background: 'var(--color-input-bg)',
@@ -144,7 +147,7 @@ export const ProfitReport: React.FC = () => {
                   <p className="text-xs text-secondary">Set cost prices on products so profit can be calculated.</p>
                 </td></tr>
               ) : (
-                rows.map((r, i) => (
+                pager.pageItems.map((r, i) => (
                   <tr key={i} className="hover:bg-subtle transition-colors">
                     <td className="px-4 py-3 text-sm font-medium text-primary">{r.productName}</td>
                     <td className="px-4 py-3 text-sm text-right text-secondary tabular-nums">{r.quantity}</td>
@@ -161,6 +164,7 @@ export const ProfitReport: React.FC = () => {
             </tbody>
           </table>
         </div>
+        <Pagination pager={pager} label="products" />
       </Card>
     </div>
   );

@@ -112,7 +112,9 @@ router.put('/:id', auth, adminAuth, async (req, res) => {
   try {
     const { status } = req.body;
     const po = await PurchaseOrder.findByPk(req.params.id, {
-      include: [Supplier], transaction: t, lock: t.LOCK.UPDATE
+      include: [Supplier], transaction: t,
+      // Lock the order row only: Postgres refuses FOR UPDATE on the nullable side of the supplier join.
+      lock: { level: t.LOCK.UPDATE, of: PurchaseOrder }
     });
     if (!po) {
       await t.rollback();

@@ -2,12 +2,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
     FlaskConical, Plus, Search, Eye, RefreshCw, CheckCircle, XCircle,
-    Clock, Loader2, Calendar, ChevronLeft, ChevronRight, Ban,
+    Clock, Loader2, Calendar, Ban,
     Shield, Info, Printer,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAppStore } from '../store';
 import { Card } from '../components/ui/Card';
+import { Pagination } from '../components/ui';
+import { usePagination } from '../hooks/usePagination';
 import { LabRequestModal } from '../components/LabRequestModal';
 import { ReceiptModal } from '../components/ReceiptModal';
 import { LabTransaction } from '../types';
@@ -33,8 +35,6 @@ export const LabManagement: React.FC = () => {
     const [showRequestModal, setShowRequestModal] = useState(false);
     const [printOrder, setPrintOrder] = useState<LabTransaction | null>(null);
     const [stats, setStats] = useState({ total: 0, pending: 0, paid: 0, cancelled: 0, revenue: 0 });
-    const [currentPage, setCurrentPage] = useState(1);
-    const itemsPerPage = 10;
 
     // Resolved at request time, not memoised at mount: a till left open across
     // midnight would otherwise keep the previous day in the 'today' window.
@@ -76,11 +76,7 @@ export const LabManagement: React.FC = () => {
 
     useEffect(() => { loadData(); }, [loadData]);
 
-    const totalPages = Math.ceil(labTransactions.length / itemsPerPage);
-    const paginatedOrders = labTransactions.slice(
-        (currentPage - 1) * itemsPerPage,
-        currentPage * itemsPerPage
-    );
+    const pager = usePagination(labTransactions, { pageSize: 10 });
 
     const getStatusBadge = (status: string, paymentStatus: string) => {
         if (status === 'cancelled') {
@@ -121,7 +117,7 @@ export const LabManagement: React.FC = () => {
 
     const DateFilterBtn: React.FC<{ label: string; value: DateFilter }> = ({ label, value }) => (
         <button
-            onClick={() => { setDateFilter(value); setCurrentPage(1); }}
+            onClick={() => { setDateFilter(value); pager.resetPage(); }}
             className="px-3 py-1.5 rounded-lg text-[0.72rem] font-semibold"
             style={{
                 background: dateFilter === value ? 'var(--color-accent)' : 'var(--color-bg-subtle)',
@@ -236,7 +232,7 @@ export const LabManagement: React.FC = () => {
                             <input
                                 type="text"
                                 value={searchQuery}
-                                onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+                                onChange={(e) => { setSearchQuery(e.target.value); pager.resetPage(); }}
                                 placeholder="Search by order #, patient name, or phone…"
                                 className="input-base w-full text-sm"
                                 style={{ paddingLeft: '2.5rem' }}
@@ -244,7 +240,7 @@ export const LabManagement: React.FC = () => {
                         </div>
                         <select
                             value={statusFilter}
-                            onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
+                            onChange={(e) => { setStatusFilter(e.target.value); pager.resetPage(); }}
                             className="input-base px-4 text-sm"
                             style={{ minWidth: 160 }}
                         >
@@ -291,7 +287,7 @@ export const LabManagement: React.FC = () => {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-theme">
-                            {paginatedOrders.length === 0 ? (
+                            {pager.pageItems.length === 0 ? (
                                 <tr>
                                     <td colSpan={7} className="px-4 py-12 text-center">
                                         <FlaskConical className="h-12 w-12 text-muted mx-auto mb-3" />
@@ -300,7 +296,7 @@ export const LabManagement: React.FC = () => {
                                     </td>
                                 </tr>
                             ) : (
-                                paginatedOrders.map((order) => {
+                                pager.pageItems.map((order) => {
                                     const testCount = (order.labTests || []).length;
                                     const isPendingPayment = order.status === 'pending' && order.paymentStatus !== 'paid';
                                     const isPaid = order.paymentStatus === 'paid';
@@ -395,22 +391,7 @@ export const LabManagement: React.FC = () => {
                     </table>
                 </div>
 
-                {totalPages > 1 && (
-                    <div className="flex items-center justify-between px-4 py-3 border-t border-theme flex-wrap gap-3">
-                        <p className="text-sm text-secondary">
-                            Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, labTransactions.length)} of {labTransactions.length}
-                        </p>
-                        <div className="flex items-center gap-2">
-                            <button onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1} className="btn-ghost px-3 py-1.5 text-sm disabled:opacity-50">
-                                <ChevronLeft className="h-4 w-4" />
-                            </button>
-                            <span className="px-3 py-1.5 text-sm font-medium text-primary">{currentPage} / {totalPages}</span>
-                            <button onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="btn-ghost px-3 py-1.5 text-sm disabled:opacity-50">
-                                <ChevronRight className="h-4 w-4" />
-                            </button>
-                        </div>
-                    </div>
-                )}
+                <Pagination pager={pager} label="orders" />
             </Card>
 
             <LabRequestModal

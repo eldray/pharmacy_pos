@@ -15,7 +15,7 @@ import {
   LabTransaction,
 } from '../types';
 import api, { getErrorMessage } from '../api/api';
-import { safeNumber } from '../utils/number';
+import { safeNumber, getSellingPrice } from '../utils/number';
 
 // ==================== INTERFACE ====================
 interface AppStore {
@@ -135,6 +135,10 @@ const normalizeProduct = (p: any): Product => ({
   ...p,
   id: String(p._id || p.id),
   unitPrice: safeNumber(p.unitPrice),
+  // DECIMAL columns arrive as strings (or null); keep them numeric everywhere.
+  sellingPrice: p.sellingPrice == null || p.sellingPrice === '' ? undefined : safeNumber(p.sellingPrice),
+  insurancePrice: p.insurancePrice == null || p.insurancePrice === '' ? undefined : safeNumber(p.insurancePrice),
+  packagePrice: p.packagePrice == null || p.packagePrice === '' ? undefined : safeNumber(p.packagePrice),
   quantity: safeNumber(p.quantity),
   cost: safeNumber(p.cost),
   reorderLevel: safeNumber(p.reorderLevel) || 10,
@@ -342,11 +346,11 @@ export const useAppStore = create<AppStore>((set, get) => ({
         console.error('Cannot add product: missing ID', product);
         return state;
       }
-      const unitPrice = safeNumber(product.unitPrice);
+      const unitPrice = getSellingPrice(product);
       const newItem: CartItem = {
         cartId: nanoid(8),
         productId: product.id,
-        product: { ...product, unitPrice },
+        product,
         quantity,
         unitPrice,
         total: quantity * unitPrice,

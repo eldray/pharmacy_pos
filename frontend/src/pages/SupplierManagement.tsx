@@ -7,6 +7,8 @@ import {
 import { useAppStore } from '../store';
 import { Supplier } from '../types';
 import { Card } from '../components/ui/Card';
+import { Pagination } from '../components/ui/Pagination';
+import { usePagination } from '../hooks/usePagination';
 
 export const SupplierManagement: React.FC = () => {
   const [showModal, setShowModal] = useState(false);
@@ -59,6 +61,8 @@ export const SupplierManagement: React.FC = () => {
     supplier.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
     supplier.phone.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const pager = usePagination(filteredSuppliers, { resetKey: searchQuery });
 
   // Open modal for new supplier
   const openNewSupplierModal = () => {
@@ -213,8 +217,9 @@ export const SupplierManagement: React.FC = () => {
 
       {/* Suppliers - Grid or List */}
       {viewMode === 'grid' ? (
+      <>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filteredSuppliers.map((supplier) => (
+        {pager.pageItems.map((supplier) => (
           <Card key={supplier.id} className="p-5 border-theme hover:border-accent transition-all duration-200 group">
             <div className="flex items-start justify-between mb-4">
               <div className="flex items-center gap-3">
@@ -275,6 +280,8 @@ export const SupplierManagement: React.FC = () => {
           </Card>
         ))}
       </div>
+      <Card><Pagination pager={pager} label="suppliers" className="border-t-0" /></Card>
+      </>
       ) : filteredSuppliers.length > 0 ? (
         <Card>
           <div className="overflow-x-auto">
@@ -290,7 +297,7 @@ export const SupplierManagement: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-theme">
-                {filteredSuppliers.map((supplier) => (
+                {pager.pageItems.map((supplier) => (
                   <tr key={supplier.id} className="hover:bg-subtle transition-colors group">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
@@ -335,6 +342,7 @@ export const SupplierManagement: React.FC = () => {
               </tbody>
             </table>
           </div>
+          <Pagination pager={pager} label="suppliers" />
         </Card>
       ) : null}
 

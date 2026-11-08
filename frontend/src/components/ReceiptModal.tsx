@@ -11,6 +11,7 @@ import {
   formatMoney,
   formatPaymentMethod,
   normalizeDocument,
+  receiptTaxRate,
   type DocumentMode,
   type PrintableDoc,
 } from '../utils/document';
@@ -39,6 +40,13 @@ interface ReceiptContentProps {
 }
 
 /* ─── Tabular number helper ─────────────────────────────────────────── */
+
+const slipLabelStyle: React.CSSProperties = {
+  fontSize: '7.5pt',
+  textTransform: 'uppercase',
+  letterSpacing: '1.5px',
+  color: '#666',
+};
 
 const Num: React.FC<{ children: React.ReactNode; style?: React.CSSProperties }> = ({
   children,
@@ -70,7 +78,7 @@ export const ReceiptContent = forwardRef<HTMLDivElement, ReceiptContentProps>(
 
     const hasItems = n.items.length > 0;
 
-    const displayTaxRate = n.taxRate ?? company?.receiptSettings?.taxRate ?? 15;
+    const displayTaxRate = receiptTaxRate(n, company?.receiptSettings?.taxRate);
 
     /* ─── Styles ──────────────────────────────────────────────────── */
     const receiptStyles = {
@@ -244,26 +252,14 @@ export const ReceiptContent = forwardRef<HTMLDivElement, ReceiptContentProps>(
         letterSpacing: '0.5px',
       } as React.CSSProperties,
 
-      pendingBadge: {
+      otherBadge: {
         display: 'inline-block',
         padding: '0.3mm 2mm',
         borderRadius: '2px',
         fontSize: '6.5pt',
         fontWeight: 700,
-        background: '#fff3cd',
-        color: '#856404',
-        letterSpacing: '0.5px',
-      } as React.CSSProperties,
-
-      warningBanner: {
-        border: '2px solid #856404',
-        background: '#fff3cd',
-        color: '#856404',
-        padding: '1.5mm',
-        margin: '2mm 0',
-        textAlign: 'center' as const,
-        fontSize: '7.5pt',
-        fontWeight: 700,
+        background: '#eeeeee',
+        color: '#444',
         letterSpacing: '0.5px',
       } as React.CSSProperties,
 
@@ -275,6 +271,97 @@ export const ReceiptContent = forwardRef<HTMLDivElement, ReceiptContentProps>(
         background: '#f5f5f5',
       } as React.CSSProperties,
     };
+
+    // An unpaid order hands over a reference slip, not a receipt: the order
+    // number and date are all the cashier needs to pull it up. The preview shows
+    // exactly what buildOrderSlipHtml prints — no items, money or customer data.
+    if (n.isOrder) {
+      return (
+        <div
+          ref={ref}
+          className="print-content"
+          style={{ ...receiptStyles.container, fontSize: '9pt', padding: '4mm 2mm' }}
+        >
+          <div style={receiptStyles.header}>
+            <div style={receiptStyles.companyName}>{company?.name || 'PHARMACY POS'}</div>
+            <div style={receiptStyles.companyTagline}>
+              {company?.receiptSettings?.header || 'Your Trusted Pharmacy'}
+            </div>
+            <div style={receiptStyles.companyDetails}>
+              {company?.address?.street && <div>{company.address.street}</div>}
+              {company?.address?.city && (
+                <div>
+                  {company.address.city}
+                  {company.address.state ? `, ${company.address.state}` : ''}
+                  {company.address.zipCode ? ` ${company.address.zipCode}` : ''}
+                </div>
+              )}
+              {company?.contact?.phone && <div>📞 {company.contact.phone}</div>}
+            </div>
+            <div
+              style={{
+                fontSize: '9pt',
+                fontWeight: 700,
+                letterSpacing: '3px',
+                marginTop: '2mm',
+                color: '#856404',
+              }}
+            >
+              ⟪ ORDER SLIP ⟫
+            </div>
+          </div>
+
+          <div style={{ textAlign: 'center', padding: '4mm 0 2mm' }}>
+            <div style={slipLabelStyle}>{n.docLabel}</div>
+            <Num
+              style={{
+                display: 'block',
+                fontSize: '22pt',
+                fontWeight: 800,
+                letterSpacing: '1px',
+                margin: '1mm 0 4mm',
+                wordBreak: 'break-all',
+              }}
+            >
+              {n.docNumber}
+            </Num>
+            <div style={slipLabelStyle}>Date</div>
+            <Num style={{ display: 'block', fontSize: '11pt', fontWeight: 600, marginTop: '1mm' }}>
+              {formatDocumentDate(n.createdAt)}
+            </Num>
+          </div>
+
+          <div
+            style={{
+              border: '2px solid #856404',
+              background: '#fff3cd',
+              color: '#856404',
+              padding: '2mm',
+              margin: '3mm 0',
+              textAlign: 'center',
+              fontSize: '8.5pt',
+              fontWeight: 700,
+              letterSpacing: '0.5px',
+            }}
+          >
+            ⚠ NOT A RECEIPT
+            <div style={{ fontSize: '7pt', fontWeight: 500, marginTop: '1mm' }}>
+              Pay at the cashier desk to complete this order
+            </div>
+          </div>
+
+          <div style={{ ...receiptStyles.footer, fontSize: '7pt', lineHeight: 1.7 }}>
+            <div style={{ fontSize: '8.5pt', fontWeight: 700, color: '#856404' }}>
+              ⚠ PLEASE PROCEED TO CASHIER
+            </div>
+            <div>Present this slip to complete payment</div>
+            <div style={{ marginTop: '1.5mm', fontSize: '6pt', color: '#bbb' }}>
+              — END OF ORDER SLIP —
+            </div>
+          </div>
+        </div>
+      );
+    }
 
     return (
       <div ref={ref} className="print-content" style={receiptStyles.container}>
@@ -302,22 +389,12 @@ export const ReceiptContent = forwardRef<HTMLDivElement, ReceiptContentProps>(
               fontWeight: 700,
               letterSpacing: '2px',
               marginTop: '1.5mm',
-              color: n.isOrder ? '#856404' : '#1a1a1a',
+              color: '#1a1a1a',
             }}
           >
-            {n.isOrder ? '⟪ ORDER SLIP ⟫' : '⟪ OFFICIAL RECEIPT ⟫'}
+            ⟪ OFFICIAL RECEIPT ⟫
           </div>
         </div>
-
-        {/* ─── ORDER NOTICE BANNER (only in order mode) ───── */}
-        {n.isOrder && (
-          <div style={receiptStyles.warningBanner}>
-            ⚠ NOT A RECEIPT
-            <div style={{ fontSize: '6.5pt', fontWeight: 500, marginTop: '0.5mm' }}>
-              Pay at the cashier desk to complete this order
-            </div>
-          </div>
-        )}
 
         {/* ─── DOCUMENT INFO ──────────────────────────────── */}
         <div>
@@ -334,31 +411,21 @@ export const ReceiptContent = forwardRef<HTMLDivElement, ReceiptContentProps>(
             <span style={{ fontWeight: 500 }}>{n.staffName}</span>
           </div>
 
-          {/* Payment row: show method on receipts, PENDING on orders */}
-          {n.isOrder ? (
+          {/* A SalesOrder row carries no payment method, so an older paid
+              order reprints without one rather than with a fake "N/A". */}
+          {n.paymentMethod && (
             <div style={receiptStyles.row}>
               <span>💳 Payment</span>
-              <span style={receiptStyles.pendingBadge}>PENDING</span>
+              <span style={receiptStyles.paymentBadge}>
+                {formatPaymentMethod(n.paymentMethod, 'short').toUpperCase()}
+              </span>
             </div>
-          ) : (
-            <>
-              {/* A SalesOrder row carries no payment method, so an older paid
-                  order reprints without one rather than with a fake "N/A". */}
-              {n.paymentMethod && (
-                <div style={receiptStyles.row}>
-                  <span>💳 Payment</span>
-                  <span style={receiptStyles.paymentBadge}>
-                    {formatPaymentMethod(n.paymentMethod, 'short').toUpperCase()}
-                  </span>
-                </div>
-              )}
-              {n.paymentReference && (
-                <div style={receiptStyles.row}>
-                  <span>🆔 Ref</span>
-                  <Num style={{ fontSize: '7.5pt' }}>{n.paymentReference}</Num>
-                </div>
-              )}
-            </>
+          )}
+          {n.paymentReference && (
+            <div style={receiptStyles.row}>
+              <span>🆔 Ref</span>
+              <Num style={{ fontSize: '7.5pt' }}>{n.paymentReference}</Num>
+            </div>
           )}
         </div>
 
@@ -402,7 +469,7 @@ export const ReceiptContent = forwardRef<HTMLDivElement, ReceiptContentProps>(
                     : receiptStyles.itemRow
                 }
               >
-                <span style={receiptStyles.itemName}>{item.name}</span>
+                <span style={receiptStyles.itemName}>{item.name}{item.unitLabel ? ` (${item.unitLabel})` : ''}</span>
                 <span style={receiptStyles.itemQty}>{item.quantity}</span>
                 <span style={receiptStyles.itemPrice}>{formatMoney(item.unitPrice)}</span>
                 <span style={receiptStyles.itemTotal}>{formatMoney(item.total)}</span>
@@ -452,64 +519,34 @@ export const ReceiptContent = forwardRef<HTMLDivElement, ReceiptContentProps>(
             </div>
           )}
 
-          {/* Final line: "Amount Due" on orders, "TOTAL" on receipts */}
           <div style={{ ...receiptStyles.row, ...receiptStyles.totalFinal }}>
-            <span>{n.isOrder ? 'AMOUNT DUE' : 'TOTAL'}</span>
-            <span>{formatAmount(n.isOrder ? n.amountDue : n.total)}</span>
+            <span>TOTAL</span>
+            <span>{formatAmount(n.total)}</span>
           </div>
 
-          {!n.isOrder && n.hasInsurance && (
+          {n.hasInsurance && (
             <div style={receiptStyles.row}>
               <span>Patient co-pay</span>
               <span style={{ fontWeight: 700 }}>{formatAmount(n.amountDue)}</span>
-            </div>
-          )}
-
-          {n.isOrder && (
-            <div
-              style={{
-                textAlign: 'center',
-                fontSize: '7pt',
-                color: '#856404',
-                marginTop: '1mm',
-                fontStyle: 'italic',
-              }}
-            >
-              Final amount confirmed by cashier on payment
             </div>
           )}
         </div>
 
         {/* ─── STATUS BADGE ──────────────────────────────── */}
         <div style={{ textAlign: 'center', marginTop: '1.5mm' }}>
-          {n.isOrder ? (
-            <span style={receiptStyles.pendingBadge}>⏳ AWAITING PAYMENT</span>
-          ) : (
-            <span style={receiptStyles.paidBadge}>✓ PAID</span>
-          )}
+          <span style={n.status.key === 'paid' ? receiptStyles.paidBadge : receiptStyles.otherBadge}>
+            {n.status.key === 'paid' ? '✓ PAID' : n.status.label.toUpperCase()}
+          </span>
         </div>
 
         {/* ─── FOOTER ────────────────────────────────────── */}
         <div style={receiptStyles.footer}>
-          {n.isOrder ? (
-            <>
-              <div style={{ fontSize: '8pt', fontWeight: 700, color: '#856404' }}>
-                ⚠ PLEASE PROCEED TO CASHIER
-              </div>
-              <div style={{ marginTop: '0.5mm', color: '#856404' }}>
-                Present this slip to complete payment
-              </div>
-            </>
-          ) : (
-            <>
-              <div style={{ fontSize: '8pt', fontWeight: 600, color: '#333' }}>
-                Thank You for Your Patronage!
-              </div>
-              <div style={{ marginTop: '0.5mm' }}>
-                Items sold are not returnable or exchangeable
-              </div>
-            </>
-          )}
+          <div style={{ fontSize: '8pt', fontWeight: 600, color: '#333' }}>
+            Thank You for Your Patronage!
+          </div>
+          <div style={{ marginTop: '0.5mm' }}>
+            Items sold are not returnable or exchangeable
+          </div>
 
           {company?.receiptSettings?.footer && (
             <div
@@ -529,7 +566,7 @@ export const ReceiptContent = forwardRef<HTMLDivElement, ReceiptContentProps>(
           </div>
 
           {/* Same settlement stamp the printed slip carries. */}
-          {!n.isOrder && n.paidAt && (
+          {n.paidAt && (
             <div
               style={{
                 display: 'flex',
@@ -548,7 +585,7 @@ export const ReceiptContent = forwardRef<HTMLDivElement, ReceiptContentProps>(
           )}
 
           <div style={{ fontSize: '6pt', color: '#bbb', marginTop: '0.3mm' }}>
-            — END OF {n.isOrder ? 'ORDER SLIP' : 'RECEIPT'} —
+            — END OF RECEIPT —
           </div>
         </div>
       </div>

@@ -35,6 +35,9 @@ export const PurchaseOrderPage: React.FC = () => {
     expectedDeliveryDate: '',
     items: [] as PurchaseOrderItem[],
   });
+  // Optional: units in one pack/box. When > 1, the quantity and cost typed are per pack
+  // and are converted to units (the smallest unit stock is counted in) when the line is added.
+  const [unitsPerPack, setUnitsPerPack] = useState('');
   const [newItem, setNewItem] = useState({
     productId: '',
     quantity: '',
@@ -81,6 +84,7 @@ export const PurchaseOrderPage: React.FC = () => {
     fetchPurchaseOrders,
     purchaseOrders,
     addPurchaseOrder,
+    addProduct,
     updatePurchaseOrder,
   } = useAppStore();
 
@@ -184,7 +188,11 @@ export const PurchaseOrderPage: React.FC = () => {
     setShowProductDropdown(false);
   };
 
-  // ─── BULK IMPORT FROM EXCEL ──────────────────────────────────────────
+  // ─── BULK IMPORT FROM EXCEL (also seeds the drug catalogue) ──────────
+  // Each row is one drug + how many we are receiving. A drug that is already in
+  // the system (exact name match) is just added to the order. A drug that is NOT
+  // in the system is created from the row (selling price, category, unit, ...)
+  // with 0 stock; the stock arrives when the order is marked received.
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -192,85 +200,154 @@ export const PurchaseOrderPage: React.FC = () => {
     setIsImporting(true);
     const reader = new FileReader();
 
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       try {
         const data = new Uint8Array(event.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: 'array' });
+        const workbook = XLSX.read(data, { type: 'array', cellDates: true });
         const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-        const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+        const jsonData = XLSX.utils.sheet_to_json(firstSheet, { defval: '' });
 
-        const importedItems: PurchaseOrderItem[] = [];
+        const canon = (k: string) => String(k).toLowerCase().replace(/[^a-z0-9]/g, '');
+        const num = (v: unknown) => {
+          const n = parseFloat(String(v ?? '').replace(/[\s,]/g, '').replace(/^[^\d.+-]+/, ''));
+          return Number.isFinite(n) ? n : 0;
+        };
+        const fmtDate = (v: unknown): string => {
+          if (!v) return '';
+          const d = v instanceof Date ? v : new Date(String(v));
+          return isNaN(d.getTime()) ? String(v) : new Date(d.getTime() + 12 * 3600e3).toISOString().slice(0, 10);
+        };
+
+        type Planned = {
+          row: number; name: string; quantity: number; cost: number; batch: string; expiry: string;
+          existing?: Product; newProduct?: Record<string, unknown>;
+        };
+        const planned: Planned[] = [];
         const errors: string[] = [];
+        const norm = (s: string) => s.trim().toLowerCase();
+        const byName = new Map(products.map((p) => [norm(p.name), p]));
+        const usedSkus = new Set(products.map((p) => p.sku));
+        const usedBarcodes = new Set(products.map((p) => p.barcode));
+        const seenNew = new Set<string>();
 
-        jsonData.forEach((row: any, index: number) => {
-          const productName = row['Product Name'] || row['Product'] || row['ProductName'];
-          const quantity = parseInt(row['Quantity'] || row['Qty'] || 0);
-          const unitPrice = parseFloat(row['Cost Price'] || row['Unit Price'] || row['Price'] || row['UnitPrice'] || 0);
-          const batchNumber = row['Batch Number'] || row['Batch'] || row['BatchNo'] || '';
-          const expiryDate = row['Expiry Date'] || row['Expiry'] || '';
+        (jsonData as Record<string, unknown>[]).forEach((raw, index) => {
+          const row: Record<string, unknown> = {};
+          Object.entries(raw).forEach(([k, v]) => { row[canon(k)] = v; });
+          const get = (...keys: string[]) => {
+            for (const k of keys) { const v = row[k]; if (v !== undefined && String(v).trim() !== '') return v; }
+            return '';
+          };
 
-          if (!productName || !quantity || !unitPrice) {
-            errors.push(`Row ${index + 2}: Missing product name, quantity, or cost price`);
+          const name = String(get('productname', 'product', 'name', 'drugname', 'drug')).trim();
+          const quantity = Math.floor(num(get('quantity', 'qty'))) * (Math.max(1, Math.floor(num(get('unitsperpack', 'packsize', 'unitsperpackage')) || 1)));
+          // Optional "Units Per Pack": Quantity and Cost Price are then per pack (box...)
+          // and are converted to units: stock is always counted in the smallest unit.
+          const packSize = Math.max(1, Math.floor(num(get('unitsperpack', 'packsize', 'unitsperpackage')) || 1));
+          const cost = num(get('costprice', 'cost', 'unitprice', 'price')) / packSize;
+          const rowNo = index + 2;
+          if (!name || !quantity || !cost) {
+            errors.push(`Row ${rowNo}: needs Product Name, Quantity and Cost Price`);
             return;
           }
 
-          // Find product by name
-          const product = products.find(p =>
-            p.name.toLowerCase() === productName.toLowerCase() ||
-            p.name.toLowerCase().includes(productName.toLowerCase())
-          );
+          const item: Planned = {
+            row: rowNo, name, quantity, cost,
+            batch: String(get('batchnumber', 'batch', 'batchno')).trim(),
+            expiry: fmtDate(get('expirydate', 'expiry')),
+          };
 
-          if (!product) {
-            errors.push(`Row ${index + 2}: Product "${productName}" not found in inventory`);
-            return;
-          }
-
-          // Format expiry date
-          let formattedExpiryDate = '';
-          if (expiryDate) {
-            try {
-              const date = new Date(expiryDate);
-              if (!isNaN(date.getTime())) {
-                formattedExpiryDate = date.toISOString().split('T')[0];
+          const existing = byName.get(norm(name));
+          if (existing) {
+            item.existing = existing;
+          } else {
+            const selling = num(get('sellingprice', 'saleprice', 'retailprice'));
+            if (!(selling > 0)) {
+              errors.push(`Row ${rowNo}: "${name}" is not in the system, so it needs a Selling Price to be created`);
+              return;
+            }
+            if (seenNew.has(norm(name))) {
+              // Same new drug on two rows (e.g. two batches): create it once.
+              item.newProduct = undefined;
+            } else {
+              seenNew.add(norm(name));
+              let sku = String(get('sku', 'code')).trim();
+              if (!sku) {
+                sku = `SKU-${Date.now().toString(36).toUpperCase()}${String(index).padStart(3, '0')}`;
               }
-            } catch (err) {
-              // If date parsing fails, keep as string
-              formattedExpiryDate = String(expiryDate);
+              let barcode = String(get('barcode')).trim() || sku;
+              if (usedSkus.has(sku) || usedBarcodes.has(barcode)) {
+                errors.push(`Row ${rowNo}: SKU or Barcode for "${name}" already belongs to another drug`);
+                return;
+              }
+              usedSkus.add(sku); usedBarcodes.add(barcode);
+              const schedRaw = String(get('schedule', 'controlled')).trim().toUpperCase();
+              const insurance = num(get('insuranceprice'));
+              item.newProduct = {
+                name, sku, barcode,
+                category: String(get('category')).trim() || 'General',
+                unitPrice: selling,
+                sellingPrice: selling,
+                cost,
+                insurancePrice: insurance > 0 ? insurance : undefined,
+                quantity: 0,
+                dispensingUnit: String(get('unit', 'dispensingunit')).trim() || 'Tablet',
+                schedule: ['II', 'III', 'IV', 'V'].includes(schedRaw) ? schedRaw : 'none',
+                description: String(get('description')).trim() || undefined,
+              };
             }
           }
+          planned.push(item);
+        });
 
+        const toCreate = planned.filter((p) => p.newProduct);
+        if (toCreate.length > 0) {
+          const ok = window.confirm(
+            `${toCreate.length} drug(s) in this file are not in the system yet.\n\n` +
+            `They will be created with their selling prices (stock stays 0 until you mark this order received).\n\nContinue?`
+          );
+          if (!ok) return;
+        }
+
+        const createdByName = new Map<string, Product>();
+        let createdCount = 0;
+        const importedItems: PurchaseOrderItem[] = [];
+        for (const p of planned) {
+          let product = p.existing || createdByName.get(norm(p.name));
+          if (!product && p.newProduct) {
+            const made = await addProduct(p.newProduct as any);
+            if (!made) {
+              errors.push(`Row ${p.row}: could not create "${p.name}"`);
+              continue;
+            }
+            product = made;
+            createdByName.set(norm(p.name), made);
+            createdCount++;
+          }
+          if (!product) { errors.push(`Row ${p.row}: could not match "${p.name}"`); continue; }
           importedItems.push({
             productId: product.id,
             productName: product.name,
-            quantity: quantity,
-            unitPrice: unitPrice,
-            total: quantity * unitPrice,
-            batchNumber: batchNumber || undefined,
-            expiryDate: formattedExpiryDate || undefined,
+            quantity: p.quantity,
+            unitPrice: Math.round(p.cost * 10000) / 10000,
+            total: Math.round(p.quantity * p.cost * 100) / 100,
+            batchNumber: p.batch || undefined,
+            expiryDate: p.expiry || undefined,
           });
-        });
-
-        if (errors.length > 0) {
-          alert(`Import completed with errors:\n\n${errors.join('\n')}`);
         }
 
         if (importedItems.length > 0) {
-          setFormData({ ...formData, items: [...formData.items, ...importedItems] });
-          alert(`Successfully imported ${importedItems.length} items from Excel`);
-        } else if (errors.length > 0) {
-          alert('No items were imported. Please check the errors above.');
-        } else {
-          alert('No items found in the Excel file. Please check the format.');
+          setFormData((prev) => ({ ...prev, items: [...prev.items, ...importedItems] }));
         }
-
-        // Reset file input
-        if (fileInputRef.current) {
-          fileInputRef.current.value = '';
-        }
+        const summary =
+          `${importedItems.length} line(s) added to the order` +
+          (createdCount ? `, ${createdCount} new drug(s) created` : '') + '.' +
+          (errors.length ? `\n\n${errors.length} row(s) skipped:\n${errors.join('\n')}` : '');
+        alert(importedItems.length || errors.length ? summary : 'No items found in the Excel file. Please check the format.');
       } catch (error) {
         console.error('Error parsing Excel file:', error);
         alert('Error parsing Excel file. Please make sure it\'s a valid .xlsx or .xls file.');
       } finally {
+        if (fileInputRef.current) fileInputRef.current.value = '';
         setIsImporting(false);
       }
     };
@@ -287,12 +364,21 @@ export const PurchaseOrderPage: React.FC = () => {
     const product = products.find((p) => p.id === newItem.productId);
     if (!product) return;
 
+    // Stock is counted in the smallest unit. When the order is entered in packs
+    // (boxes...), convert to units here: qty x units-per-pack, cost / units-per-pack.
+    const packSize = Math.max(1, Math.floor(Number(unitsPerPack) || 1));
+    const entered = parseInt(newItem.quantity);
+    const enteredCost = parseFloat(newItem.unitPrice);
+    const inPacks = packSize > 1;
+    const units = inPacks ? entered * packSize : entered;
+    const costPerUnit = inPacks ? Math.round((enteredCost / packSize) * 10000) / 10000 : enteredCost;
+
     const item: PurchaseOrderItem = {
       productId: newItem.productId,
       productName: product.name,
-      quantity: parseInt(newItem.quantity),
-      unitPrice: parseFloat(newItem.unitPrice),
-      total: parseInt(newItem.quantity) * parseFloat(newItem.unitPrice),
+      quantity: units,
+      unitPrice: costPerUnit,
+      total: inPacks ? Math.round(entered * enteredCost * 100) / 100 : entered * enteredCost,
       batchNumber: newItem.batchNumber,
       expiryDate: newItem.expiryDate,
     };
@@ -307,6 +393,7 @@ export const PurchaseOrderPage: React.FC = () => {
     }
 
     setNewItem({ productId: '', quantity: '', unitPrice: '', batchNumber: '', expiryDate: '' });
+    setUnitsPerPack('');
     setProductSearchQuery('');
     setShowProductDropdown(false);
     setFormErrors(prev => ({ ...prev, items: '' }));
@@ -493,11 +580,19 @@ export const PurchaseOrderPage: React.FC = () => {
 
   // Excel template download
   const downloadExcelTemplate = () => {
-    const headers = ['Product Name', 'Quantity', 'Cost Price', 'Batch Number', 'Expiry Date'];
+    // Required: Product Name, Quantity, Cost Price (per unit). For a drug that is not
+    // in the system yet also give Selling Price; the rest is optional.
+    // Units Per Pack: leave blank if Quantity and Cost Price are per unit (tablet...).
+    // Fill it (e.g. 100) if they are per pack/box: they are converted to units on upload.
+    const headers = [
+      'Product Name', 'Category', 'Quantity', 'Cost Price', 'Selling Price', 'Insurance Price',
+      'Unit', 'Units Per Pack', 'SKU', 'Barcode', 'Schedule',
+      'Batch Number', 'Expiry Date',
+    ];
     const sampleData = [
-      ['Paracetamol 500mg', 100, 2.50, 'BATCH-001', '2025-12-31'],
-      ['Amoxicillin 250mg', 50, 3.75, 'BATCH-002', '2025-10-15'],
-      ['Vitamin C 1000mg', 75, 1.99, 'BATCH-003', '2026-01-20'],
+      ['Paracetamol 500mg', 'Pain Relief', 1000, 0.25, 0.55, 0.45, 'Tablet', 100, '', '', 'none', 'BATCH-001', '2027-12-31'],
+      ['Amoxicillin 250mg', 'Antibiotics', 500, 0.60, 1.20, 1.00, 'Capsule', 100, '', '', 'none', 'BATCH-002', '2027-10-15'],
+      ['Ceftriaxone 1g', 'Antibiotics', 100, 4.00, 8.00, 6.50, 'Vial', 10, '', '', 'none', 'BATCH-003', '2027-06-30'],
     ];
     const ws = XLSX.utils.aoa_to_sheet([headers, ...sampleData]);
     const wb = XLSX.utils.book_new();
@@ -558,6 +653,9 @@ export const PurchaseOrderPage: React.FC = () => {
   if (showCreatePage) {
     const selectedSupplier = suppliers.find(s => s.id === formData.supplierId);
     const selectedProduct = products.find(p => p.id === newItem.productId);
+    const selPackSize = Math.max(1, Math.floor(Number(unitsPerPack) || 1));
+    const packMode = selPackSize > 1;
+    const unitLabel = selectedProduct?.dispensingUnit || 'Unit';
 
     return (
       <div className="space-y-6 pb-6">
@@ -913,8 +1011,18 @@ export const PurchaseOrderPage: React.FC = () => {
 
               <div>
                 <label className="block text-sm font-semibold mb-1" style={{ color: 'var(--color-text-primary)' }}>
-                  Quantity *
+                  {packMode ? 'Quantity (packs) *' : 'Quantity *'}
                 </label>
+                <input
+                  type="number"
+                  min="1"
+                  value={unitsPerPack}
+                  onChange={(e) => setUnitsPerPack(e.target.value)}
+                  className="input-base w-full text-sm mb-1"
+                  style={fieldStyle}
+                  placeholder={`Units per pack (optional, e.g. 100)`}
+                  aria-label="Units per pack"
+                />
                 <input
                   type="number"
                   value={newItem.quantity}
@@ -926,10 +1034,15 @@ export const PurchaseOrderPage: React.FC = () => {
                   placeholder="0"
                   min="1"
                 />
+                {packMode && Number(newItem.quantity) > 0 && (
+                  <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
+                    = {Number(newItem.quantity) * selPackSize} {unitLabel.toLowerCase()}s added to stock
+                  </p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-semibold mb-1" style={{ color: 'var(--color-text-primary)' }}>
-                  Cost Price *
+                  Cost Price {packMode ? 'per pack' : ''} *
                 </label>
                 <input
                   type="number"

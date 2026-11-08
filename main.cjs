@@ -53,7 +53,7 @@ DB_PASSWORD=postgres
 # SEED_COMPANY_NAME=Your Pharmacy Ltd
 # SEED_BRANCH_NAME=Main Branch
 # SEED_TAX_RATE=0
-# SEED_LAB_CATALOGUE=true   # load the standard lab test list and its prices
+# SEED_LAB_CATALOGUE=false  # the standard lab test list and prices are loaded by default; uncomment to skip
 
 # Your own drugs are loaded from a file, not seeded:
 #   npm run import:products -- --file data/your-catalogue.csv
@@ -269,6 +269,20 @@ function createMenu() {
         },
         { type: 'separator' },
         {
+          label: 'Printer Status...',
+          click: () => { showPrinterStatus(); }
+        },
+        {
+          label: 'Printing Preferences...',
+          click: () => {
+            if (!mainWindow || mainWindow.isDestroyed()) return;
+            if (mainWindow.isMinimized()) mainWindow.restore();
+            mainWindow.focus();
+            mainWindow.webContents.send('navigate', '/dashboard/preferences');
+          }
+        },
+        { type: 'separator' },
+        {
           label: 'Restart Backend',
           click: () => restartBackend()
         },
@@ -358,6 +372,8 @@ function createMenu() {
 function backendFailureSummary() {
   const text = backendOutput.join('\n');
   const rules = [
+    [/SEED_ADMIN_(EMAIL|PASSWORD)/i,
+      'First-time setup: choose the administrator account. Click "Edit Database Settings", remove the # in front of SEED_ADMIN_EMAIL and SEED_ADMIN_PASSWORD and fill them in (password: 8+ characters with an uppercase letter, a lowercase letter and a digit), save, then press Retry.'],
     [/password authentication failed/i,
       'PostgreSQL rejected the user name or password. Correct DB_USER / DB_PASSWORD in the settings file.'],
     [/ECONNREFUSED/i,
@@ -563,7 +579,10 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       webSecurity: true,
       devTools: !app.isPackaged,
-      allowRunningInsecureContent: false
+      allowRunningInsecureContent: false,
+      // The preload cannot ask the main process synchronously whether this is an
+      // installed build, and NODE_ENV is not set in a packaged app.
+      additionalArguments: [`--pharmacy-packaged=${app.isPackaged}`]
     },
     icon: getIconPath(),
     show: false,
@@ -682,8 +701,11 @@ function showErrorPage(message) {
 
 // ==================== LOAD FRONTEND (DEV) ====================
 function loadDevFrontend() {
-  log('Development mode: loading http://localhost:3000');
-  mainWindow.loadURL('http://localhost:3000').catch((err) => {
+  // 127.0.0.1 rather than localhost: on Windows "localhost" can resolve to ::1
+  // first, and Vite listens on IPv4, so the window would show a connection error
+  // while the dev server is running perfectly well.
+  log('Development mode: loading http://127.0.0.1:3000');
+  mainWindow.loadURL('http://127.0.0.1:3000').catch((err) => {
     log('Failed to load dev server:', err);
     showErrorPage('Development server not running.\n\nStart it with: npm run dev');
   });
@@ -714,6 +736,10 @@ if (!gotTheLock) {
 
     createWindow();
 
+    // Pay the PowerShell start-up cost now so the first receipt of the day does
+    // not wait on it. Nothing depends on the answer.
+    readPrinterState();
+
     if (app.isPackaged) {
       await launchApp();
     } else {
@@ -724,6 +750,7 @@ if (!gotTheLock) {
 
 // ==================== CLEANUP ====================
 function killBackendNow() {
+  stopPrinterProbe();
   if (!serverProcess) return;
   try {
     serverProcess.kill();
@@ -756,10 +783,171 @@ app.on('activate', () => {
 // in the way; the browser has no such API, so outside Electron the same document
 // still goes through the print preview.
 const PRINT_WAIT_MS = 200;
+const PROBE_TIMEOUT_MS = 8000;
+const PROBE_PREFIX = 'PHARMACY_PRINTERS ';
+
+// Chromium's printer list carries a name and a description and nothing else: it
+// cannot say which printer Windows made default, whether the device is in error,
+// or how many jobs are stuck behind it. A till needs all three, because a silent
+// job handed to a broken printer still reports success and the cashier only finds
+// out when no slip appears. The PrintManagement cmdlets answer those questions,
+// so one PowerShell child is kept for the life of the app: the first query pays
+// ~1.5s of module loading, every later one ~50ms — cheap enough to re-check the
+// queue after each receipt.
+const PROBE_SCRIPT = `
+$ErrorActionPreference = 'SilentlyContinue'
+$ProgressPreference = 'SilentlyContinue'
+while ($true) {
+  $id = [Console]::In.ReadLine()
+  if ($null -eq $id) { break }
+  $printers = @(Get-Printer | Select-Object Name, @{n='status';e={$_.PrinterStatus.ToString()}})
+  $jobs = @(Get-Printer | Get-PrintJob | Select-Object PrinterName, Id, DocumentName, @{n='status';e={$_.JobStatus.ToString()}})
+  $device = (Get-ItemProperty -Path 'HKCU:\\Software\\Microsoft\\Windows NT\\CurrentVersion\\Windows' -Name Device).Device
+  $default = if ($device) { ($device -split ',')[0] } else { $null }
+  $payload = @{ default = $default; printers = $printers; jobs = $jobs } | ConvertTo-Json -Depth 4 -Compress
+  [Console]::Out.WriteLine('${PROBE_PREFIX}' + $id + ' ' + $payload)
+  [Console]::Out.Flush()
+}
+`;
+
+let probeChild = null;
+let probeBuffer = '';
+let probeSeq = 0;
+const probeWaiters = new Map();
+
+function asArray(value) {
+  return Array.isArray(value) ? value : value ? [value] : [];
+}
+
+function settleProbeWaiters(error) {
+  for (const [, waiter] of probeWaiters) waiter.reject(error);
+  probeWaiters.clear();
+}
+
+function startPrinterProbe() {
+  if (process.platform !== 'win32') return null;
+  if (probeChild) return probeChild;
+
+  const child = spawn(
+    'powershell.exe',
+    ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', PROBE_SCRIPT],
+    { windowsHide: true, stdio: ['pipe', 'pipe', 'ignore'] }
+  );
+  child.stdout.setEncoding('utf8');
+  child.stdout.on('data', (chunk) => {
+    probeBuffer += chunk;
+    let newline;
+    while ((newline = probeBuffer.indexOf('\n')) >= 0) {
+      const line = probeBuffer.slice(0, newline).trim();
+      probeBuffer = probeBuffer.slice(newline + 1);
+      if (!line.startsWith(PROBE_PREFIX)) continue;
+      const rest = line.slice(PROBE_PREFIX.length);
+      const split = rest.indexOf(' ');
+      const waiter = probeWaiters.get(rest.slice(0, split));
+      if (!waiter) continue;
+      probeWaiters.delete(rest.slice(0, split));
+      clearTimeout(waiter.timer);
+      try {
+        const raw = JSON.parse(rest.slice(split + 1));
+        waiter.resolve({
+          defaultPrinter: raw.default || '',
+          printers: asArray(raw.printers).map((p) => ({ name: p.Name, status: p.status || '' })),
+          jobs: asArray(raw.jobs).map((j) => ({
+            printerName: j.PrinterName,
+            id: j.Id,
+            documentName: j.DocumentName || '',
+            status: j.status || ''
+          }))
+        });
+      } catch (error) {
+        waiter.reject(error);
+      }
+    }
+  });
+  // A closed stdin or a missing powershell.exe must not take the app with it.
+  child.stdin.on('error', () => {});
+  child.on('error', (error) => {
+    log('Printer probe unavailable:', error.message);
+    probeChild = null;
+    settleProbeWaiters(error);
+  });
+  child.on('exit', () => {
+    probeChild = null;
+    probeBuffer = '';
+    settleProbeWaiters(new Error('The printer probe stopped'));
+  });
+  probeChild = child;
+  return child;
+}
+
+/** Windows printer + queue state, or null where it cannot be read. */
+function readPrinterState() {
+  const child = startPrinterProbe();
+  if (!child) return Promise.resolve(null);
+  const id = String(++probeSeq);
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      probeWaiters.delete(id);
+      reject(new Error('Windows did not answer the printer query in time'));
+    }, PROBE_TIMEOUT_MS);
+    probeWaiters.set(id, { resolve, reject, timer });
+    child.stdin.write(`${id}\n`);
+  }).catch((error) => {
+    log('Could not read printer state:', error.message);
+    return null;
+  });
+}
+
+function stopPrinterProbe() {
+  if (!probeChild) return;
+  const child = probeChild;
+  probeChild = null;
+  try { child.stdin.end(); } catch {}
+  child.kill();
+}
+
+// States that mean paper will not come out. "TonerLow" and "WarmingUp" are
+// deliberately absent — they are warnings the driver recovers from on its own.
+const PRINTER_FAULTS = new Set([
+  'Error', 'Offline', 'Paused', 'PaperJam', 'PaperOut', 'PaperProblem', 'DoorOpen',
+  'NotAvailable', 'UserInterventionRequired', 'OutOfMemory', 'NoToner',
+  'PendingDeletion', 'Server_Unknown'
+]);
+const JOB_FAULTS = /error|blocked|paperout|paperjam|userintervention/i;
+
+function printerJobs(state, name) {
+  return state ? state.jobs.filter((j) => j.printerName === name) : [];
+}
+
+/**
+ * What to tell the cashier when Windows accepted the job but the device cannot
+ * deliver it. Undefined means the printer looks able to print.
+ */
+function printerWarning(state, name) {
+  const printer = state?.printers.find((p) => p.name === name);
+  if (!printer) return undefined;
+  const jobs = printerJobs(state, name);
+  const stuck = jobs.filter((j) => JOB_FAULTS.test(j.status));
+  const faulted = PRINTER_FAULTS.has(printer.status);
+  if (!faulted && stuck.length === 0) return undefined;
+
+  const reasons = [];
+  if (faulted) reasons.push(`"${name}" is reporting ${printer.status.toLowerCase()}`);
+  if (stuck.length) reasons.push(`${stuck.length} job${stuck.length === 1 ? '' : 's'} stuck in its queue`);
+  const waiting = jobs.length
+    ? `${jobs.length} document${jobs.length === 1 ? '' : 's'} waiting. `
+    : '';
+  return `${reasons.join(' and ')}. ${waiting}This one was handed to Windows but will not come out until the printer is cleared.`;
+}
 
 async function withHiddenPrintWindow(html, run) {
   const win = new BrowserWindow({
     show: false,
+    skipTaskbar: true,
+    // A non-silent job raises the native Windows print dialog. Without a parent
+    // it belongs to an invisible window and can end up behind the app with no
+    // taskbar entry, leaving the cashier waiting on a dialog they cannot see.
+    parent: mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined,
     width: 900,
     height: 1200,
     webPreferences: {
@@ -768,13 +956,18 @@ async function withHiddenPrintWindow(html, run) {
       nodeIntegration: false
     }
   });
+  // A data: URL is capped at 2 MB by Chromium, which a long A4 report can pass;
+  // a real file has no such limit.
+  const file = path.join(os.tmpdir(), `pharmacy-pos-print-${crypto.randomBytes(6).toString('hex')}.html`);
   try {
-    await win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+    fs.writeFileSync(file, html, 'utf8');
+    await win.loadFile(file);
     // One paint, so fonts and the @page box are settled before the job is taken.
     await sleep(PRINT_WAIT_MS);
     return await run(win);
   } finally {
     if (!win.isDestroyed()) win.destroy();
+    try { fs.unlinkSync(file); } catch {}
   }
 }
 
@@ -801,6 +994,9 @@ ipcMain.handle('print-html', async (event, payload) => {
   const { html = '', silent = false, deviceName = '', marginType = 'default' } = payload || {};
   if (!html.trim()) return { success: false, error: 'Nothing to print' };
 
+  const before = await readPrinterState();
+  const target = deviceName || before?.defaultPrinter || '';
+
   const options = {
     silent,
     printBackground: true,
@@ -808,7 +1004,7 @@ ipcMain.handle('print-html', async (event, payload) => {
   };
   // An empty name means "whatever Windows has set as default"; passing
   // deviceName: '' outright makes Chromium fail the job.
-  if (deviceName) options.deviceName = deviceName;
+  if (target) options.deviceName = target;
 
   try {
     const result = await withHiddenPrintWindow(html, async (win) => {
@@ -818,15 +1014,29 @@ ipcMain.handle('print-html', async (event, payload) => {
         win.webContents.print(options, (success, failureType) => resolve({ success, failureType }));
       });
     });
-    if (result.success) return { success: true, printer: deviceName || 'default printer' };
-
-    log(`Print job failed (${result.failureType}) for printer "${deviceName || 'default'}"`);
-    return {
-      success: false,
-      error:
-        result.failureType === 'printer-invalid'
-          ? `"${deviceName}" is not available on this machine. Pick a printer in Preferences.`
+    if (!result.success) {
+      log(`Print job failed (${result.failureType}) for printer "${target || 'default'}"`);
+      // Electron words this as "Invalid deviceName provided"; normalise it so the
+      // renderer can recognise a missing printer and offer the Windows dialog.
+      const invalidDevice = /invalid/i.test(result.failureType || '');
+      return {
+        success: false,
+        failureType: invalidDevice ? 'printer-invalid' : result.failureType || 'unknown',
+        printer: target,
+        error: invalidDevice
+          ? `"${target}" is not available on this machine. Pick a printer in Preferences.`
           : 'The print job was rejected by Windows.'
+      };
+    }
+
+    // Chromium calls the job a success once Windows has it, not once it is on
+    // paper. Read the queue back so an offline or jammed till is reported here
+    // instead of leaving the cashier pressing Print again.
+    const after = await readPrinterState();
+    return {
+      success: true,
+      printer: target || after?.defaultPrinter || 'default printer',
+      warning: printerWarning(after, target || after?.defaultPrinter || '')
     };
   } catch (error) {
     log('Print error:', error);
@@ -861,23 +1071,81 @@ ipcMain.handle('save-pdf', async (event, payload) => {
   }
 });
 
-ipcMain.handle('get-printers', async () => {
-  const win = new BrowserWindow({ show: false });
+/** Every printer Windows and Chromium know about, with the state Chromium omits. */
+async function collectPrinters() {
+  const fallback = mainWindow && !mainWindow.isDestroyed() ? null : new BrowserWindow({ show: false });
+  const contents = fallback ? fallback.webContents : mainWindow.webContents;
   try {
-    const printers = await win.webContents.getPrintersAsync();
-    return printers.map((p) => ({
-      name: p.name,
-      displayName: p.displayName || p.name,
-      isDefault: p.isDefault,
-      status: p.status
-    }));
+    const [chromium, state] = await Promise.all([contents.getPrintersAsync(), readPrinterState()]);
+    const names = new Set(chromium.map((p) => p.name));
+    // A driver can be installed but not exposed to Chromium; it still belongs in
+    // the list so the cashier can see why their printer is missing.
+    for (const p of state?.printers || []) names.add(p.name);
+    const defaultPrinter = state?.defaultPrinter || '';
+    return [...names].map((name) => {
+      const info = chromium.find((p) => p.name === name);
+      const os = state?.printers.find((p) => p.name === name);
+      const jobs = printerJobs(state, name);
+      return {
+        name,
+        displayName: info?.displayName || name,
+        description: info?.description || '',
+        isDefault: name === defaultPrinter,
+        status: os?.status || null,
+        queuedJobs: jobs.length,
+        stuckJobs: jobs.filter((j) => JOB_FAULTS.test(j.status)).length
+      };
+    });
+  } finally {
+    if (fallback && !fallback.isDestroyed()) fallback.destroy();
+  }
+}
+
+ipcMain.handle('get-printers', async () => {
+  try {
+    return await collectPrinters();
   } catch (error) {
     log('Could not list printers:', error);
     return [];
-  } finally {
-    win.destroy();
   }
 });
+
+/** File > Printer Status: the same facts, in a window the cashier can read aloud. */
+async function showPrinterStatus() {
+  const printers = await collectPrinters();
+  if (printers.length === 0) {
+    dialog.showMessageBox({
+      type: 'warning',
+      title: 'Printer Status',
+      message: 'No printers are installed',
+      detail: 'Install the receipt printer\'s driver, then open this again.',
+      buttons: ['OK']
+    });
+    return;
+  }
+  const state = await readPrinterState();
+  const lines = printers.map((p) => {
+    const marks = [p.isDefault ? 'default' : null, p.status ? p.status.toLowerCase() : 'state unknown'].filter(Boolean);
+    const queue = p.queuedJobs
+      ? `${p.queuedJobs} job${p.queuedJobs === 1 ? '' : 's'} waiting${p.stuckJobs ? `, ${p.stuckJobs} stuck` : ''}`
+      : 'queue empty';
+    return `${p.displayName}  —  ${marks.join(', ')}; ${queue}`;
+  });
+  const stuck = (state?.jobs || []).filter((j) => JOB_FAULTS.test(j.status));
+  if (stuck.length) {
+    lines.push('', 'Stuck jobs (clear these in Windows before printing again):');
+    for (const j of stuck.slice(0, 8)) {
+      lines.push(`  ${j.printerName} #${j.id}: ${j.documentName || 'untitled'} — ${j.status}`);
+    }
+  }
+  dialog.showMessageBox({
+    type: stuck.length || printers.some((p) => PRINTER_FAULTS.has(p.status)) ? 'warning' : 'info',
+    title: 'Printer Status',
+    message: 'Printers on this computer',
+    detail: lines.join('\n'),
+    buttons: ['OK']
+  });
+}
 
 // ==================== IPC HANDLERS ====================
 ipcMain.handle('get-app-version', () => app.getVersion());
