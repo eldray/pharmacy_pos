@@ -1,0 +1,6 @@
+id,name,email,role,status,createdAt,updatedAt
+1,Admin User,admin@pharmacy.com,admin,active,2026-11-07 22:12:34.115+00,2026-11-07 22:12:34.115+00
+2,Mark Manager,manager@pharmacy.com,manager,active,2026-11-07 22:12:34.377+00,2026-11-07 22:12:34.377+00
+3,John Cashier,cashier@pharmacy.com,cashier,active,2026-11-07 22:12:34.515+00,2026-11-07 22:12:34.515+00
+4,Jane Pharmacist,pharmacist@pharmacy.com,pharmacist_sales,active,2026-11-07 22:12:34.704+00,2026-11-07 22:12:34.704+00
+5,Dr. Sarah Lab,lab@pharmacy.com,lab_tech,active,2026-11-07 22:12:34.867+00,2026-11-07 22:12:34.867+00

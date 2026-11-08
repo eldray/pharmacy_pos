@@ -7,6 +7,7 @@
 // the same fields, and lab documents rendered 0.00 because they carry
 // `totalAmount`/`paidAmount` rather than `total`.
 
+import { Banknote, CreditCard, ShieldCheck, Smartphone, Undo2, Wallet, type LucideIcon } from 'lucide-react';
 import { safeNumber } from './number';
 import type { LabTransaction, SalesOrder, Transaction } from '../types';
 
@@ -340,21 +341,50 @@ function formatDateWith(value: string | null | undefined, withSeconds: boolean):
  * need shorter ones that fit a narrow column. Both live here so a new provider
  * is added in one place instead of in five switch statements.
  */
-const PAYMENT_METHODS: Record<string, { full: string; short: string }> = {
-  cash: { full: 'Cash', short: 'Cash' },
-  card: { full: 'Card', short: 'Card' },
-  mtn: { full: 'MTN Mobile Money', short: 'MTN MoMo' },
-  vodafone: { full: 'Vodafone Cash', short: 'Vodafone' },
-  airteltigo: { full: 'AirtelTigo Money', short: 'AirtelTigo' },
+interface PaymentMethodMeta {
+  full: string;
+  short: string;
+  /** Theme token names, without the `var()` wrapper, so callers can build tints too. */
+  color: string;
+  tint: string;
+  icon: LucideIcon;
+}
+
+const PAYMENT_METHODS: Record<string, PaymentMethodMeta> = {
+  cash: { full: 'Cash', short: 'Cash', color: '--color-success', tint: '--color-success-light', icon: Banknote },
+  card: { full: 'Card', short: 'Card', color: '--color-info', tint: '--color-info-light', icon: CreditCard },
+  mtn: { full: 'MTN Mobile Money', short: 'MTN MoMo', color: '--color-warning', tint: '--color-warning-light', icon: Smartphone },
+  vodafone: { full: 'Vodafone Cash', short: 'Vodafone', color: '--color-danger', tint: '--color-danger-light', icon: Smartphone },
+  airteltigo: { full: 'AirtelTigo Money', short: 'AirtelTigo', color: '--color-accent', tint: '--color-accent-light', icon: Smartphone },
+  insurance: { full: 'Insurance / NHIS', short: 'Insurance', color: '--color-role-lab', tint: '--color-role-lab-bg', icon: ShieldCheck },
+  refund: { full: 'Refund', short: 'Refund', color: '--color-text-secondary', tint: '--color-bg-subtle', icon: Undo2 },
 };
+
+export function paymentMethodKey(method?: string | null): string {
+  return (method || '').toLowerCase().replace(/[\s-]/g, '');
+}
+
+/** Icon, colour and label for any method the API can return, known or not. */
+export function paymentMethodMeta(method?: string | null): PaymentMethodMeta & { key: string } {
+  const key = paymentMethodKey(method);
+  const known = PAYMENT_METHODS[key];
+  if (known) return { ...known, key };
+  const spaced = (method || 'unknown').replace(/_/g, ' ');
+  const label = spaced.charAt(0).toUpperCase() + spaced.slice(1);
+  return {
+    key,
+    full: method ? label : 'Not recorded',
+    short: label,
+    color: '--color-text-secondary',
+    tint: '--color-bg-subtle',
+    icon: Wallet,
+  };
+}
 
 export function formatPaymentMethod(
   method?: string | null,
   style: 'full' | 'short' = 'full',
 ): string {
   if (!method) return 'N/A';
-  const known = PAYMENT_METHODS[method.toLowerCase().replace(/[\s-]/g, '')];
-  if (known) return known[style];
-  const spaced = method.replace(/_/g, ' ');
-  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+  return paymentMethodMeta(method)[style];
 }

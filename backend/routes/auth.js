@@ -1,9 +1,12 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
+const { Op } = require('sequelize');
+const { sequelize } = require('../config/database');
 const User = require('../models/User');
 const { auth } = require('../middleware/auth');
 const { rateLimit } = require('../middleware/rateLimit');
 const { isProduction, isDemoPassword } = require('../utils/environment');
+const { normalizeUsername } = require('../utils/validators');
 
 const router = express.Router();
 const { numericIdParams } = require('../utils/numericIdParams');
@@ -17,17 +20,31 @@ const loginLimiter = rateLimit({
   message: 'Too many login attempts. Please try again in a few minutes.',
 });
 
-// Login
+// Login — the credential is the username. `email` is still accepted as the
+// field name so older clients keep working, and an address still resolves to
+// the account that owns it.
 router.post('/login', loginLimiter, async (req, res) => {
-  const { email, password } = req.body;
+  const { password } = req.body;
+  const identifier = normalizeUsername(req.body.username ?? req.body.email);
 
   if (!process.env.JWT_SECRET) {
     console.error('❌ JWT_SECRET not set');
     return res.status(500).json({ msg: 'Server configuration error' });
   }
 
+  if (!identifier || !password) {
+    return res.status(400).json({ msg: 'Username and password are required' });
+  }
+
   try {
-    const user = await User.findOne({ where: { email } });
+    const user = await User.findOne({
+      where: {
+        [Op.or]: [
+          sequelize.where(sequelize.fn('LOWER', sequelize.col('username')), identifier),
+          sequelize.where(sequelize.fn('LOWER', sequelize.col('email')), identifier),
+        ],
+      },
+    });
     if (!user) return res.status(400).json({ msg: 'Invalid credentials' });
 
     const valid = await user.comparePassword(password);
@@ -37,7 +54,7 @@ router.post('/login', loginLimiter, async (req, res) => {
     // passwords printed on the sign-in screen. On a live till those are public
     // credentials, so refuse them and say what to do instead.
     if (isProduction() && isDemoPassword(password)) {
-      console.warn(`Refused demo password at login for ${user.email}`);
+      console.warn(`Refused demo password at login for ${user.username}`);
       return res.status(403).json({
         msg: 'This account still uses a demo password. An administrator must reset it before it can sign in.'
       });
@@ -49,14 +66,14 @@ router.post('/login', loginLimiter, async (req, res) => {
     }
 
     const token = jwt.sign(
-      { userId: user.id, role: user.role, email: user.email },
+      { userId: user.id, role: user.role, username: user.username },
       process.env.JWT_SECRET,
       { expiresIn: '24h' }
     );
 
     res.json({
       success: true,
-      user: { id: user.id, name: user.name, email: user.email, role: user.role },
+      user: { id: user.id, name: user.name, username: user.username, email: user.email, role: user.role },
       token
     });
   } catch (err) {

@@ -243,7 +243,10 @@ router.post('/:id/pay', auth, async (req, res) => {
       paymentReference: paymentReference || null,
       customerName: order.customerName,
       customerPhone: order.customerPhone,
-      notes: `Order #${order.orderNumber}`
+      // Only what the cashier actually wrote on the order. The order-to-receipt
+      // link already lives in the audit log and the inventory logs; stamping
+      // "Order #..." here fabricated a Notes section on every receipt.
+      notes: order.notes || null
     }, { transaction: t });
 
     for (const item of order.items || []) {

@@ -18,12 +18,12 @@ const auth = async (req, res, next) => {
 
   try {
     const user = await User.findByPk(decoded.userId, {
-      attributes: ['id', 'name', 'email', 'role', 'status'],
+      attributes: ['id', 'name', 'username', 'email', 'role', 'status'],
     });
     if (!user) return res.status(401).json({ msg: 'User no longer exists' });
     if (user.status !== 'active') return res.status(403).json({ msg: 'Account is blocked' });
 
-    req.user = { userId: user.id, id: user.id, name: user.name, email: user.email, role: user.role };
+    req.user = { userId: user.id, id: user.id, name: user.name, username: user.username, email: user.email, role: user.role };
     next();
   } catch (err) {
     console.error('Auth middleware user lookup failed:', err);

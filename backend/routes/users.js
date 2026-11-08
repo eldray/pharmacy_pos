@@ -3,7 +3,7 @@ const express = require('express');
 const User = require('../models/User');
 const { auth, adminAuth, adminOrManagerAuth } = require('../middleware/auth');
 const { recordAudit } = require('../utils/audit');
-const { validatePassword, validateEmail } = require('../utils/validators');
+const { validatePassword, validateOptionalEmail, validateUsername, normalizeUsername } = require('../utils/validators');
 const { StaffProfile, Branch } = require('../models');
 
 const router = express.Router();
@@ -13,7 +13,7 @@ numericIdParams(router);
 
 // Never let passwords reach the audit log.
 const safeUser = (u) => ({
-  id: u.id, name: u.name, email: u.email, role: u.role, status: u.status,
+  id: u.id, name: u.name, username: u.username, email: u.email, role: u.role, status: u.status,
 });
 
 const STAFF_INCLUDE = {

@@ -1,8 +1,7 @@
 // src/pages/SalesPage.tsx
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   TrendingUp,
-  DollarSign,
   ShoppingCart,
   Package,
   Calendar,
@@ -11,11 +10,9 @@ import {
   Eye,
   Receipt,
   User,
-  CreditCard,
-  ArrowUpRight,
   Zap,
   X,
-  ChevronDown
+  Filter,
 } from 'lucide-react';
 import { useAppStore } from '../store';
 import { Card } from '../components/ui/Card';
@@ -23,16 +20,17 @@ import { Pagination } from '../components/ui/Pagination';
 import { usePagination } from '../hooks/usePagination';
 import { Transaction } from '../types';
 import { DocumentDetailsModal } from '../components/DocumentDetailsModal';
-import { formatPaymentMethod } from '../utils/document';
+import { formatPaymentMethod, paymentMethodKey, paymentMethodMeta } from '../utils/document';
+import { safeNumber } from '../utils/number';
 
 export const SalesPage: React.FC = () => {
   const [dateRange, setDateRange] = useState('today');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [methodFilter, setMethodFilter] = useState<string | null>(null);
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
-  const [showCustomDate, setShowCustomDate] = useState(false);
 
   // --- Shared field style ---
   const fieldStyle: React.CSSProperties = {
@@ -57,7 +55,7 @@ export const SalesPage: React.FC = () => {
     e.currentTarget.style.boxShadow = 'none';
   };
 
-  const { currentUser, transactions, products } = useAppStore();
+  const { transactions } = useAppStore();
 
   // Filter transactions by date range
   const filteredTransactions = useMemo(() => {
@@ -98,84 +96,86 @@ export const SalesPage: React.FC = () => {
     const query = searchQuery.toLowerCase();
     return filteredTransactions.filter(
       (t) =>
-        t.transactionNumber.toLowerCase().includes(query) ||
-        t.cashierName.toLowerCase().includes(query) ||
-        t.paymentMethod.toLowerCase().includes(query) ||
+        (t.transactionNumber || '').toLowerCase().includes(query) ||
+        (t.cashierName || '').toLowerCase().includes(query) ||
+        (t.paymentMethod || '').toLowerCase().includes(query) ||
+        formatPaymentMethod(t.paymentMethod).toLowerCase().includes(query) ||
+        formatPaymentMethod(t.paymentMethod, 'short').toLowerCase().includes(query) ||
         (t.customerName && t.customerName.toLowerCase().includes(query)) ||
         (t.customerPhone && t.customerPhone.toLowerCase().includes(query))
     );
   }, [filteredTransactions, searchQuery]);
 
-  // Calculate metrics
-  const pager = usePagination(searchedTransactions, {
-    resetKey: `${dateRange}|${startDate}|${endDate}|${searchQuery}`,
+  // Clicking a payment card narrows the table without changing the breakdown above it.
+  const visibleTransactions = useMemo(() => {
+    if (!methodFilter) return searchedTransactions;
+    return searchedTransactions.filter((t) => paymentMethodKey(t.paymentMethod) === methodFilter);
+  }, [searchedTransactions, methodFilter]);
+
+  const pager = usePagination(visibleTransactions, {
+    resetKey: `${dateRange}|${startDate}|${endDate}|${searchQuery}|${methodFilter}`,
   });
 
   const metrics = useMemo(() => {
-    const totalRevenue = searchedTransactions.reduce((sum, t) => sum + t.total, 0);
+    const totalRevenue = searchedTransactions.reduce((sum, t) => sum + safeNumber(t.total), 0);
     const totalTransactions = searchedTransactions.length;
     const totalItemsSold = searchedTransactions.reduce(
-      (sum, t) => sum + t.items.reduce((itemSum, item) => itemSum + item.quantity, 0),
+      (sum, t) => sum + (t.items || []).reduce((itemSum, item) => itemSum + safeNumber(item.quantity), 0),
       0
     );
 
-    const paymentBreakdown = searchedTransactions.reduce((acc, t) => {
-      if (t.paymentMethod === 'cash') return acc;
+    // Every method that appears in the range gets a card — cash included.
+    const buckets: Record<string, { count: number; revenue: number; items: number }> = {};
+    searchedTransactions.forEach((t) => {
+      const key = paymentMethodKey(t.paymentMethod) || 'unknown';
+      if (!buckets[key]) buckets[key] = { count: 0, revenue: 0, items: 0 };
+      buckets[key].count += 1;
+      buckets[key].revenue += safeNumber(t.total);
+      buckets[key].items += (t.items || []).reduce((sum, item) => sum + safeNumber(item.quantity), 0);
+    });
 
-      if (!acc[t.paymentMethod]) {
-        acc[t.paymentMethod] = { count: 0, revenue: 0 };
-      }
-      acc[t.paymentMethod].count += 1;
-      acc[t.paymentMethod].revenue += t.total;
-      return acc;
-    }, {} as Record<string, { count: number; revenue: number }>);
+    const paymentBreakdown = Object.entries(buckets)
+      .map(([key, data]) => ({ key, ...data, meta: paymentMethodMeta(key) }))
+      .sort((a, b) => b.revenue - a.revenue || b.count - a.count);
 
-    const cashTransactions = searchedTransactions.filter(t => t.paymentMethod === 'cash');
-    const cashRevenue = cashTransactions.reduce((sum, t) => sum + t.total, 0);
-    const cashCount = cashTransactions.length;
+    const visibleRevenue = visibleTransactions.reduce((sum, t) => sum + safeNumber(t.total), 0);
 
     return {
       totalRevenue,
       totalTransactions,
       totalItemsSold,
+      averageSale: totalTransactions > 0 ? totalRevenue / totalTransactions : 0,
       paymentBreakdown,
-      cashRevenue,
-      cashCount,
+      visibleRevenue,
     };
-  }, [searchedTransactions]);
+  }, [searchedTransactions, visibleTransactions]);
 
-  // Export to CSV
+  // Export exactly what the table is showing, with spreadsheet-safe quoting.
   const exportToCSV = () => {
-    const csvData = [
-      ['Transaction Number', 'Date', 'Cashier', 'Customer', 'Payment Method', 'Items', 'Subtotal', 'Tax', 'Discount', 'Total'],
-      ...searchedTransactions.map((t) => [
+    const rows: (string | number)[][] = [
+      ['Transaction Number', 'Date', 'Cashier', 'Customer', 'Phone', 'Payment Method', 'Items', 'Subtotal', 'Tax', 'Discount', 'Total'],
+      ...visibleTransactions.map((t) => [
         t.transactionNumber,
         new Date(t.createdAt).toLocaleString(),
-        t.cashierName,
-        t.customerName || 'N/A',
-        t.paymentMethod,
-        t.items.reduce((sum, item) => sum + item.quantity, 0),
-        t.subtotal.toFixed(2),
-        t.tax.toFixed(2),
-        (t.discount || 0).toFixed(2),
-        t.total.toFixed(2),
+        t.cashierName || '',
+        t.customerName || 'Walk-in',
+        t.customerPhone || '',
+        formatPaymentMethod(t.paymentMethod),
+        (t.items || []).reduce((sum, item) => sum + safeNumber(item.quantity), 0),
+        safeNumber(t.subtotal).toFixed(2),
+        safeNumber(t.tax).toFixed(2),
+        safeNumber(t.discount).toFixed(2),
+        safeNumber(t.total).toFixed(2),
       ]),
-      [
-        'TOTAL',
-        '',
-        '',
-        '',
-        '',
-        '',
-        '',
-        '',
-        '',
-        metrics.totalRevenue.toFixed(2)
-      ]
+      ['TOTAL', '', '', '', '', methodFilter ? formatPaymentMethod(methodFilter) : (searchQuery.trim() ? 'Search results' : 'All methods'), '', '', '', '', metrics.visibleRevenue.toFixed(2)],
     ];
 
-    const csvContent = csvData.map((row) => row.join(',')).join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const cell = (value: string | number) => {
+      const text = String(value ?? '');
+      return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+    };
+    const csvContent = rows.map((row) => row.map(cell).join(',')).join('\r\n');
+    const blob = new Blob([`﻿${csvContent}`], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -189,106 +189,75 @@ export const SalesPage: React.FC = () => {
     setShowDetailsModal(true);
   };
 
-  const getPaymentMethodIcon = (method: string) => {
-    switch (method) {
-      case 'cash':
-        return DollarSign;
-      case 'mtn':
-      case 'vodafone':
-      case 'airteltigo':
-        return CreditCard;
-      default:
-        return CreditCard;
-    }
-  };
-
-  const getPaymentMethodColor = (method: string) => {
-    switch (method) {
-      case 'cash':
-        return 'var(--color-success)';
-      case 'mtn':
-        return 'var(--color-warning)';
-      case 'vodafone':
-        return 'var(--color-danger)';
-      case 'airteltigo':
-        return 'var(--color-accent)';
-      default:
-        return 'var(--color-text-muted)';
-    }
-  };
-
   const handleDateRangeChange = (range: string) => {
     setDateRange(range);
-    if (range !== 'custom') {
-      setShowCustomDate(false);
-    } else {
-      setShowCustomDate(true);
-    }
+    setMethodFilter(null);
   };
+
+  const rangeLabel =
+    dateRange === 'custom' && startDate && endDate
+      ? `${startDate} → ${endDate}`
+      : { today: 'since midnight', week: 'last 7 days', month: 'last 30 days', all: 'all time', custom: 'set both dates' }[dateRange] || 'all time';
 
   return (
     <div className="space-y-6 pb-6">
       {/* Header */}
-      <div className="mb-5">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
-          <div>
-            <h1 className="text-base font-bold" style={{ color: 'var(--color-text-primary)' }}>Sales Management</h1>
-            <p className="text-[0.72rem] mt-0.5" style={{ color: 'var(--color-text-muted)' }}>Track and manage all sales transactions</p>
-
-            <div className="flex flex-wrap items-center gap-4 mt-3">
-              <div className="flex items-center gap-2">
-                <DollarSign className="h-3.5 w-3.5" style={{ color: 'var(--color-success-text)' }} />
-                <span className="text-[0.7rem]" style={{ color: 'var(--color-text-muted)' }}>
-                  Total: <strong style={{ color: 'var(--color-text-primary)' }}>GHS {metrics.totalRevenue.toFixed(2)}</strong>
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <ShoppingCart className="h-3.5 w-3.5" style={{ color: 'var(--color-accent-text)' }} />
-                <span className="text-[0.7rem]" style={{ color: 'var(--color-text-muted)' }}>
-                  Transactions: <strong style={{ color: 'var(--color-text-primary)' }}>{metrics.totalTransactions}</strong>
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Package className="h-3.5 w-3.5" style={{ color: 'var(--color-warning-text)' }} />
-                <span className="text-[0.7rem]" style={{ color: 'var(--color-text-muted)' }}>
-                  Items: <strong style={{ color: 'var(--color-text-primary)' }}>{metrics.totalItemsSold}</strong>
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <DollarSign className="h-3.5 w-3.5" style={{ color: 'var(--color-success-text)' }} />
-                <span className="text-[0.7rem]" style={{ color: 'var(--color-text-muted)' }}>
-                  Cash: <strong style={{ color: 'var(--color-text-primary)' }}>GHS {metrics.cashRevenue.toFixed(2)}</strong>
-                </span>
-                <span className="text-[0.65rem]" style={{ color: 'var(--color-text-muted)' }}>({metrics.cashCount})</span>
-              </div>
-            </div>
-          </div>
-          <div className="flex flex-col sm:flex-row gap-2">
-            <div className="flex items-center gap-2 px-3 py-1.5 border rounded-lg" style={{ borderColor: 'var(--color-border)' }}>
-              <Zap className="h-3.5 w-3.5" style={{ color: 'var(--color-warning)' }} />
-              <span className="text-[0.72rem] font-medium" style={{ color: 'var(--color-text-secondary)' }}>Live Sales</span>
-            </div>
-            <button
-              onClick={exportToCSV}
-              className="btn-success flex items-center justify-center gap-2 px-4 py-1.5 text-[0.75rem]"
-            >
-              <Download className="h-3.5 w-3.5" />
-              Export CSV
-            </button>
-          </div>
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+        <div>
+          <h1 className="text-base font-bold" style={{ color: 'var(--color-text-primary)' }}>Sales Management</h1>
+          <p className="text-[0.72rem] mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
+            Every completed sale, broken down by how it was paid
+          </p>
         </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 px-3 py-1.5 border rounded-lg" style={{ borderColor: 'var(--color-border)' }}>
+            <Zap className="h-3.5 w-3.5" style={{ color: 'var(--color-warning)' }} />
+            <span className="text-[0.72rem] font-medium" style={{ color: 'var(--color-text-secondary)' }}>Live Sales</span>
+          </div>
+          <button
+            onClick={exportToCSV}
+            disabled={visibleTransactions.length === 0}
+            className="btn-success flex items-center justify-center gap-2 px-4 py-1.5 text-[0.75rem] disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Download className="h-3.5 w-3.5" />
+            Export CSV
+          </button>
+        </div>
+      </div>
+
+      {/* Headline numbers */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {[
+          { label: 'Total revenue', value: `GHS ${metrics.totalRevenue.toFixed(2)}`, icon: TrendingUp, token: '--color-success', tint: '--color-success-light', note: rangeLabel },
+          { label: 'Transactions', value: String(metrics.totalTransactions), icon: ShoppingCart, token: '--color-accent', tint: '--color-accent-light', note: `${metrics.paymentBreakdown.length} payment ${metrics.paymentBreakdown.length === 1 ? 'method' : 'methods'}` },
+          { label: 'Items sold', value: String(metrics.totalItemsSold), icon: Package, token: '--color-warning', tint: '--color-warning-light', note: 'units across all sales' },
+          { label: 'Average sale', value: `GHS ${metrics.averageSale.toFixed(2)}`, icon: Receipt, token: '--color-info', tint: '--color-info-light', note: 'per transaction' },
+        ].map((kpi) => (
+          <Card key={kpi.label} className="p-3.5">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-[0.68rem] font-semibold uppercase tracking-wide truncate" style={{ color: 'var(--color-text-muted)' }}>{kpi.label}</p>
+                <p className="text-lg font-bold mt-1 tabular-nums truncate" style={{ color: 'var(--color-text-primary)' }}>{kpi.value}</p>
+                <p className="text-[0.65rem] mt-0.5 truncate" style={{ color: 'var(--color-text-secondary)' }}>{kpi.note}</p>
+              </div>
+              <div className="p-2 rounded-lg shrink-0" style={{ background: `var(${kpi.tint})` }}>
+                <kpi.icon className="h-4 w-4" style={{ color: `var(${kpi.token})` }} />
+              </div>
+            </div>
+          </Card>
+        ))}
       </div>
 
       {/* Search and Date Range */}
       <Card className="p-4">
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-          <div className="relative flex-1 max-w-xs min-w-0">
+          <div className="relative flex-1 sm:max-w-sm min-w-0">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search transactions..."
+              placeholder="Search number, cashier, customer or payment..."
               className="input-base w-full pl-10 pr-4 text-sm"
               style={{ ...fieldStyle, paddingLeft: '2.5rem' }}
               onFocus={onFieldFocus}
@@ -366,45 +335,106 @@ export const SalesPage: React.FC = () => {
         </div>
       </Card>
 
-      {/* Payment Method Breakdown */}
-      {Object.keys(metrics.paymentBreakdown).length > 0 && (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-          {Object.entries(metrics.paymentBreakdown).map(([method, data]) => {
-            const Icon = getPaymentMethodIcon(method);
-            const percentage = ((data.count / metrics.totalTransactions) * 100).toFixed(1);
-            const color = getPaymentMethodColor(method);
-            return (
-              <Card key={method} className="p-3 border-theme hover:border-accent transition-all duration-200">
-                <div className="flex items-center justify-between">
-                  <div className="p-2 rounded-lg" style={{ background: color, color: 'var(--color-accent-fg)' }}>
-                    <Icon className="h-4 w-4" />
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-bold text-primary tabular-nums">{data.count}</p>
-                    <p className="text-xs text-secondary">txns</p>
-                  </div>
-                </div>
-                <h3 className="font-semibold text-sm text-primary mt-2 truncate">{formatPaymentMethod(method)}</h3>
-                <p className="text-sm font-bold" style={{ color: 'var(--color-accent-text)' }}>GHS {data.revenue.toFixed(2)}</p>
-                <p className="text-xs text-secondary">{percentage}% of total</p>
-              </Card>
-            );
-          })}
+      {/* Payment Method Breakdown — every method in the range, cash included */}
+      <div>
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-2.5">
+          <div className="flex items-center gap-2">
+            <Filter className="h-3.5 w-3.5" style={{ color: 'var(--color-text-muted)' }} />
+            <h2 className="text-[0.8rem] font-bold" style={{ color: 'var(--color-text-primary)' }}>Payment methods</h2>
+            <span className="text-[0.68rem]" style={{ color: 'var(--color-text-muted)' }}>
+              {metrics.paymentBreakdown.length === 0
+                ? 'none in this range'
+                : `${metrics.paymentBreakdown.length} used · tap a card to filter the table`}
+            </span>
+          </div>
+          {methodFilter && (
+            <button
+              onClick={() => setMethodFilter(null)}
+              className="btn-ghost flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[0.7rem] font-semibold"
+            >
+              <X className="h-3 w-3" />
+              Clear filter
+            </button>
+          )}
         </div>
-      )}
+
+        {metrics.paymentBreakdown.length === 0 ? (
+          <Card className="p-6 text-center">
+            <Receipt className="h-7 w-7 mx-auto mb-2" style={{ color: 'var(--color-text-muted)' }} />
+            <p className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>No payments in this range</p>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-secondary)' }}>
+              Widen the date range or clear the search to see how sales were paid.
+            </p>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
+            {metrics.paymentBreakdown.map(({ key, count, revenue, items, meta }) => {
+              const share = metrics.totalRevenue > 0 ? (revenue / metrics.totalRevenue) * 100 : 0;
+              const active = methodFilter === key;
+              const Icon = meta.icon;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setMethodFilter(active ? null : key)}
+                  aria-pressed={active}
+                  className="text-left rounded-xl p-3.5 transition-all duration-200 hover:-translate-y-0.5 focus:outline-none"
+                  style={{
+                    background: 'var(--color-bg-surface)',
+                    border: `1px solid ${active ? `var(${meta.color})` : 'var(--color-border)'}`,
+                    boxShadow: active ? `0 0 0 2px var(${meta.tint}), var(--shadow-card)` : 'var(--shadow-card)',
+                  }}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="p-2 rounded-lg shrink-0" style={{ background: `var(${meta.tint})` }}>
+                        <Icon className="h-4 w-4" style={{ color: `var(${meta.color})` }} />
+                      </div>
+                      <span className="text-[0.78rem] font-bold truncate" style={{ color: 'var(--color-text-primary)' }}>
+                        {meta.full}
+                      </span>
+                    </div>
+                    {active && (
+                      <span className="text-[0.6rem] font-bold uppercase px-1.5 py-0.5 rounded shrink-0" style={{ background: `var(${meta.tint})`, color: `var(${meta.color})` }}>
+                        Filtering
+                      </span>
+                    )}
+                  </div>
+
+                  <p className="text-lg font-bold mt-2.5 tabular-nums" style={{ color: `var(${meta.color})` }}>
+                    GHS {revenue.toFixed(2)}
+                  </p>
+
+                  <div className="h-1.5 rounded-full mt-2 overflow-hidden" style={{ background: 'var(--color-bg-subtle)' }}>
+                    <div
+                      className="h-full rounded-full transition-all duration-500"
+                      style={{ width: `${Math.max(share, revenue > 0 ? 2 : 0)}%`, background: `var(${meta.color})` }}
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between gap-2 mt-2 text-[0.68rem]" style={{ color: 'var(--color-text-secondary)' }}>
+                    <span className="tabular-nums">{count} {count === 1 ? 'sale' : 'sales'} · {items} {items === 1 ? 'item' : 'items'}</span>
+                    <span className="font-bold tabular-nums" style={{ color: 'var(--color-text-primary)' }}>{share.toFixed(1)}%</span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
       {/* Transaction History */}
       <Card>
         <div className="px-4 py-3 border-b border-theme">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-            <div>
+            <div className="min-w-0">
               <h2 className="text-base font-bold text-primary">Transaction History</h2>
               <p className="text-sm text-secondary">
-                {searchedTransactions.length} transactions
-                {metrics.cashCount > 0 && ` • ${metrics.cashCount} cash`}
+                {visibleTransactions.length} {visibleTransactions.length === 1 ? 'transaction' : 'transactions'}
+                {methodFilter && ` · ${formatPaymentMethod(methodFilter)} only`}
               </p>
             </div>
-            <div className="flex items-center gap-1 text-sm text-secondary">
+            <div className="flex items-center gap-1 text-sm text-secondary shrink-0">
               <TrendingUp className="h-3.5 w-3.5" />
               <span>Real-time Updates</span>
             </div>
@@ -441,19 +471,27 @@ export const SalesPage: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-theme">
-              {searchedTransactions.length === 0 ? (
+              {visibleTransactions.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="px-4 py-8 text-center">
                     <Receipt className="h-8 w-8 text-muted mx-auto mb-2" />
                     <p className="text-sm font-medium text-primary">No transactions found</p>
                     <p className="text-xs text-secondary">No transactions match your current filters</p>
+                    {methodFilter && (
+                      <button
+                        onClick={() => setMethodFilter(null)}
+                        className="btn-ghost mt-3 px-3 py-1.5 rounded-lg text-xs font-semibold"
+                      >
+                        Show all payment methods
+                      </button>
+                    )}
                   </td>
                 </tr>
               ) : (
                 <>
                   {pager.pageItems.map((transaction) => {
-                    const PaymentIcon = getPaymentMethodIcon(transaction.paymentMethod);
-                    const color = getPaymentMethodColor(transaction.paymentMethod);
+                    const meta = paymentMethodMeta(transaction.paymentMethod);
+                    const PaymentIcon = meta.icon;
                     return (
                       <tr key={transaction.id} className="hover:bg-subtle transition-colors group">
                         <td className="px-3 py-3 text-sm font-semibold text-primary whitespace-nowrap group-hover:text-accent transition-colors">
@@ -491,22 +529,24 @@ export const SalesPage: React.FC = () => {
                           <div className="flex items-center gap-1">
                             <Package className="h-3 w-3 text-muted" />
                             <span className="font-semibold text-primary tabular-nums">
-                              {transaction.items.reduce((sum, item) => sum + item.quantity, 0)}
+                              {(transaction.items || []).reduce((sum, item) => sum + safeNumber(item.quantity), 0)}
                             </span>
                           </div>
                         </td>
                         <td className="px-3 py-3 whitespace-nowrap">
-                          <div className="flex items-center gap-1">
-                            <div className="p-1.5 rounded-lg" style={{ background: color, color: 'var(--color-accent-fg)' }}>
-                              <PaymentIcon className="h-3 w-3" />
-                            </div>
-                            <span className="text-sm font-semibold text-secondary capitalize truncate max-w-[60px]">
-                              {formatPaymentMethod(transaction.paymentMethod)}
+                          <div
+                            className="inline-flex items-center gap-1.5 pl-1.5 pr-2 py-1 rounded-lg max-w-[150px]"
+                            style={{ background: `var(${meta.tint})` }}
+                            title={meta.full}
+                          >
+                            <PaymentIcon className="h-3.5 w-3.5 shrink-0" style={{ color: `var(${meta.color})` }} />
+                            <span className="text-[0.72rem] font-bold truncate" style={{ color: `var(${meta.color})` }}>
+                              {meta.short}
                             </span>
                           </div>
                         </td>
                         <td className="px-3 py-3 text-sm font-bold text-primary text-right whitespace-nowrap tabular-nums">
-                          GHS {transaction.total.toFixed(2)}
+                          GHS {safeNumber(transaction.total).toFixed(2)}
                         </td>
                         <td className="px-3 py-3 whitespace-nowrap">
                           <button
@@ -522,19 +562,19 @@ export const SalesPage: React.FC = () => {
                   })}
 
                   {/* TOTAL ROW */}
-                  {searchedTransactions.length > 0 && (
+                  {visibleTransactions.length > 0 && (
                     <tr
                       className="border-t-2 border-theme-strong"
                       style={{ background: 'var(--color-bg-subtle)' }}
                     >
                       <td colSpan={6} className="px-3 py-3 text-right">
                         <span className="text-sm font-bold" style={{ color: 'var(--color-text-primary)' }}>
-                          TOTAL SALES
+                          {methodFilter ? `${formatPaymentMethod(methodFilter).toUpperCase()} TOTAL` : 'TOTAL SALES'}
                         </span>
                       </td>
                       <td className="px-3 py-3 text-right">
                         <span className="text-base font-bold" style={{ color: 'var(--color-accent-text)' }}>
-                          GHS {metrics.totalRevenue.toFixed(2)}
+                          GHS {metrics.visibleRevenue.toFixed(2)}
                         </span>
                       </td>
                       <td className="px-3 py-3"></td>

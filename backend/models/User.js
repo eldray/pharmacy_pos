@@ -1,5 +1,6 @@
 // backend/models/User.js
 const { sequelize, DataTypes } = require('../config/database');
+const { normalizeUsername, usernameFromEmail } = require('../utils/validators');
 
 const User = sequelize.define('User', {
   id: {
@@ -11,9 +12,14 @@ const User = sequelize.define('User', {
     type: DataTypes.STRING,
     allowNull: false
   },
+  username: {
+    type: DataTypes.STRING(30),
+    allowNull: false,
+    unique: true
+  },
   email: {
     type: DataTypes.STRING,
-    allowNull: false,
+    allowNull: true,
     unique: true,
     validate: { isEmail: true }
   },
@@ -35,6 +41,13 @@ const User = sequelize.define('User', {
   tableName: 'users',
   timestamps: true,
   hooks: {
+    beforeValidate: (user) => {
+      if (typeof user.email === 'string') {
+        user.email = user.email.trim().toLowerCase() || null;
+      }
+      // Callers that predate usernames (and the seed) pass only an address.
+      user.username = normalizeUsername(user.username) || usernameFromEmail(user.email, `user${user.id || ''}`);
+    },
     beforeCreate: async (user) => {
       const bcrypt = require('bcryptjs');
       if (user.password) {

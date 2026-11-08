@@ -324,7 +324,7 @@ router.post('/:id/pay', auth, async (req, res) => {
             paymentReference: paymentReference || null,
             customerName: order.patientName,
             customerPhone: order.patientPhone,
-            notes: `Lab Service Order #${order.orderNumber}`,
+            notes: order.notes || null,
         }, { transaction: t });
 
         // ── 4. Mark order paid ────────────────────────────────────────

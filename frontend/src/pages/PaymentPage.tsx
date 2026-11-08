@@ -3,14 +3,14 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   CreditCard, Search, CheckCircle, Clock,
   X, Printer, RefreshCw, Receipt, User, Shield, FlaskConical,
-  ChevronRight, Banknote, Smartphone, AlertCircle, Ban,
+  ChevronRight, AlertCircle, Ban,
 } from 'lucide-react';
 import api, { getErrorMessage } from '../api/api';
 import { SalesOrder, LabTransaction, PaymentMethod } from '../types';
 import { useAppStore } from '../store';
 import { useSearchParams } from 'react-router-dom';
 import { safeNumber } from '../utils/number';
-import { formatPaymentMethod, normalizeDocument } from '../utils/document';
+import { formatPaymentMethod, normalizeDocument, paymentMethodMeta } from '../utils/document';
 import { printDocument } from '../utils/receiptHtml';
 import { describePrintOutcome } from '../utils/printEngine';
 import { Pagination } from '../components/ui';
@@ -119,12 +119,9 @@ const statusBadge = (status: string, paymentStatus?: string) => {
   );
 };
 
-const paymentIcons: Record<string, React.ReactNode> = {
-  cash: <Banknote style={{ width: 18, height: 18 }} />,
-  card: <CreditCard style={{ width: 18, height: 18 }} />,
-  mtn: <Smartphone style={{ width: 18, height: 18 }} />,
-  vodafone: <Smartphone style={{ width: 18, height: 18 }} />,
-  airteltigo: <Smartphone style={{ width: 18, height: 18 }} />,
+const PaymentIconFor: React.FC<{ method: string }> = ({ method }) => {
+  const Icon = paymentMethodMeta(method).icon;
+  return <Icon style={{ width: 18, height: 18 }} />;
 };
 
 /* ─── Type guards & helpers ──────────────────────────────────────── */
@@ -753,7 +750,7 @@ export const PaymentPage: React.FC = () => {
                                 cursor: 'pointer', fontSize: '11px', fontWeight: 600, transition: 'all 100ms',
                               }}
                             >
-                              {paymentIcons[pm]}
+                              <PaymentIconFor method={pm} />
                               {formatPaymentMethod(pm, 'short')}
                             </button>
                           ))}

@@ -96,8 +96,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, userRole }) =
         />
       )}
 
+      {/* --sidebar-width drops to 0 below 768px because it drives the content offset.
+          The drawer itself still needs a real width, or its contents spill over the page. */}
+      <style>{`
+        .app-sidebar-drawer { width: min(280px, 85vw); }
+        @media (min-width: 1024px) { .app-sidebar-drawer { width: var(--sidebar-width); } }
+      `}</style>
+
       <aside
         className={`
+          app-sidebar-drawer
           fixed top-0 left-0 h-screen
           flex flex-col
           transform transition-transform duration-300 ease-in-out
@@ -106,7 +114,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, userRole }) =
         `}
         style={{
           zIndex: 'var(--z-sidebar)',
-          width: 'var(--sidebar-width)',
           background: 'var(--color-sidebar-bg)',
           borderRight: '1px solid var(--color-sidebar-border)',
           transition: 'transform 300ms ease, background 200ms ease, border-color 200ms ease',

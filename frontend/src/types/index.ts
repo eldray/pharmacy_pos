@@ -198,8 +198,8 @@ export interface CartItem {
   discount?: number;
 }
 
-// Payment Method type
-export type PaymentMethod = 'cash' | 'mtn' | 'vodafone' | 'airteltigo' | 'card';
+// Payment Method type — must match PAYMENT_METHODS in backend/utils/validators.js
+export type PaymentMethod = 'cash' | 'mtn' | 'vodafone' | 'airteltigo' | 'card' | 'insurance' | 'refund';
 
 // Transaction type
 export interface Transaction {
